@@ -1,0 +1,6 @@
+packages:
+  - frontend/apps/*
+  - frontend/packages/*
+
+allowBuilds:
+  esbuild: true

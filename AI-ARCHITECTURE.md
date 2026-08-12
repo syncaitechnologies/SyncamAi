@@ -170,7 +170,7 @@ All latency/VRAM figures: **Jetson Orin NX 16GB, TensorRT INT8** (unless noted),
 | Hardware | Orin NX fine; T4 for batch re-embedding |
 | Expected Accuracy | TAR ≥0.96 @ FAR 1e-4; attendance-grade: ≥0.98 TAR @ 1e-3 site-tuned |
 | Failure Cases | Age/clothing drift, twins (documented), enrollment photo vs camera lighting gap, 45°+ yaw |
-| Optimization | 112×112 input, FP16; embedding cache in memory (10k enrollments ≈ 20MB) |
+| Optimization | 112×112 input, FP16; minimum tenant-scoped matching index held transiently inside the face-engine process (10k enrollments ≈ 20MB), never in a shared/persistent cache; wipe on tenant unload/restart |
 | Edge Deployment | Full attendance loop offline (G1/§14 resilience) |
 | Cloud Deployment | Re-embedding, multi-site dedupe, HRIS sync |
 | GPU Recommendation | Orin NX → T4 |

@@ -913,7 +913,7 @@ sequenceDiagram
 
 | Lever | Action |
 |---|---|
-| Lifecycle (OD-08) | Intelligent-Tiering; evidence IA after 30d → Glacier after 365d; archive 720p: IA 7d → Glacier 30d; tenant-configurable retention (7/30/90/365d) enforced by prefix lifecycle |
+| Lifecycle (OD-08) | Intelligent-Tiering; evidence IA after 30d → Glacier after 365d; archive 720p: IA 7d → Glacier 30d; tenant-configurable retention from 7–365d with UI presets 7/15/30/90/365d, enforced by prefix lifecycle |
 | Archive opt-in | Cloud archive is **off by default**; edge holds 30d locally (ARCHITECTURE §6.3) |
 | Encoding | H.265 re-encode for preview/archive (720p/1080p); keyframe fragments; audio stripped where unused |
 | Object hygiene | Evidence MP4s only on event; snapshots 30d; debug bundles 90d; no raw archive of non-event video |

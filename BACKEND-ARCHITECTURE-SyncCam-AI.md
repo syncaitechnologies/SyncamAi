@@ -1154,7 +1154,7 @@ Task semantics: consumer ack after side-effect; `reject + requeue=false` after `
 - **Cache-aside with TTL** for read-heavy config; **write-through** never used (Postgres is truth — B1).
 - **Invalidation by event**, not TTL-only: `config.changed` fans out to a Redis invalidator; config converges edge-first anyway (ARCHITECTURE §3.3).
 - **Redis Cluster mode** (3 nodes, multi-AZ); keys use `{tenant}` hash tags for multi-key ops; AOF fsync=everysec + RDB snapshots (RPO ≤5 min per ARCHITECTURE §18).
-- **Never cache:** biometric embeddings in plaintext memory (only encrypted store + OpenSearch k-NN), raw video, audit rows, per-request evidence URLs.
+- **Never cache persistently or in shared cache:** plaintext biometric embeddings, raw video, audit rows, or per-request evidence URLs. A face engine may hold the minimum tenant-scoped embedding index transiently in process memory for matching; it must not enter Redis, logs, crash dumps, browser state, or disk, and buffers are wiped on tenant unload/restart.
 - **Dedupe sizing:** 1,000 ev/s × 300s × ~64 B ≈ **19 MB** per region — negligible; aggregation windows bounded per (camera, type).
 
 ---

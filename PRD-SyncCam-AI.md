@@ -69,7 +69,8 @@ Organizations deploy CCTV for safety and security but receive almost no intellig
 |---|---|---|
 | FR-101 | **Weapon Detection** | Detect knives & firearms from 10–40m; alert within ≤3s; confidence threshold configurable per site (0.5–0.9); suppress false positives (e.g., tool-like objects) via per-site tuning |
 | FR-102 | **Face Recognition Attendance** | Enroll staff (ID, face embeddings); mark attendance on camera entry/exit; liveness check (anti-spoof) required; tolerance configurable (95–99% match); export to payroll/HRIS APIs |
-| FR-103 | **Vehicle Detection** | Detect cars/trucks/bikes; classify class, color, speed (optional); event log per detection |
+| FR-103a | **Vehicle Detection (MVP event-only)** | Detect cars/trucks/bikes through the shared detector and emit reviewable vehicle-activity events; no identity, theft conclusion, speed, or cross-camera tracking |
+| FR-103b | **Vehicle Detection (Phase 2 full)** | Add class/color enrichment and optional calibrated speed estimation; remains distinct from vehicle tracking/ReID |
 | FR-104 | **Vehicle Tracking** | Track vehicles across cameras (multi-camera handoff using ReID); dwell-time per zone; trip counts per gate |
 | FR-105 | **License Plate Recognition (LPR)** | ANPR for standard plates; configurable regions (IN/EU/US formats); whitelist/blacklist matching → gate actions & alerts; night/rain robustness |
 | FR-106 | **PPE Detection** | Detect helmets, vests, masks, gloves, safety glasses, boots; per-zone PPE matrix (e.g., welding bay requires all 6); alert + photo evidence; daily PPE compliance % per zone |
@@ -92,7 +93,7 @@ Organizations deploy CCTV for safety and security but receive almost no intellig
 - **FR-201:** Live & recorded viewing — multi-view, timeline scrub, PTZ control via ONVIF.
 - **FR-202:** Camera onboarding — automatic discovery (RTSP/ONVIF/H.264/H.265), batch add, config templates.
 - **FR-203:** Zone & rule builder — draw zones/lines/tripwires on live video; per-camera rule sets.
-- **FR-204:** Roles & permissions — RBAC (Super Admin, Operator, Auditor, Viewer) with least-privilege defaults.
+- **FR-204:** Roles & permissions — RBAC (Super Admin, Site Admin, Operator, Auditor, Viewer) with least-privilege defaults.
 - **FR-205:** API suite — REST + webhooks for event streams, exports, and third-party integration (access control, HRMS, insurance, ERP).
 - **FR-206:** Multi-tenancy — site/company isolation; per-tenant settings, storage, and billing.
 - **FR-207:** Dashboards — live ops view, incident feed, compliance scorecards, per-vertical templates.
@@ -148,12 +149,14 @@ Organizations deploy CCTV for safety and security but receive almost no intellig
 - Weapon Detection, Fire & Smoke Detection, Intrusion Detection, Restricted Zone Detection
 - PPE Detection, Fall Detection, Fight Detection, Loitering Detection
 - Face Recognition Attendance (with liveness)
+- Vehicle class detection as event-only activity (FR-103a); no LPR/ReID/theft conclusion
+- Abandoned Object logic using detector tracks and temporal confirmation
 - Camera Health Monitoring, Smart Notifications
 - AI Incident Reports, Multi-Camera Live View + Playback
 - ONVIF/RTSP ingest, RBAC, multi-tenant dashboards
 
 ### Should Have (MVP+)
-- Vehicle Detection & Tracking, LPR with whitelist/blacklist
+- Full Vehicle Detection & Tracking (FR-103b/FR-104), LPR with whitelist/blacklist
 - Unauthorized Entry (face+plate+zone fusion)
 - Crowd Monitoring & Occupancy Analytics
 - Webhooks/API for HRIS & access-control integration
@@ -197,13 +200,13 @@ Organizations deploy CCTV for safety and security but receive almost no intellig
 
 **Hardware/Edge:** One reference edge appliance (NVIDIA Jetson Orin-class, 16–32 camera streams), with cloud dashboard; local-only deployment option.
 
-**Models (v1):** weapon, fire/smoke, intrusion, restricted-zone, PPE (4 classes: helmet/vest/mask/gloves — expand later), fall, fight, loitering, face-recognition attendance.
+**Models/engines (v1):** 12 engines: shared detector (person/weapon/PPE/vehicle/fire-hotspot), pose (fall/fight), face stack (detection/embedding/liveness), fire and smoke classifiers, track/zone logic (intrusion/restricted-zone/loitering/abandoned object), and camera health. Vehicle output is event-only under FR-103a.
 
-**Platform:** Live view + playback, zone/rule builder, alert center with severity routing (app/email/SMS), AI incident reports (PDF/CSV), camera health, RBAC, 3 dashboards (Ops, Safety, Attendance), REST API + webhooks.
+**Platform:** Live view + playback, zone/rule builder, alert center with severity routing (app/email/SMS), AI incident reports (PDF/CSV), camera health, RBAC, FR-207 dashboard infrastructure with 3 seeded dashboards (Ops, Safety, Attendance), REST API + webhooks.
 
 **Data:** 30-day default retention, per-tenant config; audit log for admin actions.
 
-**Out of MVP:** LPR, vehicle tracking, crowd analytics, multi-camera ReID, mobile app (web-PWA only), marketplace.
+**Out of MVP:** full vehicle class/color/speed enrichment, LPR, vehicle tracking/ReID, theft-risk scoring, crowd/occupancy analytics, multi-camera ReID, mobile app (web-PWA only), marketplace.
 
 ---
 

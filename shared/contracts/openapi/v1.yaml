@@ -1,0 +1,80 @@
+openapi: 3.1.0
+info:
+  title: SentinelVision API
+  version: 0.1.0
+  description: SyncCam AI external API retaining canonical wire identifiers pending a migration ADR.
+servers:
+  - url: https://api.sentinelvision.ai/v1
+paths:
+  /events:
+    post:
+      operationId: ingestEvent
+      summary: Ingest a tenant-scoped, human-review event
+      parameters:
+        - name: X-SentinelVision-Tenant-ID
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: X-SentinelVision-Request-ID
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DetectionEvent"
+      responses:
+        "202":
+          description: Accepted for idempotent processing
+        "400":
+          description: Invalid event
+        "401":
+          description: Authentication required
+        "403":
+          description: Tenant or capability denied
+components:
+  schemas:
+    DetectionEvent:
+      type: object
+      additionalProperties: false
+      required:
+        - event_id
+        - tenant_id
+        - dedupe_key
+        - occurred_at
+        - site_id
+        - camera_id
+        - zone_id
+        - event_type
+        - model_version
+        - confidence
+        - evidence_refs
+        - requires_human_review
+        - review_state
+      properties:
+        event_id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        dedupe_key: { type: string, minLength: 1, maxLength: 256 }
+        occurred_at: { type: string, format: date-time }
+        site_id: { type: string, format: uuid }
+        camera_id: { type: string, format: uuid }
+        zone_id: { type: string, format: uuid }
+        event_type:
+          type: string
+          enum: [camera_health, intrusion, restricted_zone, loitering, vehicle_activity, weapon_review, fire_review, smoke_review, attendance_review, ppe_review, fall_review, fight_review, abandoned_object_review]
+        model_version: { type: string, minLength: 1 }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        evidence_refs:
+          type: array
+          items: { type: string }
+        requires_human_review:
+          type: boolean
+          const: true
+        review_state:
+          type: string
+          enum: [pending, acknowledged, confirmed, dismissed]

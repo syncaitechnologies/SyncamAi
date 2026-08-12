@@ -542,7 +542,7 @@ Lead → qualified demo: 15% `[ASSUMPTION]` | Demo → trial: 40% `[ASSUMPTION]`
 
 | Dimension | Milestones |
 |---|---|
-| **Product** | Private beta (months 0–4, 8 design partners): MVP modules (weapon, fire/smoke, intrusion, restricted zone, PPE, fall, fight, loitering, attendance+liveness), live view/playback, zone/rule builder, alert center, incident reports, camera health, RBAC, 3 dashboards, REST+webhooks, 30-day retention; **GA at month 5–6** |
+| **Product** | Private beta: 12 MVP engines (shared detector including event-only vehicle class, weapon, fire/smoke, intrusion, restricted zone, PPE, fall, fight, loitering, abandoned-object logic, attendance+liveness, and camera health), live view/playback, zone/rule builder, alert center, incident reports, RBAC, 3 seeded dashboards, REST+webhooks, 30-day retention. For a founder-small team, pilot/GA dates are capacity-based and governed by the executable roadmap rather than the earlier 4–6 month assumption. |
 | **Compliance** | SOC 2 readiness audit kickoff; DPDP posture pack v1 |
 | **Revenue** | 11 logos, $190k ARR run-rate; India warehouses/factories |
 | **Team** | Founders (CEO/product, CTO, GTM) + 3 AI engineers, 2 platform engineers, 1 DevOps/MLOps, 1 designer, 2 SDRs, 1 solutions engineer, 1 compliance/security lead = **~14** |

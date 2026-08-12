@@ -442,10 +442,10 @@ Workflow (UX §7.3) with security properties:
 
 | Property | Raw face image | 512-d embedding (Mathematical, e.g., ArcFace cosine space) |
 |---|---|---|
-| Reversibility | Directly viewable; a copy of the person's face | One-way transform; **not reconstructable** — no practical inverse mapping to a face |
-| Identifiability | Face itself is the biometric identifier | A vector is biometric data only in the context of the matching system; meaningless outside the model+threshold |
-| Blast radius if leaked | Identity theft, impersonation, reputational harm, bystander exposure | No face to show; value only to someone operating the same model with the same enrolled set; mitigable via re-enrollment |
-| Cross-system linkability | Same face works everywhere | Different models/spaces are **not interoperable**; vectors do not match across vendors |
+| Reversibility | Directly viewable; a copy of the person's face | Not directly viewable, but potentially invertible or linkable; treat embeddings as sensitive biometric data rather than as anonymous or irreversible |
+| Identifiability | Face itself is the biometric identifier | Remains a biometric identifier; matching, linkage, or inversion risk depends on model, auxiliary data, and attacker capability |
+| Blast radius if leaked | Identity theft, impersonation, reputational harm, bystander exposure | Matching/linkage and potential reconstruction risk; unlike a password, the underlying biometric cannot be reset, so containment requires revocation, model/version migration, and re-enrollment |
+| Cross-system linkability | Same face works everywhere | Embeddings are not necessarily directly interchangeable across models, but model conversion and auxiliary-data linkage are possible; incompatibility is not a security control |
 | Storage incentive | Tempting for "training on footage" | No training value from vectors alone |
 | Regulatory weight | Clearly special-category data in most regimes | Biometric data, but defensible as "derived template" under minimization; still regulated — treat identically |
 

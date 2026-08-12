@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "legal_gate_adr": "docs/adr/ADR-001-model-license.md",
+  "code_licenses": ["Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "MIT", "Python-2.0", "Unicode-3.0"],
+  "model_licenses": ["Apache-2.0"],
+  "package_allowlist": [
+    "@types/react",
+    "@types/react-dom",
+    "@vitejs/plugin-react",
+    "react",
+    "react-dom",
+    "typescript",
+    "vite"
+  ],
+  "notes": "Transitive licenses are checked by dependency review/SBOM tooling. Any new direct dependency requires explicit review."
+}
