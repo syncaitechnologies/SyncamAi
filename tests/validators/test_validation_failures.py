@@ -9,6 +9,7 @@ import unittest
 from unittest import mock
 
 from scripts import validate_contracts
+from scripts import validate_go_coverage
 from scripts import validate_licenses
 from scripts import validate_secrets
 from scripts import validate_task_references
@@ -48,6 +49,29 @@ class FailureFixtureTests(unittest.TestCase):
             with mock.patch.object(validate_licenses, "POLICY", policy_file):
                 with contextlib.redirect_stderr(io.StringIO()):
                     self.assertEqual(validate_licenses.main(), 1)
+
+    def test_go_module_parser_finds_direct_requirements(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            go_mod = pathlib.Path(directory) / "go.mod"
+            go_mod.write_text(
+                "module example.test/service\n\ngo 1.22\n\nrequire (\n"
+                "\texample.test/approved v1.0.0\n"
+                "\texample.test/indirect v1.0.0 // indirect\n)\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                validate_licenses.go_module_names(go_mod),
+                {"example.test/approved"},
+            )
+
+    def test_go_coverage_parser_weights_statements(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            profile = pathlib.Path(directory) / "coverage.out"
+            profile.write_text(
+                "mode: set\nexample.go:1.1,2.2 3 1\nexample.go:4.1,5.2 1 0\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(validate_go_coverage.coverage_percent(profile), 75.0)
 
     def test_generated_fake_secret_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -6,17 +6,50 @@ info:
 servers:
   - url: https://api.sentinelvision.ai/v1
 paths:
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      summary: Return the verified tenant-scoped user context
+      security:
+        - oidc: [auth:read]
+      parameters:
+        - $ref: "#/components/parameters/TenantHeader"
+      responses:
+        "200":
+          description: Current authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUserEnvelope"
+        "401": { description: Authentication required }
+        "403": { description: Capability denied }
+        "404": { description: Tenant scope not found }
+  /sites:
+    get:
+      operationId: listSites
+      summary: List sites visible inside the verified tenant and site scope
+      security:
+        - oidc: [sites:read]
+      parameters:
+        - $ref: "#/components/parameters/TenantHeader"
+      responses:
+        "200":
+          description: Tenant- and site-scoped list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteListEnvelope"
+        "401": { description: Authentication required }
+        "403": { description: Capability denied }
+        "404": { description: Tenant scope not found }
   /events:
     post:
       operationId: ingestEvent
       summary: Ingest a tenant-scoped, human-review event
+      security:
+        - oidc: [events:write]
       parameters:
-        - name: X-SentinelVision-Tenant-ID
-          in: header
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: "#/components/parameters/TenantHeader"
         - name: X-SentinelVision-Request-ID
           in: header
           required: true
@@ -38,6 +71,20 @@ paths:
         "403":
           description: Tenant or capability denied
 components:
+  securitySchemes:
+    oidc:
+      type: openIdConnect
+      openIdConnectUrl: https://auth.sentinelvision.ai/.well-known/openid-configuration
+  parameters:
+    TenantHeader:
+      name: X-SentinelVision-Tenant-ID
+      in: header
+      required: true
+      description: Must exactly match the tenant_id claim in the verified bearer token.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
   schemas:
     DetectionEvent:
       type: object
@@ -78,3 +125,59 @@ components:
         review_state:
           type: string
           enum: [pending, acknowledged, confirmed, dismissed]
+    CurrentUserEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/CurrentUser"
+    CurrentUser:
+      type: object
+      additionalProperties: false
+      required: [id, tenant_id, site_ids, roles, scopes, data_class, mfa_level]
+      properties:
+        id: { type: string, minLength: 1 }
+        email: { type: string, format: email }
+        tenant_id: { type: string, minLength: 1, maxLength: 128 }
+        site_ids:
+          type: array
+          items: { type: string, minLength: 1, maxLength: 128 }
+        roles:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            enum: [super_admin, site_admin, operator, auditor, viewer]
+        scopes:
+          type: array
+          items: { type: string, minLength: 1 }
+        data_class:
+          type: array
+          items:
+            type: string
+            enum: [metadata, raw_video, biometric]
+        mfa_level: { type: string, minLength: 1 }
+    SiteListEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Site" }
+        meta:
+          type: object
+          additionalProperties: false
+          required: [count, next]
+          properties:
+            count: { type: integer, minimum: 0 }
+            next: { type: [string, "null"] }
+    Site:
+      type: object
+      additionalProperties: false
+      required: [id, tenant_id, name]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 128 }
+        tenant_id: { type: string, minLength: 1, maxLength: 128 }
+        name: { type: string, minLength: 1, maxLength: 200 }

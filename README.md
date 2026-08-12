@@ -12,7 +12,11 @@ The Phase 0 foundation lives beside the root specifications:
 - `backend/`, `edge/`, `ai-services/`, and `frontend/` — compile-only language scaffolds.
 - `infrastructure/terraform/sandbox/` and `compose.yaml` — a non-deploying cloud scaffold and local dependencies.
 
-Run the complete verification gate with `make verify` on macOS/Linux or `pwsh scripts/verify.ps1` on Windows. Required runtimes are Go 1.22+, Python 3.12, Node.js 22, and pnpm 11.16.0.
+Run the complete verification gate with `make verify` on macOS/Linux or `pwsh scripts/verify.ps1` on Windows. Required runtimes are Go 1.25.12+, Python 3.12, Node.js 22, and pnpm 11.16.0. Go patch releases are security floors, not merely feature baselines.
+
+## Source availability
+
+This repository is temporarily public but carries no open-source license. Viewing the source does not make it open source, and no permission to copy, modify, or redistribute it is granted. See the [source-publication policy](docs/governance/source-publication-policy.md).
 
 The source-publication license and production model licenses remain human/legal gates; see [`ADR-001`](docs/adr/ADR-001-model-license.md) and the [`license policy`](licenses/README.md).
 
