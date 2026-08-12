@@ -7,7 +7,7 @@
       "phase": 0,
       "owner": "CTO",
       "dependencies": [],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Branch starts at origin/main without force-push; local main remains untouched."
     },
     {
@@ -16,7 +16,7 @@
       "phase": 0,
       "owner": "Architecture",
       "dependencies": ["T-0301"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Blocker and major decisions are consistent across canonical documents and ADRs."
     },
     {
@@ -25,7 +25,7 @@
       "phase": 0,
       "owner": "Architecture",
       "dependencies": ["T-0302"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Every MVP FR has an owner, phase, task, contract, test placeholder, and release gate."
     },
     {
@@ -34,7 +34,7 @@
       "phase": 0,
       "owner": "Engineering",
       "dependencies": ["T-0302"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "All language scaffolds compile and their smoke tests pass without product behavior."
     },
     {
@@ -43,7 +43,7 @@
       "phase": 0,
       "owner": "QA",
       "dependencies": ["T-0303", "T-0304"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Invalid local links, task IDs, contract invariants, licenses, and traceability entries fail verification."
     },
     {
@@ -52,7 +52,7 @@
       "phase": 0,
       "owner": "DevOps",
       "dependencies": ["T-0305"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A clean pull request runs make verify, gitleaks, and dependency review."
     },
     {
@@ -79,8 +79,35 @@
       "phase": 0,
       "owner": "Owner and Legal",
       "dependencies": ["T-0256"],
-      "status": "blocked",
-      "acceptance": "Owner and Legal record whether implementation source may remain public and which repository license applies."
+      "status": "in_progress",
+      "acceptance": "Owner authorized temporary public implementation publication without an open-source license on 2026-08-12. Default copyright applies and no LICENSE file is added. Legal review and the final public/private policy remain outstanding before GA."
+    },
+    {
+      "id": "T-0310",
+      "title": "Implement provider-neutral OIDC token verification boundary",
+      "phase": 1,
+      "owner": "Security and Platform",
+      "dependencies": ["T-0306", "T-0001"],
+      "status": "in_progress",
+      "acceptance": "Signed tokens require exact issuer, audience, expiry, subject, tenant, role, and canonical authorization claims; invalid tokens fail closed."
+    },
+    {
+      "id": "T-0311",
+      "title": "Implement five seed roles and deny-by-default authorization",
+      "phase": 1,
+      "owner": "Security and Platform",
+      "dependencies": ["T-0310", "T-0004"],
+      "status": "in_progress",
+      "acceptance": "Role grant, explicit scope, MFA, tenant, and site checks are server-enforced with negative tests."
+    },
+    {
+      "id": "T-0312",
+      "title": "Expose tenant-safe current-user and site read APIs",
+      "phase": 1,
+      "owner": "Platform",
+      "dependencies": ["T-0311", "T-0003", "T-0042"],
+      "status": "in_progress",
+      "acceptance": "Authenticated users can read their own context and visible sites; cross-tenant and cross-site rows are never returned."
     }
   ]
 }

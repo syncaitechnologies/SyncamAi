@@ -25,7 +25,10 @@ python:
 	$(PYTHON) -m unittest discover -s tests/validators -v
 
 go:
-	go test ./backend/... ./edge/...
+	mkdir -p coverage
+	go test -coverprofile=coverage/backend.out ./backend/internal/...
+	$(PYTHON) scripts/validate_go_coverage.py coverage/backend.out 80
+	go test ./backend/cmd/... ./edge/...
 
 web:
 	$(PNPM) --dir frontend/apps/web check

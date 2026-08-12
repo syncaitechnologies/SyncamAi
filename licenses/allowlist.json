@@ -12,5 +12,8 @@
     "typescript",
     "vite"
   ],
+  "go_module_allowlist": [
+    "github.com/coreos/go-oidc/v3"
+  ],
   "notes": "Transitive licenses are checked by dependency review/SBOM tooling. Any new direct dependency requires explicit review."
 }
