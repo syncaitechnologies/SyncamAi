@@ -19,7 +19,7 @@ This roadmap is the single execution source of truth for engineering. It derives
 - Weeks 13–24 (2026-10-26 → 2027-01-15): **Production** → GA
 - Weeks 25–52 (2027-01-18 → 2027-07-30): **Enterprise** (Phase 2/3, SOC 2, multi-region)
 
-**Pacing:** 26 two-week sprints. Engineering capacity assumption: 6 FTE engineers (2 founders, 2 platform, 1 AI, 1 frontend) during MVP, growing per §8.
+**Pacing:** The sprint catalog below is retained as the original planning baseline. Active execution assumes a founder-small team of 2–3 engineers and is generated from `traceability/tasks.json`; task dependencies and release gates, not the historical sprint labels, determine order.
 
 ---
 
@@ -77,7 +77,7 @@ syncamai/
 │   ├── face-svc/                  #   ArcFace embeddings, matching, liveness
 │   ├── behavior-svc/              #   fall/fight/loitering/crowd temporal modules
 │   └── shared/                    #   Python libs: model loading, tensorrt wrappers, eval utils
-├── edge/                          # Edge agent (Python) + model runtime packaging
+├── edge/                          # Go single-binary edge agent; Python/Triton vision processes are separate
 │   ├── agent/                     #   agent: RTSP ingest, store-and-forward, telemetry, OTA client
 │   ├── runners/                   #   TensorRT/Triton runner packaging per device tier
 │   ├── images/                    #   Jetson Orin NX/AGX + x86/RTX image definitions
@@ -404,7 +404,7 @@ Types: `feat` `fix` `perf` `refactor` `test` `docs` `chore` `ci` `infra`. Breaki
 | Stack | Version | Style enforcers | Notes |
 |---|---|---|---|
 | Go (platform) | 1.22+ | `golangci-lint` (govet, staticcheck, errcheck, revive), `gofmt` | Effective Go; no global state; errors wrapped with context |
-| Python (AI/edge) | 3.11 | `ruff` (lint+format), `mypy --strict` | Type hints mandatory on public API; `dataclasses`/`pydantic` for config |
+| Python (AI plane and vision/face engines) | 3.12 | `ruff` (lint+format), `mypy --strict` | Type hints mandatory on public API; `dataclasses`/`pydantic` for config; the edge-agent itself is Go |
 | TypeScript (web) | 5.x strict | ESLint (typescript-eslint, react-hooks), Prettier | `noImplicitAny`, `strict: true`; no `any` escape hatches without review |
 | Dart (mobile) | Flutter 3.x | `flutter analyze`, `dart format` | Phase 2; same CI pattern |
 | SQL | PostgreSQL 16 | `pg_format`, review checklist | See 5.5 |
@@ -680,7 +680,7 @@ Consolidated from PRD §13–14, AI-ARCHITECTURE §9, SECURITY §1.4/§6, DEVOPS
 - **T-0001** identity-svc scaffold (Go) — A · P0 · S1 · 3–5 d · Deps: — · AC: OIDC login via Cognito returns JWT; refresh rotation; logout revocation; unit tests ≥80%.
 - **T-0002** Cognito user pools + app clients (web, edge) — A · P0 · S1 · 2–3 d · Deps: — · AC: Web PKCE + edge device auth flows work in sandbox.
 - **T-0003** tenant-svc: org/site model + CRUD — A · P0 · S1 · 3–5 d · Deps: T-0001 · AC: Org→site→camera hierarchy persisted; tenant_id on all rows; soft-delete banned.
-- **T-0004** RBAC: roles, permissions, assignments — A · P0 · S1 · 5–7 d · Deps: T-0003 · AC: 5 seed roles (PRD §4 personas); permission checks enforced in middleware; custom roles.
+- **T-0004** RBAC: roles, permissions, assignments — A · P0 · S1 · 5–7 d · Deps: T-0003 · AC: 5 seed roles (PRD FR-204 + ARCHITECTURE §12.2); permission checks enforced in middleware; custom roles.
 - **T-0005** Kong gateway: routes, JWT validation, rate limits — A · P0 · S1 · 3–5 d · Deps: T-0001 · AC: All services behind gateway; unauthorized 401; tenant rate limits configurable.
 - **T-0006** config-svc: camera/site/zone/mask/ROI API — A · P0 · S2 · 5–7 d · Deps: T-0003 · AC: CRUD for all config types; versioned revisions for edge sync; OPA-enforced tenant scoping.
 - **T-0007** device-svc: camera registry CRUD — A · P0 · S2 · 3–5 d · Deps: T-0003 · AC: Camera lifecycle (pending/active/offline/retired); serial-bound uniqueness per tenant.
@@ -708,7 +708,7 @@ Consolidated from PRD §13–14, AI-ARCHITECTURE §9, SECURITY §1.4/§6, DEVOPS
 - **T-0029** model rollback API (registry pointer) — A · P1 · S8 · 2–3 d · Deps: T-0028 · AC: One-click rollback to incumbent < 2 min; audited.
 - **T-0030** KMS per-tenant key hierarchy + envelope encryption — A · P0 · S8 · 5–7 d · Deps: — · AC: Per-tenant data keys; field-level encryption for biometrics (SD-04); rotation drill.
 - **T-0031** ClickHouse cold analytics path — A · P1 · S9 · 5–7 d · Deps: T-0016 · AC: Analytics queries served from ClickHouse; hot/cold split configurable; backfill job.
-- **T-0032** retention/erasure jobs + manifests — A · P0 · S9 · 5–7 d · Deps: T-0031 · AC: 30/90/365-day tenant config; erasure across all stores with verified manifest; audit trail.
+- **T-0032** retention/erasure jobs + manifests — A · P0 · S9 · 5–7 d · Deps: T-0031 · AC: tenant-configurable 7–365 days with 7/15/30/90/365 presets; erasure across all stores with verified manifest; audit trail.
 - **T-0033** TimescaleDB partitioning (events, telemetry) — A · P0 · S9 · 3–5 d · Deps: T-0012 · AC: Month-partitioned hypertables; retention drop policy; no full-table scans on hot path.
 - **T-0034** audit verify public API — A · P1 · S10 · 2–3 d · Deps: T-0011 · AC: Public verify endpoint (SD-05); documented; load-tested.
 - **T-0035** bulk camera import (CSV) — A · P1 · S8 · 2–3 d · Deps: T-0007 · AC: 1,000-row import with validation report; idempotent.
@@ -835,7 +835,7 @@ Consolidated from PRD §13–14, AI-ARCHITECTURE §9, SECURITY §1.4/§6, DEVOPS
 
 ### 10.C Edge (T-0151–T-0180)
 
-- **T-0151** edge agent scaffold (Python, service infra) — C · P0 · S3 · 3–5 d · Deps: — · AC: Agent boots, logs JSON, registers with device-svc, telemetry skeleton.
+- **T-0151** edge agent scaffold (Go single binary) — C · P0 · S3 · 3–5 d · Deps: — · AC: Agent boots, logs JSON, registers with device-svc, and exposes a telemetry skeleton; Python/Triton vision and face engines run as separate supervised processes.
 - **T-0152** RTSP ingest (ffmpeg wrapper) — C · P0 · S3 · 3–5 d · Deps: T-0151 · AC: 3+ vendor streams verified; reconnect handling; sub-2% dropped frames on LAN.
 - **T-0153** H.264/H.265 decode — C · P0 · S3 · 2–3 d · Deps: T-0152 · AC: Both codecs decode on NX; GPU decode path where available.
 - **T-0154** store-and-forward (disk quota, eviction) — C · P0 · S3 · 3–5 d · Deps: T-0152 · AC: 10-min offline → no loss; quota eviction oldest-first; metrics exported.

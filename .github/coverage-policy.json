@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "changed_line_minimum_percent": 80,
+  "allow_threshold_reduction": false,
+  "measured_languages": ["go", "python", "typescript"],
+  "temporary_exclusions": [
+    "generated contract bindings",
+    "compile-only command entrypoints in Phase 0"
+  ],
+  "enforcement_note": "Phase 0 validates the immutable threshold. Phase 1 adds diff-cover inputs as executable product tests appear."
+}

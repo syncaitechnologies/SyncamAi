@@ -21,10 +21,19 @@ dist/
 build/
 .next/
 .turbo/
+.pnpm-store/
+*.tsbuildinfo
+coverage/
 
 # Go
 bin/
 *.test
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
 
 # IDE and OS files
 .idea/

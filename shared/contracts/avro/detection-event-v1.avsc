@@ -1,0 +1,20 @@
+{
+  "type": "record",
+  "name": "DetectionEventV1",
+  "namespace": "ai.syncam.events.v1",
+  "fields": [
+    { "name": "event_id", "type": "string" },
+    { "name": "tenant_id", "type": "string" },
+    { "name": "dedupe_key", "type": "string" },
+    { "name": "occurred_at", "type": "string" },
+    { "name": "site_id", "type": "string" },
+    { "name": "camera_id", "type": "string" },
+    { "name": "zone_id", "type": "string" },
+    { "name": "event_type", "type": "string" },
+    { "name": "model_version", "type": "string" },
+    { "name": "confidence", "type": "double" },
+    { "name": "evidence_refs", "type": { "type": "array", "items": "string" }, "default": [] },
+    { "name": "requires_human_review", "type": "boolean", "default": true },
+    { "name": "review_state", "type": "string", "default": "pending" }
+  ]
+}

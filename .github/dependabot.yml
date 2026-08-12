@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /backend
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /edge
+    schedule:
+      interval: weekly
+  - package-ecosystem: pip
+    directory: /ai-services
+    schedule:
+      interval: weekly
+  - package-ecosystem: terraform
+    directory: /infrastructure/terraform/sandbox
+    schedule:
+      interval: weekly

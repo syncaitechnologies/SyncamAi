@@ -4,6 +4,18 @@ SyncCam AI is an edge-first AI video intelligence platform for security, safety,
 
 This repository is the shared source of truth for the team. It contains the product specifications and will become the implementation monorepo described in the engineering roadmap.
 
+The Phase 0 foundation lives beside the root specifications:
+
+- [`docs/adr/`](docs/adr/) — accepted and proposed architecture decisions.
+- [`traceability/`](traceability/) — executable MVP requirement and active-task mappings.
+- [`shared/contracts/`](shared/contracts/) — OpenAPI, Avro, and Protobuf compatibility boundaries.
+- `backend/`, `edge/`, `ai-services/`, and `frontend/` — compile-only language scaffolds.
+- `infrastructure/terraform/sandbox/` and `compose.yaml` — a non-deploying cloud scaffold and local dependencies.
+
+Run the complete verification gate with `make verify` on macOS/Linux or `pwsh scripts/verify.ps1` on Windows. Required runtimes are Go 1.22+, Python 3.12, Node.js 22, and pnpm 11.16.0.
+
+The source-publication license and production model licenses remain human/legal gates; see [`ADR-001`](docs/adr/ADR-001-model-license.md) and the [`license policy`](licenses/README.md).
+
 ## Project instructions
 
 - [`AGENTS.md`](AGENTS.md) contains the project-wide instructions for Codex and other coding agents.

@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "T-0301",
+      "title": "Reconcile canonical Git history and create foundation branch",
+      "phase": 0,
+      "owner": "CTO",
+      "dependencies": [],
+      "status": "in_review",
+      "acceptance": "Branch starts at origin/main without force-push; local main remains untouched."
+    },
+    {
+      "id": "T-0302",
+      "title": "Repair source contradictions and record ADR-001 through ADR-008",
+      "phase": 0,
+      "owner": "Architecture",
+      "dependencies": ["T-0301"],
+      "status": "in_review",
+      "acceptance": "Blocker and major decisions are consistent across canonical documents and ADRs."
+    },
+    {
+      "id": "T-0303",
+      "title": "Add executable requirements and task traceability",
+      "phase": 0,
+      "owner": "Architecture",
+      "dependencies": ["T-0302"],
+      "status": "in_review",
+      "acceptance": "Every MVP FR has an owner, phase, task, contract, test placeholder, and release gate."
+    },
+    {
+      "id": "T-0304",
+      "title": "Scaffold Go, Python 3.12, React Vite, contracts, and local development",
+      "phase": 0,
+      "owner": "Engineering",
+      "dependencies": ["T-0302"],
+      "status": "in_review",
+      "acceptance": "All language scaffolds compile and their smoke tests pass without product behavior."
+    },
+    {
+      "id": "T-0305",
+      "title": "Add documentation, task, contract, license, and traceability validation",
+      "phase": 0,
+      "owner": "QA",
+      "dependencies": ["T-0303", "T-0304"],
+      "status": "in_review",
+      "acceptance": "Invalid local links, task IDs, contract invariants, licenses, and traceability entries fail verification."
+    },
+    {
+      "id": "T-0306",
+      "title": "Add CI, dependency scanning, secret scanning, and changed-line coverage policy",
+      "phase": 0,
+      "owner": "DevOps",
+      "dependencies": ["T-0305"],
+      "status": "in_review",
+      "acceptance": "A clean pull request runs make verify, gitleaks, and dependency review."
+    },
+    {
+      "id": "T-0307",
+      "title": "Implement FR-103a event-only vehicle activity",
+      "phase": 6,
+      "owner": "AI and Platform",
+      "dependencies": ["T-0107", "T-0303"],
+      "status": "planned",
+      "acceptance": "Vehicle events contain observed behavior and human-review state without LPR, ReID, theft scoring, or theft claims."
+    },
+    {
+      "id": "T-0308",
+      "title": "Implement abandoned-object temporal logic and evaluation",
+      "phase": 8,
+      "owner": "AI",
+      "dependencies": ["T-0098", "T-0107"],
+      "status": "planned",
+      "acceptance": "Track-separation and dwell rules meet the approved evaluation card and emit review-required alerts."
+    },
+    {
+      "id": "T-0309",
+      "title": "Approve public source publication policy",
+      "phase": 0,
+      "owner": "Owner and Legal",
+      "dependencies": ["T-0256"],
+      "status": "blocked",
+      "acceptance": "Owner and Legal record whether implementation source may remain public and which repository license applies."
+    }
+  ]
+}

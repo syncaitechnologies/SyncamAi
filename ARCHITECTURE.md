@@ -399,7 +399,7 @@ flowchart TD
 |---|---|---|
 | Analytics (5–10 FPS detections) | ~50–150 KB/s metadata + thumbnails | Detection |
 | Evidence clips (only on event) | bursty, ≤30s @ 2–4 Mbps | Incidents |
-| Cloud archive (optional 720p) | ~1–2 Mbps when enabled | Long retention |
+| Cloud archive (optional 720p) | ≤1 Mbps nominal (10.8 GB/camera/day); 1–2 Mbps burst envelope | Long retention; capacity and cost planning use the nominal value |
 | Live view (on-demand, WebRTC/HLS) | 0 when idle | SOC viewing |
 
 Site uplink planning uses this table; edges auto-degrade archive quality when link utilization exceeds 80%.

@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package syncam.events.v1;
+
+option go_package = "github.com/syncaitechnologies/SyncamAi/shared/contracts/gen/go/events/v1;eventsv1";
+
+message DetectionEvent {
+  string event_id = 1;
+  string tenant_id = 2;
+  string dedupe_key = 3;
+  string occurred_at = 4;
+  string site_id = 5;
+  string camera_id = 6;
+  string zone_id = 7;
+  string event_type = 8;
+  string model_version = 9;
+  double confidence = 10;
+  repeated string evidence_refs = 11;
+  bool requires_human_review = 12;
+  string review_state = 13;
+}
+
+message IngestEventResponse {
+  string event_id = 1;
+  bool accepted = 2;
+}
+
+service EventService {
+  rpc Ingest(DetectionEvent) returns (IngestEventResponse);
+}

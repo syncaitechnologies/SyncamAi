@@ -1,0 +1,9 @@
+title = "SyncCam AI gitleaks policy"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Documented local-only placeholders"
+paths = ['''\.env\.example$''']
+regexes = ['''replace-for-local-development''']
