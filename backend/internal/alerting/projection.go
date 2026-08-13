@@ -13,27 +13,33 @@ import (
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/audit"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/outbox"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/realtime"
 )
 
 const ConsumerName = "alert-projector-v1"
 
 type Alert struct {
-	ID         string    `json:"id"`
-	TenantID   string    `json:"tenant_id"`
-	EventID    string    `json:"event_id"`
-	SiteID     string    `json:"site_id"`
-	CameraID   string    `json:"camera_id"`
-	ZoneID     string    `json:"zone_id"`
-	EventType  string    `json:"event_type"`
-	Severity   string    `json:"severity"`
-	Status     string    `json:"status"`
-	Confidence float64   `json:"confidence"`
-	OccurredAt time.Time `json:"occurred_at"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID         string     `json:"id"`
+	TenantID   string     `json:"tenant_id"`
+	EventID    string     `json:"event_id"`
+	SiteID     string     `json:"site_id"`
+	CameraID   string     `json:"camera_id"`
+	ZoneID     string     `json:"zone_id"`
+	EventType  string     `json:"event_type"`
+	Severity   string     `json:"severity"`
+	Status     string     `json:"status"`
+	Confidence float64    `json:"confidence"`
+	OccurredAt time.Time  `json:"occurred_at"`
+	CreatedAt  time.Time  `json:"created_at"`
+	AckedAt    *time.Time `json:"acked_at,omitempty"`
+	AckedBy    string     `json:"acked_by,omitempty"`
 }
 
 type Repository interface {
 	List(context.Context, string) ([]Alert, error)
+	ListSite(context.Context, string, string) ([]Alert, error)
+	Get(context.Context, string, string) (Alert, error)
+	Acknowledge(context.Context, AcknowledgeCommand) (AcknowledgeResult, error)
 }
 
 type transactionPool interface {
@@ -47,6 +53,17 @@ func NewPostgresRepository(pool transactionPool) *PostgresRepository {
 }
 
 func (r *PostgresRepository) List(ctx context.Context, tenantID string) ([]Alert, error) {
+	return r.list(ctx, tenantID, "")
+}
+
+func (r *PostgresRepository) ListSite(ctx context.Context, tenantID, siteID string) ([]Alert, error) {
+	if _, err := uuid.Parse(siteID); err != nil {
+		return nil, fmt.Errorf("invalid alert site: %w", err)
+	}
+	return r.list(ctx, tenantID, siteID)
+}
+
+func (r *PostgresRepository) list(ctx context.Context, tenantID, siteID string) ([]Alert, error) {
 	if r == nil || r.pool == nil {
 		return nil, errors.New("postgres alert repository is unavailable")
 	}
@@ -55,23 +72,27 @@ func (r *PostgresRepository) List(ctx context.Context, tenantID string) ([]Alert
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	rows, err := tx.Query(ctx, `
+	query := `
 		SELECT alert_id::text, tenant_id::text, event_id::text, site_id::text,
 			camera_id::text, zone_id::text, event_type, severity, status,
-			confidence, occurred_at, created_at
+			confidence, occurred_at, created_at, acked_at, COALESCE(acked_by, '')
 		FROM alerts.alerts
+		WHERE ($1::uuid IS NULL OR site_id = $1::uuid)
 		ORDER BY priority DESC, occurred_at, alert_id
-		LIMIT 100`)
+		LIMIT 100`
+	var siteArgument any
+	if siteID != "" {
+		siteArgument = siteID
+	}
+	rows, err := tx.Query(ctx, query, siteArgument)
 	if err != nil {
 		return nil, fmt.Errorf("list alert queue: %w", err)
 	}
 	defer rows.Close()
 	alerts := make([]Alert, 0)
 	for rows.Next() {
-		var alert Alert
-		if err := rows.Scan(&alert.ID, &alert.TenantID, &alert.EventID, &alert.SiteID,
-			&alert.CameraID, &alert.ZoneID, &alert.EventType, &alert.Severity,
-			&alert.Status, &alert.Confidence, &alert.OccurredAt, &alert.CreatedAt); err != nil {
+		alert, err := scanAlert(rows)
+		if err != nil {
 			return nil, fmt.Errorf("scan alert queue: %w", err)
 		}
 		alerts = append(alerts, alert)
@@ -149,6 +170,12 @@ func (p *Projector) Publish(ctx context.Context, message outbox.Message) error {
 	}); err != nil {
 		return fmt.Errorf("audit alert projection: %w", err)
 	}
+	if _, err := realtime.Append(ctx, tx, realtime.Event{
+		TenantID: alert.TenantID, SiteID: alert.SiteID,
+		Topic: realtime.TopicAlertCreated, Payload: map[string]any{"alert": alert},
+	}); err != nil {
+		return fmt.Errorf("publish alert projection: %w", err)
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit alert projection: %w", err)
 	}
@@ -185,12 +212,30 @@ func classify(eventType string) (string, int) {
 	}
 }
 
-type MemoryRepository struct{ Alerts []Alert }
+type MemoryRepository struct {
+	Alerts []Alert
+}
 
-func (r MemoryRepository) List(_ context.Context, tenantID string) ([]Alert, error) {
+func (r *MemoryRepository) List(_ context.Context, tenantID string) ([]Alert, error) {
+	if r == nil {
+		return nil, errors.New("memory alert repository is unavailable")
+	}
 	result := make([]Alert, 0)
 	for _, alert := range r.Alerts {
 		if alert.TenantID == tenantID {
+			result = append(result, alert)
+		}
+	}
+	return result, nil
+}
+
+func (r *MemoryRepository) ListSite(_ context.Context, tenantID, siteID string) ([]Alert, error) {
+	if r == nil {
+		return nil, errors.New("memory alert repository is unavailable")
+	}
+	result := make([]Alert, 0)
+	for _, alert := range r.Alerts {
+		if alert.TenantID == tenantID && alert.SiteID == siteID {
 			result = append(result, alert)
 		}
 	}

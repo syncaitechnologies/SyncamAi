@@ -13,6 +13,7 @@
     "vite"
   ],
   "go_module_allowlist": [
+    "github.com/coder/websocket",
     "github.com/coreos/go-oidc/v3",
     "github.com/google/uuid",
     "github.com/jackc/pgx/v5",

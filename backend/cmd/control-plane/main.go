@@ -18,6 +18,7 @@ import (
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/httpapi"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/realtime"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/tenant"
 )
 
@@ -64,9 +65,11 @@ func main() {
 	repository := tenant.NewPostgresRepository(pool)
 	eventRepository := eventing.NewPostgresRepository(pool)
 	alertRepository := alerting.NewPostgresRepository(pool)
+	realtimeRepository := realtime.NewPostgresRepository(pool)
+	tickets := realtime.NewMemoryTicketStore()
 	server := &http.Server{
 		Addr:              envOrDefault("SYNCAM_HTTP_ADDR", ":8080"),
-		Handler:           httpapi.NewWithAlerts(verifier, repository, eventRepository, alertRepository),
+		Handler:           httpapi.NewWithRealtime(verifier, repository, eventRepository, alertRepository, realtimeRepository, tickets),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,
