@@ -73,10 +73,11 @@ func main() {
 	realtimeRepository := realtime.NewPostgresRepository(pool)
 	cameraRepository := device.NewPostgresRepository(pool)
 	enrollmentRepository := device.NewPostgresEnrollmentRepository(pool, claimTokens)
+	deviceStatusRepository := device.NewPostgresStatusRepository(pool)
 	tickets := realtime.NewMemoryTicketStore()
 	server := &http.Server{
 		Addr:              envOrDefault("SYNCAM_HTTP_ADDR", ":8080"),
-		Handler:           httpapi.NewWithDeviceEnrollment(verifier, repository, eventRepository, alertRepository, realtimeRepository, tickets, cameraRepository, enrollmentRepository),
+		Handler:           httpapi.NewWithDeviceStatus(verifier, repository, eventRepository, alertRepository, realtimeRepository, tickets, cameraRepository, enrollmentRepository, deviceStatusRepository, device.MTLSDeviceVerifier{}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,

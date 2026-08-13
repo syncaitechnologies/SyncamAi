@@ -38,6 +38,10 @@ type EdgeDevice struct {
 	Model             string     `json:"model,omitempty"`
 	Status            string     `json:"status"`
 	CertificateStatus string     `json:"certificate_status"`
+	FirmwareVersion   string     `json:"firmware_version,omitempty"`
+	StoreForwardDepth int64      `json:"store_forward_depth"`
+	UptimeSeconds     int64      `json:"uptime_seconds"`
+	LastHeartbeat     *time.Time `json:"last_heartbeat,omitempty"`
 	ActivatedAt       *time.Time `json:"activated_at,omitempty"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
