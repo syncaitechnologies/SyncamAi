@@ -15,8 +15,8 @@ interface OperationsDashboardProps {
   feedHealthy: boolean;
   site: string;
   onOpenAlertCenter: (alertId?: string) => void;
+  onOpenCameraWall: () => void;
   onSiteChange: (site: string) => void;
-  onNotify: (message: string) => void;
 }
 
 const severityLabels: Severity[] = ["Critical", "High", "Medium"];
@@ -45,8 +45,8 @@ export function OperationsDashboard({
   feedHealthy,
   site,
   onOpenAlertCenter,
+  onOpenCameraWall,
   onSiteChange,
-  onNotify,
 }: OperationsDashboardProps) {
   const [range, setRange] = useState<DashboardRange>("24h");
   const summary = useMemo(
@@ -98,7 +98,7 @@ export function OperationsDashboard({
           <button
             className="primary-page-action"
             type="button"
-            onClick={() => onNotify("Live Wall is scheduled for the next frontend slice.")}
+            onClick={onOpenCameraWall}
           >
             <Icon name="camera" size={16} />
             Open Live Wall

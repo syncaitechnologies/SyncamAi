@@ -178,8 +178,17 @@
       "phase": 1,
       "owner": "Frontend",
       "dependencies": ["T-0319", "T-0195"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "The responsive operations dashboard derives queue KPIs, module and severity distributions, and incident drill-downs from the tenant-scoped alert feed; labels every synthetic or unavailable analytics and camera-health value; and exposes chart data in accessible tables."
+    },
+    {
+      "id": "T-0321",
+      "title": "Build a privacy-safe Camera Wall foundation",
+      "phase": 2,
+      "owner": "Frontend",
+      "dependencies": ["T-0319", "T-0320"],
+      "status": "in_review",
+      "acceptance": "The responsive Camera Wall provides searchable and filterable camera metadata, 1/4/9/16/25 layouts, keyboard tile navigation, alert-linked spotlight and queue views, synthetic-only demo scenes, and an explicit unavailable state until tenant-scoped audited streaming APIs exist."
     }
   ]
 }

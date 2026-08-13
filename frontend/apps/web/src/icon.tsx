@@ -19,6 +19,8 @@ const paths: Record<string, string> = {
   trend: "M4 17l5-5 4 3 7-9M16 6h4v4",
   activity: "M4 13h3l2-6 4 12 3-8h4",
   users: "M16 20v-1.5a4.5 4.5 0 0 0-4.5-4.5h-3A4.5 4.5 0 0 0 4 18.5V20M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM17 11a3 3 0 0 0 0-6M19 20v-1.5a4.5 4.5 0 0 0-3-4.2",
+  play: "m9 7 8 5-8 5z",
+  maximize: "M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5",
 };
 
 export function Icon({ name, size = 18 }: { name: string; size?: number }) {
