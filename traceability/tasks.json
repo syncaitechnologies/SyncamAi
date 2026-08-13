@@ -162,6 +162,15 @@
       "dependencies": ["T-0317", "T-0013"],
       "status": "in_review",
       "acceptance": "Each accepted event produces at most one tenant- and site-scoped alert and consumer receipt; GET /v1/alerts returns only authorized queue rows in priority order."
+    },
+    {
+      "id": "T-0319",
+      "title": "Connect Alert Center to audited REST and resumable realtime alerts",
+      "phase": 1,
+      "owner": "Frontend",
+      "dependencies": ["T-0318", "T-0044", "T-0206"],
+      "status": "in_review",
+      "acceptance": "The React Alert Center validates v1 alert envelopes, lists the tenant queue, acknowledges with idempotency and correlation headers, consumes site-ticketed WebSocket snapshots and events, resumes from the last sequence after reconnect, resyncs on gaps, and retains an explicit credential-free demo mode."
     }
   ]
 }
