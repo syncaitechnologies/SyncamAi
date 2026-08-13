@@ -205,6 +205,23 @@ func TestPostgresRepositoryEnforcesRLSIdempotencyAndAudit(t *testing.T) {
 	if err != nil || retry.Claimed != 0 {
 		t.Fatalf("published message was reclaimed: %+v %v", retry, err)
 	}
+	alertRepository := alerting.NewPostgresRepository(appPool)
+	queue, err := alertRepository.List(ctx, tenantA)
+	if err != nil || len(queue) != 1 {
+		t.Fatalf("projected alert unavailable: %+v %v", queue, err)
+	}
+	acknowledgeCommand := alerting.AcknowledgeCommand{
+		TenantID: tenantA, SiteID: created.Site.ID, AlertID: queue[0].ID,
+		ActorID: "operator-a", RequestID: uuid.NewString(), IdempotencyKey: "ack-projected-alert",
+	}
+	acknowledged, err := alertRepository.Acknowledge(ctx, acknowledgeCommand)
+	if err != nil || acknowledged.Replayed || acknowledged.Alert.Status != "acknowledged" {
+		t.Fatalf("alert acknowledgment failed: %+v %v", acknowledged, err)
+	}
+	acknowledgedReplay, err := alertRepository.Acknowledge(ctx, acknowledgeCommand)
+	if err != nil || !acknowledgedReplay.Replayed || acknowledgedReplay.Alert.ID != acknowledged.Alert.ID {
+		t.Fatalf("alert acknowledgment replay failed: %+v %v", acknowledgedReplay, err)
+	}
 	var eventsWithoutTenant int
 	if err := appPool.QueryRow(ctx, "SELECT count(*) FROM events.detection_events").Scan(&eventsWithoutTenant); err != nil {
 		t.Fatal(err)
@@ -230,7 +247,7 @@ func TestPostgresRepositoryEnforcesRLSIdempotencyAndAudit(t *testing.T) {
 	if auditCount != 1 {
 		t.Fatalf("expected one audit row after exact replay, got %d", auditCount)
 	}
-	var eventCount, outboxCount, publishedCount, alertCount, receiptCount, eventAuditCount, alertAuditCount int
+	var eventCount, outboxCount, publishedCount, alertCount, receiptCount, eventAuditCount, alertAuditCount, acknowledgmentAuditCount, actionCount, realtimeCount int
 	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM events.detection_events WHERE tenant_id = $1::uuid", tenantA).Scan(&eventCount); err != nil {
 		t.Fatal(err)
 	}
@@ -252,8 +269,20 @@ func TestPostgresRepositoryEnforcesRLSIdempotencyAndAudit(t *testing.T) {
 	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM audit.events WHERE tenant_id = $1::uuid AND action = 'alert.created'", tenantA).Scan(&alertAuditCount); err != nil {
 		t.Fatal(err)
 	}
-	if eventCount != 1 || outboxCount != 1 || publishedCount != 1 || alertCount != 1 || receiptCount != 1 || eventAuditCount != 1 || alertAuditCount != 1 {
-		t.Fatalf("event projection was not exactly-once: events=%d outbox=%d published=%d alerts=%d receipts=%d event_audit=%d alert_audit=%d", eventCount, outboxCount, publishedCount, alertCount, receiptCount, eventAuditCount, alertAuditCount)
+	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM audit.events WHERE tenant_id = $1::uuid AND action = 'alert.acknowledged'", tenantA).Scan(&acknowledgmentAuditCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM alerts.alert_actions WHERE tenant_id = $1::uuid", tenantA).Scan(&actionCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM realtime.messages WHERE tenant_id = $1::uuid", tenantA).Scan(&realtimeCount); err != nil {
+		t.Fatal(err)
+	}
+	if eventCount != 1 || outboxCount != 1 || publishedCount != 1 || alertCount != 1 || receiptCount != 1 || eventAuditCount != 1 || alertAuditCount != 1 || acknowledgmentAuditCount != 1 || actionCount != 1 || realtimeCount != 2 {
+		t.Fatalf("event workflow was not exactly-once: events=%d outbox=%d published=%d alerts=%d receipts=%d event_audit=%d alert_audit=%d acknowledgment_audit=%d actions=%d realtime=%d", eventCount, outboxCount, publishedCount, alertCount, receiptCount, eventAuditCount, alertAuditCount, acknowledgmentAuditCount, actionCount, realtimeCount)
+	}
+	if _, err := auditTx.Exec(ctx, "UPDATE alerts.alert_actions SET action = 'resolve' WHERE tenant_id = $1::uuid", tenantA); err == nil {
+		t.Fatal("append-only alert action trigger allowed an update")
 	}
 	if _, err := auditTx.Exec(ctx, "UPDATE audit.events SET action = 'tampered' WHERE tenant_id = $1::uuid", tenantA); err == nil {
 		t.Fatal("append-only audit trigger allowed an update")

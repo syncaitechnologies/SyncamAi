@@ -180,7 +180,7 @@ func TestListSitesFailsClosedWithoutRepository(t *testing.T) {
 func TestListAlertsFiltersTenantAndSiteScope(t *testing.T) {
 	principal := viewer()
 	principal.Scopes = append(principal.Scopes, "alerts:read")
-	repository := alerting.MemoryRepository{Alerts: []alerting.Alert{
+	repository := &alerting.MemoryRepository{Alerts: []alerting.Alert{
 		{ID: "visible", TenantID: "tenant-a", SiteID: "site-a", Severity: "high", Status: "unacknowledged"},
 		{ID: "other-site", TenantID: "tenant-a", SiteID: "site-b"},
 		{ID: "other-tenant", TenantID: "tenant-b", SiteID: "site-a"},
@@ -194,7 +194,7 @@ func TestListAlertsFiltersTenantAndSiteScope(t *testing.T) {
 
 func TestListAlertsRequiresScopeAndRepository(t *testing.T) {
 	principal := viewer()
-	handler := NewWithAlerts(fakeVerifier{principal: principal}, leakyRepository{}, nil, alerting.MemoryRepository{})
+	handler := NewWithAlerts(fakeVerifier{principal: principal}, leakyRepository{}, nil, &alerting.MemoryRepository{})
 	if response := request(handler, "/v1/alerts", "valid", "tenant-a"); response.Code != http.StatusForbidden {
 		t.Fatalf("missing scope: expected 403, got %d", response.Code)
 	}

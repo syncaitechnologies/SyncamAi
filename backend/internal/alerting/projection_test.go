@@ -49,6 +49,8 @@ func TestProjectorCreatesOneAlertAndReceipt(t *testing.T) {
 		"alert", pgxmock.AnyArg(), messageID, pgxmock.AnyArg(), pgxmock.AnyArg(),
 		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 	).WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectQuery("INSERT INTO realtime.site_sequences").WithArgs(tenantID, siteID).WillReturnRows(pgxmock.NewRows([]string{"last_sequence"}).AddRow(int64(1)))
+	mock.ExpectExec("INSERT INTO realtime.messages").WithArgs(tenantID, siteID, int64(1), "alerts.created", pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	mock.ExpectCommit()
 	if err := NewProjector(mock).Publish(context.Background(), message); err != nil {
 		t.Fatal(err)
@@ -86,11 +88,33 @@ func TestAlertRepositoryListsTenantQueue(t *testing.T) {
 	created := time.Date(2026, 8, 13, 2, 1, 0, 0, time.UTC)
 	mock.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadOnly})
 	mock.ExpectExec("SELECT set_config").WithArgs(tenantID).WillReturnResult(pgxmock.NewResult("SELECT", 1))
-	mock.ExpectQuery("SELECT alert_id::text").WillReturnRows(pgxmock.NewRows([]string{"alert_id", "tenant_id", "event_id", "site_id", "camera_id", "zone_id", "event_type", "severity", "status", "confidence", "occurred_at", "created_at"}).AddRow(messageID, tenantID, eventID, siteID, cameraID, zoneID, "intrusion", "high", "unacknowledged", .91, created.Add(-time.Minute), created))
+	mock.ExpectQuery("SELECT alert_id::text").WithArgs(nil).WillReturnRows(pgxmock.NewRows([]string{"alert_id", "tenant_id", "event_id", "site_id", "camera_id", "zone_id", "event_type", "severity", "status", "confidence", "occurred_at", "created_at", "acked_at", "acked_by"}).AddRow(messageID, tenantID, eventID, siteID, cameraID, zoneID, "intrusion", "high", "unacknowledged", .91, created.Add(-time.Minute), created, nil, ""))
 	mock.ExpectCommit()
 	queue, err := NewPostgresRepository(mock).List(context.Background(), tenantID)
 	if err != nil || len(queue) != 1 || queue[0].Severity != "high" {
 		t.Fatalf("unexpected queue: %+v %v", queue, err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAlertRepositoryListsOneSiteAtTheDatabaseBoundary(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mock.Close()
+	mock.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	mock.ExpectExec("SELECT set_config").WithArgs(tenantID).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+	mock.ExpectQuery("SELECT alert_id::text").WithArgs(siteID).WillReturnRows(pgxmock.NewRows([]string{"alert_id", "tenant_id", "event_id", "site_id", "camera_id", "zone_id", "event_type", "severity", "status", "confidence", "occurred_at", "created_at", "acked_at", "acked_by"}))
+	mock.ExpectCommit()
+	queue, err := NewPostgresRepository(mock).ListSite(context.Background(), tenantID, siteID)
+	if err != nil || len(queue) != 0 {
+		t.Fatalf("unexpected site queue: %+v %v", queue, err)
+	}
+	if _, err := NewPostgresRepository(mock).ListSite(context.Background(), tenantID, "bad"); err == nil {
+		t.Fatal("invalid site accepted")
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
@@ -131,7 +155,7 @@ func TestProjectionRejectsInvalidMessagesAndClassifies(t *testing.T) {
 	if _, err := (*PostgresRepository)(nil).List(context.Background(), tenantID); err == nil {
 		t.Fatal("nil repository must fail")
 	}
-	visible, err := (MemoryRepository{Alerts: []Alert{{TenantID: tenantID}, {TenantID: "other"}}}).List(context.Background(), tenantID)
+	visible, err := (&MemoryRepository{Alerts: []Alert{{TenantID: tenantID}, {TenantID: "other"}}}).List(context.Background(), tenantID)
 	if err != nil || len(visible) != 1 {
 		t.Fatalf("memory isolation failed: %+v %v", visible, err)
 	}

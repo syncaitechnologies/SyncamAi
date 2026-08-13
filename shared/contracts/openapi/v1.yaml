@@ -24,6 +24,30 @@ paths:
         "401": { description: Authentication required }
         "403": { description: Capability denied }
         "404": { description: Tenant scope not found }
+  /auth/ws-ticket:
+    post:
+      operationId: issueAlertWebSocketTicket
+      summary: Issue a 30-second single-use ticket for one authorized site stream
+      security:
+        - oidc: [alerts:read]
+      parameters:
+        - $ref: "#/components/parameters/TenantHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WebSocketTicketRequest" }
+      responses:
+        "201":
+          description: Single-use ticket returned with no-store caching
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WebSocketTicketEnvelope" }
+        "401": { description: Authentication required }
+        "403": { description: Site or capability denied }
+        "404": { description: Tenant scope not found }
+        "422": { description: Ticket request validation failed }
+        "503": { description: Realtime gateway unavailable }
   /sites:
     get:
       operationId: listSites
@@ -127,6 +151,36 @@ paths:
         "404": { description: Tenant scope not found }
         "422": { description: Tenant header validation failed }
         "503": { description: Alert projection unavailable }
+  /alerts/{id}/acknowledge:
+    post:
+      operationId: acknowledgeAlert
+      summary: Idempotently lock an unacknowledged alert into the operator queue
+      security:
+        - oidc: [alerts:write]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/TenantHeader"
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200":
+          description: Alert acknowledged or exact stored response replayed
+          headers:
+            Idempotent-Replayed:
+              description: Present and true for an exact replay.
+              schema: { type: string, const: "true" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlertEnvelope" }
+        "401": { description: Authentication required }
+        "403": { description: Operator capability or site scope denied }
+        "404": { description: Tenant or alert not found }
+        "409": { description: Alert state conflict or idempotency key conflict }
+        "422": { description: Mutation headers are invalid }
+        "503": { description: Alert workflow unavailable }
 components:
   securitySchemes:
     oidc:
@@ -236,6 +290,12 @@ components:
           properties:
             count: { type: integer, minimum: 0, maximum: 100 }
             next: { type: [string, "null"] }
+    AlertEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/Alert" }
     Alert:
       type: object
       additionalProperties: false
@@ -257,6 +317,27 @@ components:
         confidence: { type: number, minimum: 0, maximum: 1 }
         occurred_at: { type: string, format: date-time }
         created_at: { type: string, format: date-time }
+        acked_at: { type: string, format: date-time }
+        acked_by: { type: string, minLength: 1, maxLength: 128 }
+    WebSocketTicketRequest:
+      type: object
+      additionalProperties: false
+      required: [site_id]
+      properties:
+        site_id: { type: string, format: uuid }
+    WebSocketTicketEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [ticket, expires_at, protocol]
+          properties:
+            ticket: { type: string, minLength: 43, maxLength: 43 }
+            expires_at: { type: string, format: date-time }
+            protocol: { type: string, const: syncam.realtime.v1 }
     CurrentUserEnvelope:
       type: object
       additionalProperties: false

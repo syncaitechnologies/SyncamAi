@@ -16,6 +16,7 @@ import (
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/authz"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/realtime"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/tenant"
 )
 
@@ -35,6 +36,8 @@ type Server struct {
 	tenants  tenant.Repository
 	events   eventing.Repository
 	alerts   alerting.Repository
+	realtime realtime.Repository
+	tickets  realtime.TicketStore
 	mux      *http.ServeMux
 }
 
@@ -49,13 +52,21 @@ func New(verifier identity.Verifier, tenants tenant.Repository, eventRepositorie
 
 // NewWithAlerts wires the complete local walking-skeleton dependencies.
 func NewWithAlerts(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository) http.Handler {
-	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, mux: http.NewServeMux()}
+	return NewWithRealtime(verifier, tenants, events, alerts, nil, nil)
+}
+
+// NewWithRealtime wires the complete local control-plane and realtime boundary.
+func NewWithRealtime(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository, realtimeRepository realtime.Repository, tickets realtime.TicketStore) http.Handler {
+	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, realtime: realtimeRepository, tickets: tickets, mux: http.NewServeMux()}
 	server.mux.HandleFunc("GET /healthz", server.health)
 	server.mux.Handle("GET /v1/auth/me", server.authenticate(http.HandlerFunc(server.me)))
+	server.mux.Handle("POST /v1/auth/ws-ticket", server.authenticate(http.HandlerFunc(server.issueRealtimeTicket)))
 	server.mux.Handle("GET /v1/sites", server.authenticate(http.HandlerFunc(server.listSites)))
 	server.mux.Handle("POST /v1/sites", server.authenticate(http.HandlerFunc(server.createSite)))
 	server.mux.Handle("POST /v1/events", server.authenticate(http.HandlerFunc(server.ingestEvent)))
 	server.mux.Handle("GET /v1/alerts", server.authenticate(http.HandlerFunc(server.listAlerts)))
+	server.mux.Handle("POST /v1/alerts/{id}/acknowledge", server.authenticate(http.HandlerFunc(server.acknowledgeAlert)))
+	server.mux.HandleFunc("GET /ws/v1/alerts", server.streamAlerts)
 	return server.mux
 }
 
