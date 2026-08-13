@@ -42,6 +42,33 @@ paths:
         "401": { description: Authentication required }
         "403": { description: Capability denied }
         "404": { description: Tenant scope not found }
+    post:
+      operationId: createSite
+      summary: Create one tenant site with an idempotent, audited mutation
+      security:
+        - oidc: [tenant:manage]
+      parameters:
+        - $ref: "#/components/parameters/TenantHeader"
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSiteRequest"
+      responses:
+        "201":
+          description: Site created or exact stored response replayed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteEnvelope"
+        "401": { description: Authentication required }
+        "403": { description: Capability denied }
+        "404": { description: Tenant scope not found }
+        "409": { description: Resource conflict or idempotency key reused with a different body }
+        "422": { description: Request validation failed }
   /events:
     post:
       operationId: ingestEvent
@@ -85,6 +112,24 @@ components:
         type: string
         minLength: 1
         maxLength: 128
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Tenant-scoped mutation key retained for at least 24 hours.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      description: Client UUIDv4 or a server-generated UUIDv4 returned in the response.
+      schema:
+        type: string
+        format: uuid
   schemas:
     DetectionEvent:
       type: object
@@ -173,11 +218,31 @@ components:
           properties:
             count: { type: integer, minimum: 0 }
             next: { type: [string, "null"] }
+    SiteEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/Site" }
+    CreateSiteRequest:
+      type: object
+      additionalProperties: false
+      required: [name, timezone]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        address: { type: string, maxLength: 500 }
+        timezone: { type: string, minLength: 1, maxLength: 64 }
     Site:
       type: object
       additionalProperties: false
-      required: [id, tenant_id, name]
+      required: [id, tenant_id, name, timezone, status, created_at]
       properties:
-        id: { type: string, minLength: 1, maxLength: 128 }
-        tenant_id: { type: string, minLength: 1, maxLength: 128 }
-        name: { type: string, minLength: 1, maxLength: 200 }
+        id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        address: { type: string, maxLength: 500 }
+        timezone: { type: string, minLength: 1, maxLength: 64 }
+        status:
+          type: string
+          enum: [provisioning, active, offline, retired]
+        created_at: { type: string, format: date-time }
