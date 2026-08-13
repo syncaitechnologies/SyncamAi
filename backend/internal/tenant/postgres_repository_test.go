@@ -13,8 +13,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/alerting"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/database"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/outbox"
 	"github.com/testcontainers/testcontainers-go"
 	postgrescontainer "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -191,6 +193,18 @@ func TestPostgresRepositoryEnforcesRLSIdempotencyAndAudit(t *testing.T) {
 	if _, err := eventRepository.Ingest(ctx, tenantBEvent); err != nil {
 		t.Fatal(err)
 	}
+	dispatcher := outbox.Dispatcher{
+		Store: outbox.NewPostgresStore(appPool), Publisher: alerting.NewProjector(appPool),
+		WorkerID: uuid.NewString(), BatchSize: 25,
+	}
+	dispatched, err := dispatcher.DispatchTenant(ctx, tenantA)
+	if err != nil || dispatched.Claimed != 1 || dispatched.Published != 1 || dispatched.Failed != 0 {
+		t.Fatalf("alert projection dispatch failed: %+v %v", dispatched, err)
+	}
+	retry, err := dispatcher.DispatchTenant(ctx, tenantA)
+	if err != nil || retry.Claimed != 0 {
+		t.Fatalf("published message was reclaimed: %+v %v", retry, err)
+	}
 	var eventsWithoutTenant int
 	if err := appPool.QueryRow(ctx, "SELECT count(*) FROM events.detection_events").Scan(&eventsWithoutTenant); err != nil {
 		t.Fatal(err)
@@ -216,18 +230,30 @@ func TestPostgresRepositoryEnforcesRLSIdempotencyAndAudit(t *testing.T) {
 	if auditCount != 1 {
 		t.Fatalf("expected one audit row after exact replay, got %d", auditCount)
 	}
-	var eventCount, outboxCount, eventAuditCount int
+	var eventCount, outboxCount, publishedCount, alertCount, receiptCount, eventAuditCount, alertAuditCount int
 	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM events.detection_events WHERE tenant_id = $1::uuid", tenantA).Scan(&eventCount); err != nil {
 		t.Fatal(err)
 	}
 	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM messaging.outbox_messages WHERE tenant_id = $1::uuid", tenantA).Scan(&outboxCount); err != nil {
 		t.Fatal(err)
 	}
+	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM messaging.outbox_messages WHERE tenant_id = $1::uuid AND published_at IS NOT NULL", tenantA).Scan(&publishedCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM alerts.alerts WHERE tenant_id = $1::uuid", tenantA).Scan(&alertCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM messaging.consumer_receipts WHERE tenant_id = $1::uuid", tenantA).Scan(&receiptCount); err != nil {
+		t.Fatal(err)
+	}
 	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM audit.events WHERE tenant_id = $1::uuid AND action = 'event.accepted'", tenantA).Scan(&eventAuditCount); err != nil {
 		t.Fatal(err)
 	}
-	if eventCount != 1 || outboxCount != 1 || eventAuditCount != 1 {
-		t.Fatalf("event transaction was not exactly-once: events=%d outbox=%d audit=%d", eventCount, outboxCount, eventAuditCount)
+	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM audit.events WHERE tenant_id = $1::uuid AND action = 'alert.created'", tenantA).Scan(&alertAuditCount); err != nil {
+		t.Fatal(err)
+	}
+	if eventCount != 1 || outboxCount != 1 || publishedCount != 1 || alertCount != 1 || receiptCount != 1 || eventAuditCount != 1 || alertAuditCount != 1 {
+		t.Fatalf("event projection was not exactly-once: events=%d outbox=%d published=%d alerts=%d receipts=%d event_audit=%d alert_audit=%d", eventCount, outboxCount, publishedCount, alertCount, receiptCount, eventAuditCount, alertAuditCount)
 	}
 	if _, err := auditTx.Exec(ctx, "UPDATE audit.events SET action = 'tampered' WHERE tenant_id = $1::uuid", tenantA); err == nil {
 		t.Fatal("append-only audit trigger allowed an update")

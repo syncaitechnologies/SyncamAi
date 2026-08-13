@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/alerting"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/httpapi"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
@@ -62,9 +63,10 @@ func main() {
 
 	repository := tenant.NewPostgresRepository(pool)
 	eventRepository := eventing.NewPostgresRepository(pool)
+	alertRepository := alerting.NewPostgresRepository(pool)
 	server := &http.Server{
 		Addr:              envOrDefault("SYNCAM_HTTP_ADDR", ":8080"),
-		Handler:           httpapi.New(verifier, repository, eventRepository),
+		Handler:           httpapi.NewWithAlerts(verifier, repository, eventRepository, alertRepository),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,

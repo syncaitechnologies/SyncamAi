@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/alerting"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/tenant"
@@ -173,6 +174,34 @@ func TestListSitesFailsClosedWithoutRepository(t *testing.T) {
 	response := request(handler, "/v1/sites", "valid", "tenant-a")
 	if response.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestListAlertsFiltersTenantAndSiteScope(t *testing.T) {
+	principal := viewer()
+	principal.Scopes = append(principal.Scopes, "alerts:read")
+	repository := alerting.MemoryRepository{Alerts: []alerting.Alert{
+		{ID: "visible", TenantID: "tenant-a", SiteID: "site-a", Severity: "high", Status: "unacknowledged"},
+		{ID: "other-site", TenantID: "tenant-a", SiteID: "site-b"},
+		{ID: "other-tenant", TenantID: "tenant-b", SiteID: "site-a"},
+	}}
+	handler := NewWithAlerts(fakeVerifier{principal: principal}, leakyRepository{}, nil, repository)
+	response := request(handler, "/v1/alerts", "valid", "tenant-a")
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "visible") || strings.Contains(response.Body.String(), "other-site") || strings.Contains(response.Body.String(), "other-tenant") {
+		t.Fatalf("alert isolation failed: %d %s", response.Code, response.Body.String())
+	}
+}
+
+func TestListAlertsRequiresScopeAndRepository(t *testing.T) {
+	principal := viewer()
+	handler := NewWithAlerts(fakeVerifier{principal: principal}, leakyRepository{}, nil, alerting.MemoryRepository{})
+	if response := request(handler, "/v1/alerts", "valid", "tenant-a"); response.Code != http.StatusForbidden {
+		t.Fatalf("missing scope: expected 403, got %d", response.Code)
+	}
+	principal.Scopes = append(principal.Scopes, "alerts:read")
+	handler = NewWithAlerts(fakeVerifier{principal: principal}, leakyRepository{}, nil, nil)
+	if response := request(handler, "/v1/alerts", "valid", "tenant-a"); response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("missing repository: expected 503, got %d", response.Code)
 	}
 }
 

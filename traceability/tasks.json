@@ -133,7 +133,7 @@
       "phase": 1,
       "owner": "Security and Platform",
       "dependencies": ["T-0313", "T-0012", "T-0053"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Event and outbox tables migrate idempotently, enforce transaction-local tenant RLS, and fail closed for the non-superuser application role."
     },
     {
@@ -142,8 +142,26 @@
       "phase": 1,
       "owner": "Platform",
       "dependencies": ["T-0315", "T-0311", "T-0085"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "POST /v1/events validates the canonical event contract and site scope; one event, outbox message, and audit record commit atomically, while duplicate delivery produces one logical event."
+    },
+    {
+      "id": "T-0317",
+      "title": "Implement leased local outbox dispatch",
+      "phase": 1,
+      "owner": "Platform",
+      "dependencies": ["T-0315", "T-0053"],
+      "status": "in_review",
+      "acceptance": "A tenant-scoped worker leases unpublished messages with SKIP LOCKED, records attempts, releases failed leases, and marks only successfully published messages complete."
+    },
+    {
+      "id": "T-0318",
+      "title": "Project events idempotently into the alert queue",
+      "phase": 1,
+      "owner": "Platform",
+      "dependencies": ["T-0317", "T-0013"],
+      "status": "in_review",
+      "acceptance": "Each accepted event produces at most one tenant- and site-scoped alert and consumer receipt; GET /v1/alerts returns only authorized queue rows in priority order."
     }
   ]
 }

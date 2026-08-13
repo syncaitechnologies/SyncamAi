@@ -28,6 +28,11 @@ func TestApplyMigrationsAppliesOnceAndThenSkips(t *testing.T) {
 	mock.ExpectExec("CREATE SCHEMA IF NOT EXISTS events").WithArgs(pgx.QueryExecModeSimpleProtocol).WillReturnResult(pgxmock.NewResult("CREATE", 0))
 	mock.ExpectExec("INSERT INTO platform.schema_migrations").WithArgs("000002_event_outbox.sql").WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	mock.ExpectCommit()
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT EXISTS").WithArgs("000003_alert_projection.sql").WillReturnRows(pgxmock.NewRows([]string{"exists"}).AddRow(false))
+	mock.ExpectExec("ALTER TABLE messaging.outbox_messages").WithArgs(pgx.QueryExecModeSimpleProtocol).WillReturnResult(pgxmock.NewResult("ALTER", 0))
+	mock.ExpectExec("INSERT INTO platform.schema_migrations").WithArgs("000003_alert_projection.sql").WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectCommit()
 
 	if err := ApplyMigrations(context.Background(), mock); err != nil {
 		t.Fatal(err)
@@ -43,6 +48,9 @@ func TestApplyMigrationsAppliesOnceAndThenSkips(t *testing.T) {
 	mock.ExpectCommit()
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT EXISTS").WithArgs("000002_event_outbox.sql").WillReturnRows(pgxmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectCommit()
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT EXISTS").WithArgs("000003_alert_projection.sql").WillReturnRows(pgxmock.NewRows([]string{"exists"}).AddRow(true))
 	mock.ExpectCommit()
 	if err := ApplyMigrations(context.Background(), mock); err != nil {
 		t.Fatalf("second migration pass must be idempotent: %v", err)
