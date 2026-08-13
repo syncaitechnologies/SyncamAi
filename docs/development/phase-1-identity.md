@@ -1,6 +1,6 @@
 # Phase 1 identity and tenancy setup
 
-The merged identity slice implements the provider-neutral security boundary for T-0310 through T-0312. The persistence slice adds T-0313 and T-0314: tenant/site Postgres migrations, transaction-local RLS, idempotent site creation, and append-only hash-chained audit records. Data erasure remains denied until its dual-approval workflow is implemented.
+The merged identity slice implements the provider-neutral security boundary for T-0310 through T-0312. The persistence slices add T-0313 through T-0316: tenant/site and event/outbox Postgres migrations, transaction-local RLS, idempotent site creation, idempotent event ingestion, and append-only hash-chained audit records. Data erasure remains denied until its dual-approval workflow is implemented.
 
 ## Local prerequisites
 
@@ -29,6 +29,8 @@ For Cognito, `SYNCAM_OIDC_ISSUER` is `https://cognito-idp.ap-south-1.amazonaws.c
 
 Every repository operation opens a transaction and derives `app.tenant_id` from the verified token claim. The application database role is `NOSUPERUSER NOBYPASSRLS`; queries without that transaction setting return no tenant rows. `POST /v1/sites` requires `tenant:manage`, `Idempotency-Key`, and an optional UUIDv4 `X-Correlation-Id`. The site, exact replay response, and audit event commit in one transaction.
 
+`POST /v1/events` requires an authenticated Super Admin or Site Admin with explicit `events:write` scope, access to the submitted site, and a UUIDv4 `X-SentinelVision-Request-ID`. New probabilistic events must be pending human review. The normalized event, one unpublished `detection-events-v1` outbox message, and its audit record commit in one transaction. Replaying identical content under the same tenant `dedupe_key` returns the original logical event and creates no additional outbox or audit row; different content returns `409`.
+
 Set `SYNCAM_RUN_INTEGRATION=1` when running `go test ./backend/internal/...` to execute the Docker-backed Postgres isolation tests. GitHub CI enables this automatically.
 
 ## Request contract
@@ -42,4 +44,4 @@ The tenant header is only a binding assertion. It never creates authentication c
 
 ## Owner decisions still required
 
-The owner has authorized temporary public implementation publication without an open-source license; T-0309 remains open for final legal review and the later public/private decision. Before any AI model or weights are introduced, Legal must approve ADR-001. No AWS resource is provisioned by these Phase 1 slices.
+The owner has authorized temporary public implementation publication without an open-source license; T-0309 remains open for final legal review and the later public/private decision. Before any AI model or weights are introduced, Legal must approve ADR-001. No AWS resource is provisioned by these Phase 1 slices. Full tenant onboarding remains deferred until its AWS KMS, storage-prefix, quota, and regional controls can be created atomically rather than leaving a partially isolated tenant.

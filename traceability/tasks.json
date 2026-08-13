@@ -115,7 +115,7 @@
       "phase": 1,
       "owner": "Security and Platform",
       "dependencies": ["T-0312", "T-0042", "T-0223"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Tenant, site, idempotency, and audit tables migrate idempotently; the non-superuser application role fails closed without a verified transaction-local tenant and cannot read another tenant."
     },
     {
@@ -124,8 +124,26 @@
       "phase": 1,
       "owner": "Platform",
       "dependencies": ["T-0313", "T-0085"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "POST /v1/sites requires tenant-manager authorization, UUIDv4 correlation, and a tenant-scoped idempotency key; product state, replay response, and append-only hash-chained audit event commit atomically."
+    },
+    {
+      "id": "T-0315",
+      "title": "Add tenant event and transactional outbox persistence",
+      "phase": 1,
+      "owner": "Security and Platform",
+      "dependencies": ["T-0313", "T-0012", "T-0053"],
+      "status": "in_review",
+      "acceptance": "Event and outbox tables migrate idempotently, enforce transaction-local tenant RLS, and fail closed for the non-superuser application role."
+    },
+    {
+      "id": "T-0316",
+      "title": "Implement authenticated idempotent event ingestion",
+      "phase": 1,
+      "owner": "Platform",
+      "dependencies": ["T-0315", "T-0311", "T-0085"],
+      "status": "in_review",
+      "acceptance": "POST /v1/events validates the canonical event contract and site scope; one event, outbox message, and audit record commit atomically, while duplicate delivery produces one logical event."
     }
   ]
 }

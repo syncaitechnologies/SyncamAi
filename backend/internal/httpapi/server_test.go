@@ -7,7 +7,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/tenant"
 )
@@ -25,6 +27,12 @@ func (v fakeVerifier) Verify(_ context.Context, token string) (identity.Principa
 }
 
 type leakyRepository struct{}
+
+type eventRepositoryFunc func(context.Context, eventing.IngestCommand) (eventing.IngestResult, error)
+
+func (f eventRepositoryFunc) Ingest(ctx context.Context, command eventing.IngestCommand) (eventing.IngestResult, error) {
+	return f(ctx, command)
+}
 
 func (leakyRepository) ListSites(_ context.Context, _ string) ([]tenant.Site, error) {
 	return []tenant.Site{
@@ -75,6 +83,39 @@ func mutationRequest(handler http.Handler, body, token, tenantID, idempotencyKey
 	handler.ServeHTTP(recorder, req)
 	return recorder
 }
+
+func eventRequest(handler http.Handler, body, token, tenantID, requestID string) *httptest.ResponseRecorder {
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/events", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	if tenantID != "" {
+		req.Header.Set(tenantHeader, tenantID)
+	}
+	if requestID != "" {
+		req.Header.Set(eventRequestHeader, requestID)
+	}
+	handler.ServeHTTP(recorder, req)
+	return recorder
+}
+
+const validEventBody = `{
+  "event_id":"22222222-2222-4222-8222-222222222222",
+  "tenant_id":"11111111-1111-4111-8111-111111111111",
+  "dedupe_key":"camera-1:42",
+  "occurred_at":"2026-08-13T01:00:00Z",
+  "site_id":"33333333-3333-4333-8333-333333333333",
+  "camera_id":"44444444-4444-4444-8444-444444444444",
+  "zone_id":"55555555-5555-4555-8555-555555555555",
+  "event_type":"intrusion",
+  "model_version":"detector-1",
+  "confidence":0.91,
+  "evidence_refs":["evidence://clip-1"],
+  "requires_human_review":true,
+  "review_state":"pending"
+}`
 
 func TestHealthDoesNotRequireAuthentication(t *testing.T) {
 	response := request(New(nil, nil), "/healthz", "", "")
@@ -187,5 +228,137 @@ func TestCreateSiteRejectsUnknownFieldsAndInvalidCorrelationID(t *testing.T) {
 	handler.ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("invalid correlation id: expected 422, got %d", recorder.Code)
+	}
+}
+
+func TestIngestEventRequiresAuthorizedSiteAndDeduplicates(t *testing.T) {
+	principal := viewer()
+	principal.TenantID = "11111111-1111-4111-8111-111111111111"
+	principal.SiteIDs = []string{"33333333-3333-4333-8333-333333333333"}
+	principal.Roles = []identity.Role{identity.RoleSiteAdmin}
+	principal.Scopes = []string{"events:write"}
+	repository := eventing.NewMemoryRepository()
+	handler := New(fakeVerifier{principal: principal}, leakyRepository{}, repository)
+	requestID := "66666666-6666-4666-8666-666666666666"
+
+	response := eventRequest(handler, validEventBody, "valid", principal.TenantID, requestID)
+	if response.Code != http.StatusAccepted || !strings.Contains(response.Body.String(), `"accepted":true`) {
+		t.Fatalf("event ingest failed: %d %s", response.Code, response.Body.String())
+	}
+	replay := eventRequest(handler, validEventBody, "valid", principal.TenantID, requestID)
+	if replay.Code != http.StatusAccepted || replay.Header().Get("Idempotent-Replayed") != "true" || replay.Body.String() != response.Body.String() {
+		t.Fatalf("event replay failed: %d %s", replay.Code, replay.Body.String())
+	}
+	conflictBody := strings.Replace(validEventBody, `"confidence":0.91`, `"confidence":0.50`, 1)
+	conflict := eventRequest(handler, conflictBody, "valid", principal.TenantID, requestID)
+	if conflict.Code != http.StatusConflict || !strings.Contains(conflict.Body.String(), "IDEMPOTENCY_REPLAY") {
+		t.Fatalf("event conflict failed: %d %s", conflict.Code, conflict.Body.String())
+	}
+}
+
+func TestIngestEventFailsClosedAndRequiresPendingHumanReview(t *testing.T) {
+	principal := viewer()
+	principal.TenantID = "11111111-1111-4111-8111-111111111111"
+	principal.SiteIDs = []string{"33333333-3333-4333-8333-333333333333"}
+	principal.Roles = []identity.Role{identity.RoleOperator}
+	principal.Scopes = []string{"events:write"}
+	requestID := "66666666-6666-4666-8666-666666666666"
+
+	forbidden := eventRequest(New(fakeVerifier{principal: principal}, leakyRepository{}, eventing.NewMemoryRepository()), validEventBody, "valid", principal.TenantID, requestID)
+	if forbidden.Code != http.StatusForbidden {
+		t.Fatalf("operator event ingest: expected 403, got %d", forbidden.Code)
+	}
+	principal.Roles = []identity.Role{identity.RoleSiteAdmin}
+	missing := eventRequest(New(fakeVerifier{principal: principal}, leakyRepository{}), validEventBody, "valid", principal.TenantID, requestID)
+	if missing.Code != http.StatusServiceUnavailable {
+		t.Fatalf("missing event repository: expected 503, got %d", missing.Code)
+	}
+	invalidReview := strings.Replace(validEventBody, `"requires_human_review":true`, `"requires_human_review":false`, 1)
+	invalid := eventRequest(New(fakeVerifier{principal: principal}, leakyRepository{}, eventing.NewMemoryRepository()), invalidReview, "valid", principal.TenantID, requestID)
+	if invalid.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("non-review event: expected 422, got %d %s", invalid.Code, invalid.Body.String())
+	}
+	badRequestID := eventRequest(New(fakeVerifier{principal: principal}, leakyRepository{}, eventing.NewMemoryRepository()), validEventBody, "valid", principal.TenantID, "not-a-uuid")
+	if badRequestID.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("invalid request id: expected 422, got %d", badRequestID.Code)
+	}
+}
+
+func TestValidateDetectionEventRejectsEveryBoundary(t *testing.T) {
+	valid := eventing.DetectionEvent{
+		EventID: "22222222-2222-4222-8222-222222222222", TenantID: "11111111-1111-4111-8111-111111111111",
+		DedupeKey: "camera-1:42", OccurredAt: time.Date(2026, 8, 13, 1, 0, 0, 0, time.UTC),
+		SiteID: "33333333-3333-4333-8333-333333333333", CameraID: "44444444-4444-4444-8444-444444444444",
+		ZoneID: "55555555-5555-4555-8555-555555555555", EventType: "intrusion", ModelVersion: "detector-1",
+		Confidence: 0.91, EvidenceRefs: []string{"evidence://clip-1"}, RequiresHumanReview: true, ReviewState: "pending",
+	}
+	if err := validateDetectionEvent(valid, valid.TenantID); err != nil {
+		t.Fatalf("valid event rejected: %v", err)
+	}
+	tests := []struct {
+		name   string
+		mutate func(*eventing.DetectionEvent)
+	}{
+		{"invalid identifier", func(event *eventing.DetectionEvent) { event.CameraID = "bad" }},
+		{"tenant mismatch", func(event *eventing.DetectionEvent) { event.TenantID = "77777777-7777-4777-8777-777777777777" }},
+		{"missing dedupe", func(event *eventing.DetectionEvent) { event.DedupeKey = "" }},
+		{"missing time", func(event *eventing.DetectionEvent) { event.OccurredAt = time.Time{} }},
+		{"invalid type", func(event *eventing.DetectionEvent) { event.EventType = "theft_detected" }},
+		{"missing model", func(event *eventing.DetectionEvent) { event.ModelVersion = "" }},
+		{"invalid confidence", func(event *eventing.DetectionEvent) { event.Confidence = 1.1 }},
+		{"resolved state", func(event *eventing.DetectionEvent) { event.ReviewState = "confirmed" }},
+		{"too many evidence refs", func(event *eventing.DetectionEvent) { event.EvidenceRefs = make([]string, 33) }},
+		{"blank evidence ref", func(event *eventing.DetectionEvent) { event.EvidenceRefs = []string{" "} }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			event := valid
+			test.mutate(&event)
+			if err := validateDetectionEvent(event, valid.TenantID); err == nil {
+				t.Fatal("expected validation error")
+			}
+		})
+	}
+}
+
+func TestIngestEventMapsScopeAndRepositoryFailures(t *testing.T) {
+	principal := viewer()
+	principal.TenantID = "11111111-1111-4111-8111-111111111111"
+	principal.SiteIDs = []string{"33333333-3333-4333-8333-333333333333"}
+	principal.Roles = []identity.Role{identity.RoleSiteAdmin}
+	principal.Scopes = []string{"events:write"}
+	requestID := "66666666-6666-4666-8666-666666666666"
+
+	if response := eventRequest(New(fakeVerifier{principal: principal}, leakyRepository{}, eventing.NewMemoryRepository()), validEventBody, "valid", "", requestID); response.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("missing tenant: expected 422, got %d", response.Code)
+	}
+	if response := eventRequest(New(fakeVerifier{principal: principal}, leakyRepository{}, eventing.NewMemoryRepository()), validEventBody, "valid", "77777777-7777-4777-8777-777777777777", requestID); response.Code != http.StatusNotFound {
+		t.Fatalf("cross tenant: expected 404, got %d", response.Code)
+	}
+	crossSite := strings.Replace(validEventBody, "33333333-3333-4333-8333-333333333333", "77777777-7777-4777-8777-777777777777", 1)
+	if response := eventRequest(New(fakeVerifier{principal: principal}, leakyRepository{}, eventing.NewMemoryRepository()), crossSite, "valid", principal.TenantID, requestID); response.Code != http.StatusForbidden {
+		t.Fatalf("cross site: expected 403, got %d", response.Code)
+	}
+	if response := eventRequest(New(fakeVerifier{principal: principal}, leakyRepository{}, eventing.NewMemoryRepository()), `{`, "valid", principal.TenantID, requestID); response.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("invalid JSON: expected 422, got %d", response.Code)
+	}
+	if response := eventRequest(New(fakeVerifier{principal: principal}, leakyRepository{}, eventing.NewMemoryRepository()), validEventBody+validEventBody, "valid", principal.TenantID, requestID); response.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("multiple objects: expected 422, got %d", response.Code)
+	}
+
+	for _, test := range []struct {
+		name string
+		err  error
+		code int
+	}{{"site missing", eventing.ErrSiteNotFound, http.StatusNotFound}, {"event conflict", eventing.ErrEventConflict, http.StatusConflict}, {"database down", errors.New("down"), http.StatusServiceUnavailable}} {
+		t.Run(test.name, func(t *testing.T) {
+			repository := eventRepositoryFunc(func(context.Context, eventing.IngestCommand) (eventing.IngestResult, error) {
+				return eventing.IngestResult{}, test.err
+			})
+			response := eventRequest(New(fakeVerifier{principal: principal}, leakyRepository{}, repository), validEventBody, "valid", principal.TenantID, requestID)
+			if response.Code != test.code {
+				t.Fatalf("expected %d, got %d: %s", test.code, response.Code, response.Body.String())
+			}
+		})
 	}
 }
