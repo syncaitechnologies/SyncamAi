@@ -61,7 +61,7 @@ func TestPostgresRepositoryEnforcesRLSIdempotencyAndAudit(t *testing.T) {
 	if err := adminPool.QueryRow(ctx, `
 		SELECT format(
 			'CREATE ROLE syncam_app LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS',
-			$1
+			$1::text
 		)`, appPassword).Scan(&createRoleSQL); err != nil {
 		t.Fatal(err)
 	}
