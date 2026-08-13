@@ -2,6 +2,7 @@ package tenant
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -111,7 +112,15 @@ func TestPostgresRepositoryEnforcesRLSIdempotencyAndAudit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !replayed.Replayed || replayed.Site != created.Site {
+	createdPayload, err := json.Marshal(created.Site)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replayedPayload, err := json.Marshal(replayed.Site)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !replayed.Replayed || string(replayedPayload) != string(createdPayload) {
 		t.Fatalf("exact replay changed response: created=%+v replayed=%+v", created, replayed)
 	}
 	different := commandA
