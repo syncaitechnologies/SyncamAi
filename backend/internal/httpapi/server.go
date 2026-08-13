@@ -12,6 +12,7 @@ import (
 	_ "time/tzdata"
 
 	"github.com/google/uuid"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/alerting"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/authz"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
@@ -33,21 +34,66 @@ type Server struct {
 	verifier identity.Verifier
 	tenants  tenant.Repository
 	events   eventing.Repository
+	alerts   alerting.Repository
 	mux      *http.ServeMux
 }
 
 // New builds a fail-closed HTTP handler around explicit dependencies.
 func New(verifier identity.Verifier, tenants tenant.Repository, eventRepositories ...eventing.Repository) http.Handler {
-	server := &Server{verifier: verifier, tenants: tenants, mux: http.NewServeMux()}
+	var events eventing.Repository
 	if len(eventRepositories) > 0 {
-		server.events = eventRepositories[0]
+		events = eventRepositories[0]
 	}
+	return NewWithAlerts(verifier, tenants, events, nil)
+}
+
+// NewWithAlerts wires the complete local walking-skeleton dependencies.
+func NewWithAlerts(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository) http.Handler {
+	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, mux: http.NewServeMux()}
 	server.mux.HandleFunc("GET /healthz", server.health)
 	server.mux.Handle("GET /v1/auth/me", server.authenticate(http.HandlerFunc(server.me)))
 	server.mux.Handle("GET /v1/sites", server.authenticate(http.HandlerFunc(server.listSites)))
 	server.mux.Handle("POST /v1/sites", server.authenticate(http.HandlerFunc(server.createSite)))
 	server.mux.Handle("POST /v1/events", server.authenticate(http.HandlerFunc(server.ingestEvent)))
+	server.mux.Handle("GET /v1/alerts", server.authenticate(http.HandlerFunc(server.listAlerts)))
 	return server.mux
+}
+
+func (s *Server) listAlerts(w http.ResponseWriter, r *http.Request) {
+	principal, ok := principalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Authentication required.")
+		return
+	}
+	tenantID, err := requestTenant(r, principal)
+	if errors.Is(err, authz.ErrDenied) {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found.")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Tenant header is required.")
+		return
+	}
+	if err := authz.Authorize(principal, authz.Request{Capability: authz.CapabilityAlertsRead, TenantID: tenantID}); err != nil {
+		writeError(w, http.StatusForbidden, "FORBIDDEN", "Access denied.")
+		return
+	}
+	if s.alerts == nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Alert repository unavailable.")
+		return
+	}
+	queue, err := s.alerts.List(r.Context(), tenantID)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Alert repository unavailable.")
+		return
+	}
+	visible := make([]alerting.Alert, 0, len(queue))
+	for _, alert := range queue {
+		if alert.TenantID == tenantID && authz.CanAccessSite(principal, tenantID, alert.SiteID) {
+			visible = append(visible, alert)
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": visible, "meta": map[string]any{"count": len(visible), "next": nil}})
 }
 
 var eventTypes = map[string]struct{}{

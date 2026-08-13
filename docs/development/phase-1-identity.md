@@ -1,6 +1,6 @@
 # Phase 1 identity and tenancy setup
 
-The merged identity slice implements the provider-neutral security boundary for T-0310 through T-0312. The persistence slices add T-0313 through T-0316: tenant/site and event/outbox Postgres migrations, transaction-local RLS, idempotent site creation, idempotent event ingestion, and append-only hash-chained audit records. Data erasure remains denied until its dual-approval workflow is implemented.
+The merged identity slice implements the provider-neutral security boundary for T-0310 through T-0312. The persistence slices add T-0313 through T-0318: tenant/site and event/outbox Postgres migrations, transaction-local RLS, idempotent mutations, leased outbox dispatch, an idempotent alert projection, and append-only hash-chained audit records. Data erasure remains denied until its dual-approval workflow is implemented.
 
 ## Local prerequisites
 
@@ -30,6 +30,8 @@ For Cognito, `SYNCAM_OIDC_ISSUER` is `https://cognito-idp.ap-south-1.amazonaws.c
 Every repository operation opens a transaction and derives `app.tenant_id` from the verified token claim. The application database role is `NOSUPERUSER NOBYPASSRLS`; queries without that transaction setting return no tenant rows. `POST /v1/sites` requires `tenant:manage`, `Idempotency-Key`, and an optional UUIDv4 `X-Correlation-Id`. The site, exact replay response, and audit event commit in one transaction.
 
 `POST /v1/events` requires an authenticated Super Admin or Site Admin with explicit `events:write` scope, access to the submitted site, and a UUIDv4 `X-SentinelVision-Request-ID`. New probabilistic events must be pending human review. The normalized event, one unpublished `detection-events-v1` outbox message, and its audit record commit in one transaction. Replaying identical content under the same tenant `dedupe_key` returns the original logical event and creates no additional outbox or audit row; different content returns `409`.
+
+For local projection, set `SYNCAM_WORKER_TENANT_ID` to a provisioned tenant UUID and run `go run ./backend/cmd/outbox-worker`. The worker uses 60-second leases and `FOR UPDATE SKIP LOCKED`, then invokes an idempotent alert projector. A consumer receipt and alert commit together before the outbox row is marked published, so a crash between projection and completion safely replays without a second alert. `GET /v1/alerts` requires `alerts:read` and filters queue rows again through the verified site scope. This local projector is replaceable by the canonical Kinesis/MSK publisher when AWS is available; it is not a claim that the cloud backbone exists.
 
 Set `SYNCAM_RUN_INTEGRATION=1` when running `go test ./backend/internal/...` to execute the Docker-backed Postgres isolation tests. GitHub CI enables this automatically.
 

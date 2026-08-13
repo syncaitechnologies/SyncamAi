@@ -107,6 +107,26 @@ paths:
           description: Event validation failed
         "503":
           description: Event persistence unavailable
+  /alerts:
+    get:
+      operationId: listAlerts
+      summary: List the tenant- and site-scoped operator alert queue
+      security:
+        - oidc: [alerts:read]
+      parameters:
+        - $ref: "#/components/parameters/TenantHeader"
+      responses:
+        "200":
+          description: Up to 100 alerts sorted by priority and age
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertListEnvelope"
+        "401": { description: Authentication required }
+        "403": { description: Capability denied }
+        "404": { description: Tenant scope not found }
+        "422": { description: Tenant header validation failed }
+        "503": { description: Alert projection unavailable }
 components:
   securitySchemes:
     oidc:
@@ -200,6 +220,43 @@ components:
           properties:
             event_id: { type: string, format: uuid }
             accepted: { type: boolean, const: true }
+    AlertListEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/Alert" }
+        meta:
+          type: object
+          additionalProperties: false
+          required: [count, next]
+          properties:
+            count: { type: integer, minimum: 0, maximum: 100 }
+            next: { type: [string, "null"] }
+    Alert:
+      type: object
+      additionalProperties: false
+      required: [id, tenant_id, event_id, site_id, camera_id, zone_id, event_type, severity, status, confidence, occurred_at, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        event_id: { type: string, format: uuid }
+        site_id: { type: string, format: uuid }
+        camera_id: { type: string, format: uuid }
+        zone_id: { type: string, format: uuid }
+        event_type: { type: string }
+        severity:
+          type: string
+          enum: [critical, high, medium, low, info]
+        status:
+          type: string
+          enum: [unacknowledged, acknowledged, dispatched, arrived, resolved, dismissed, snoozed]
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        occurred_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
     CurrentUserEnvelope:
       type: object
       additionalProperties: false
