@@ -92,7 +92,7 @@ BEGIN
         v_tenant_id, p_device_id, p_heartbeat_id, p_request_hash, p_reported_at,
         p_uptime_seconds, p_store_forward_depth, p_firmware_version
     )
-    ON CONFLICT (tenant_id, device_id, heartbeat_id) DO NOTHING
+    ON CONFLICT ON CONSTRAINT device_heartbeats_pkey DO NOTHING
     RETURNING inserted.observed_at INTO v_observed_at;
 
     v_inserted := FOUND;
