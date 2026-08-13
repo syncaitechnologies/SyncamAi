@@ -206,6 +206,64 @@ paths:
         "404": { description: Camera or tenant scope not found }
         "422": { description: Correlation header validation failed }
         "503": { description: Camera repository unavailable }
+  /device-claims:
+    post:
+      operationId: issueDeviceClaim
+      summary: Issue a 24-hour single-use edge-device claim without persisting its bearer token
+      security:
+        - oidc: [config:write]
+      parameters:
+        - $ref: "#/components/parameters/TenantHeader"
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IssueDeviceClaimRequest" }
+      responses:
+        "201":
+          description: Claim issued once or deterministically reconstructed for an exact idempotent replay; response must not be cached
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeviceClaimEnvelope" }
+        "401": { description: Authentication required }
+        "403": { description: Capability or site scope denied }
+        "404": { description: Tenant or site scope not found }
+        "409": { description: Serial conflict or idempotency key reused with a different body }
+        "422": { description: Request validation failed }
+        "503": { description: Device enrollment repository unavailable }
+  /edge/devices/{id}/pair:
+    post:
+      operationId: activateDevice
+      summary: Atomically consume a one-time claim and bind an edge device to its signed tenant and site
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ActivateDeviceRequest" }
+      responses:
+        "200":
+          description: Device activated; certificate enrollment remains pending until the tenant CA integration completes
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EdgeDeviceEnvelope" }
+        "401": { description: Claim is invalid, expired, already consumed, or does not match the device serial }
+        "422": { description: Request validation failed }
+        "503": { description: Device enrollment repository unavailable }
   /events:
     post:
       operationId: ingestEvent
@@ -603,5 +661,81 @@ components:
           type: string
           enum: [pending, active, offline, retired]
         config_version: { type: integer, minimum: 1 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    IssueDeviceClaimRequest:
+      type: object
+      additionalProperties: false
+      required: [site_id, serial_number, hardware_tier]
+      properties:
+        site_id: { type: string, format: uuid }
+        serial_number: { type: string, minLength: 1, maxLength: 128 }
+        hardware_tier:
+          type: string
+          enum: [s, m, l]
+        model: { type: string, maxLength: 120 }
+    ActivateDeviceRequest:
+      type: object
+      additionalProperties: false
+      required: [claim_token, serial_number]
+      properties:
+        claim_token:
+          type: string
+          minLength: 80
+          maxLength: 256
+          writeOnly: true
+        serial_number: { type: string, minLength: 1, maxLength: 128 }
+    DeviceClaimEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [claim, claim_token]
+          properties:
+            claim: { $ref: "#/components/schemas/DeviceClaim" }
+            claim_token:
+              type: string
+              minLength: 80
+              maxLength: 256
+              readOnly: true
+              description: Returned only to the enrolling administrator; never persisted in plaintext.
+    DeviceClaim:
+      type: object
+      additionalProperties: false
+      required: [id, device_id, tenant_id, site_id, serial_number, hardware_tier, expires_at, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        device_id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        site_id: { type: string, format: uuid }
+        serial_number: { type: string, minLength: 1, maxLength: 128 }
+        hardware_tier: { type: string, enum: [s, m, l] }
+        model: { type: string, maxLength: 120 }
+        expires_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+    EdgeDeviceEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/EdgeDevice" }
+    EdgeDevice:
+      type: object
+      additionalProperties: false
+      description: Tenant/site binding metadata only; private keys and certificate material are never returned.
+      required: [id, tenant_id, site_id, serial_number, hardware_tier, status, certificate_status, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        site_id: { type: string, format: uuid }
+        serial_number: { type: string, minLength: 1, maxLength: 128 }
+        hardware_tier: { type: string, enum: [s, m, l] }
+        model: { type: string, maxLength: 120 }
+        status: { type: string, enum: [pending, active, offline, retired] }
+        certificate_status: { type: string, enum: [pending, active, revoked, rotating] }
+        activated_at: { type: string, format: date-time }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }

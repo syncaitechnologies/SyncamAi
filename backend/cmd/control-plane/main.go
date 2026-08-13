@@ -33,6 +33,10 @@ func main() {
 	if databaseURL == "" {
 		log.Fatal("SYNCAM_DATABASE_URL is required")
 	}
+	claimTokens, err := device.NewClaimTokenManagerFromBase64(os.Getenv("SYNCAM_DEVICE_CLAIM_KEY"))
+	if err != nil {
+		log.Fatal("SYNCAM_DEVICE_CLAIM_KEY must be a base64url-encoded key of at least 32 bytes")
+	}
 
 	discoveryContext, cancelDiscovery := context.WithTimeout(context.Background(), 10*time.Second)
 	verifier, err := identity.NewOIDCVerifier(discoveryContext, issuer, audience)
@@ -68,10 +72,11 @@ func main() {
 	alertRepository := alerting.NewPostgresRepository(pool)
 	realtimeRepository := realtime.NewPostgresRepository(pool)
 	cameraRepository := device.NewPostgresRepository(pool)
+	enrollmentRepository := device.NewPostgresEnrollmentRepository(pool, claimTokens)
 	tickets := realtime.NewMemoryTicketStore()
 	server := &http.Server{
 		Addr:              envOrDefault("SYNCAM_HTTP_ADDR", ":8080"),
-		Handler:           httpapi.NewWithCameras(verifier, repository, eventRepository, alertRepository, realtimeRepository, tickets, cameraRepository),
+		Handler:           httpapi.NewWithDeviceEnrollment(verifier, repository, eventRepository, alertRepository, realtimeRepository, tickets, cameraRepository, enrollmentRepository),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,

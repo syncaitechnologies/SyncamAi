@@ -202,6 +202,50 @@ func TestPostgresRepositoryEnforcesRLSIdempotencyAndAudit(t *testing.T) {
 		t.Fatalf("camera RLS must fail closed without tenant context, got %d rows", camerasWithoutTenant)
 	}
 
+	claimTokens, err := device.NewClaimTokenManager([]byte("0123456789abcdef0123456789abcdef"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	enrollmentRepository := device.NewPostgresEnrollmentRepository(appPool, claimTokens)
+	claimCommand := device.IssueClaimCommand{
+		TenantID: tenantA, ActorID: "user-a", RequestID: uuid.NewString(), IdempotencyKey: "issue-device-a",
+		SiteID: created.Site.ID, SerialNumber: "EDGE-A-001", HardwareTier: "m", Model: "Jetson Orin",
+	}
+	issuedClaim, err := enrollmentRepository.IssueClaim(ctx, claimCommand)
+	if err != nil || issuedClaim.Replayed || issuedClaim.ClaimToken == "" || issuedClaim.Claim.ExpiresAt.Sub(issuedClaim.Claim.CreatedAt) != 24*time.Hour {
+		t.Fatalf("device claim issuance failed: %+v %v", issuedClaim, err)
+	}
+	replayedClaim, err := enrollmentRepository.IssueClaim(ctx, claimCommand)
+	if err != nil || !replayedClaim.Replayed || replayedClaim.ClaimToken != issuedClaim.ClaimToken {
+		t.Fatalf("device claim replay failed: %+v %v", replayedClaim, err)
+	}
+	crossTenantClaim := claimCommand
+	crossTenantClaim.RequestID = uuid.NewString()
+	crossTenantClaim.IdempotencyKey = "issue-device-cross-tenant"
+	crossTenantClaim.SiteID = createdB.Site.ID
+	crossTenantClaim.SerialNumber = "EDGE-A-002"
+	if _, err := enrollmentRepository.IssueClaim(ctx, crossTenantClaim); !errors.Is(err, device.ErrSiteNotFound) {
+		t.Fatalf("cross-tenant device site must fail, got %v", err)
+	}
+	activatedDevice, err := enrollmentRepository.Activate(ctx, device.ActivateDeviceCommand{
+		DeviceID: issuedClaim.Claim.DeviceID, ClaimToken: issuedClaim.ClaimToken, SerialNumber: "edge-a-001", RequestID: uuid.NewString(),
+	})
+	if err != nil || activatedDevice.Status != "active" || activatedDevice.TenantID != tenantA || activatedDevice.SiteID != created.Site.ID {
+		t.Fatalf("device activation failed: %+v %v", activatedDevice, err)
+	}
+	if _, err := enrollmentRepository.Activate(ctx, device.ActivateDeviceCommand{DeviceID: issuedClaim.Claim.DeviceID, ClaimToken: issuedClaim.ClaimToken, SerialNumber: "EDGE-A-001", RequestID: uuid.NewString()}); !errors.Is(err, device.ErrClaimConsumed) {
+		t.Fatalf("device claim reuse must fail, got %v", err)
+	}
+	for _, table := range []string{"config.edge_devices", "platform.device_claims"} {
+		var count int
+		if err := appPool.QueryRow(ctx, "SELECT count(*) FROM "+table).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 0 {
+			t.Fatalf("%s RLS must fail closed without tenant context, got %d rows", table, count)
+		}
+	}
+
 	eventRepository := eventing.NewPostgresRepository(appPool)
 	eventCommand := eventing.IngestCommand{ActorID: "edge-a", RequestID: uuid.NewString(), Event: eventing.DetectionEvent{
 		EventID: uuid.NewString(), TenantID: tenantA, DedupeKey: "camera-a:42", OccurredAt: time.Now().UTC(),

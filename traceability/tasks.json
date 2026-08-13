@@ -196,8 +196,17 @@
       "phase": 2,
       "owner": "Platform and Frontend",
       "dependencies": ["T-0313", "T-0314", "T-0321", "T-0007"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Camera CRUD enforces tenant and site authorization, transaction-local RLS, per-tenant serial uniqueness, optimistic configuration versions, allowed lifecycle transitions, idempotent creation, soft retirement, and atomic append-only auditing; Camera Wall validates and renders metadata-only live inventory without exposing credentials or footage."
+    },
+    {
+      "id": "T-0323",
+      "title": "Implement one-time edge-device claim and activation",
+      "phase": 2,
+      "owner": "Edge and Platform",
+      "dependencies": ["T-0322", "T-0008"],
+      "status": "in_review",
+      "acceptance": "An authorized administrator issues an idempotent 24-hour device claim whose bearer token is never persisted in plaintext; activation validates the signed tenant and serial, atomically consumes the token once, binds the edge device to its tenant and site under RLS, and appends audit records without secrets."
     }
   ]
 }
