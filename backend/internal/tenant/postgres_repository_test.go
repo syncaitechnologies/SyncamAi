@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/database"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
 	"github.com/testcontainers/testcontainers-go"
 	postgrescontainer "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -134,7 +135,8 @@ func TestPostgresRepositoryEnforcesRLSIdempotencyAndAudit(t *testing.T) {
 	commandB.RequestID = uuid.NewString()
 	commandB.IdempotencyKey = "create-tenant-b"
 	commandB.Name = "Tenant B site"
-	if _, err := repository.CreateSite(ctx, commandB); err != nil {
+	createdB, err := repository.CreateSite(ctx, commandB)
+	if err != nil {
 		t.Fatal(err)
 	}
 	sitesA, err := repository.ListSites(ctx, tenantA)
@@ -153,6 +155,50 @@ func TestPostgresRepositoryEnforcesRLSIdempotencyAndAudit(t *testing.T) {
 		t.Fatalf("RLS must fail closed without transaction tenant context, got %d rows", rowsWithoutTenant)
 	}
 
+	eventRepository := eventing.NewPostgresRepository(appPool)
+	eventCommand := eventing.IngestCommand{ActorID: "edge-a", RequestID: uuid.NewString(), Event: eventing.DetectionEvent{
+		EventID: uuid.NewString(), TenantID: tenantA, DedupeKey: "camera-a:42", OccurredAt: time.Now().UTC(),
+		SiteID: created.Site.ID, CameraID: uuid.NewString(), ZoneID: uuid.NewString(), EventType: "intrusion",
+		ModelVersion: "detector-1", Confidence: 0.91, EvidenceRefs: []string{"evidence://clip-a"},
+		RequiresHumanReview: true, ReviewState: "pending",
+	}}
+	accepted, err := eventRepository.Ingest(ctx, eventCommand)
+	if err != nil || !accepted.Accepted || accepted.Replayed {
+		t.Fatalf("event ingest failed: %+v %v", accepted, err)
+	}
+	replayedEvent, err := eventRepository.Ingest(ctx, eventCommand)
+	if err != nil || !replayedEvent.Replayed || replayedEvent.EventID != accepted.EventID {
+		t.Fatalf("event replay failed: %+v %v", replayedEvent, err)
+	}
+	differentEvent := eventCommand
+	differentEvent.Event.Confidence = 0.5
+	if _, err := eventRepository.Ingest(ctx, differentEvent); !errors.Is(err, eventing.ErrDedupeConflict) {
+		t.Fatalf("expected event dedupe conflict, got %v", err)
+	}
+	crossTenantSite := eventCommand
+	crossTenantSite.Event.EventID = uuid.NewString()
+	crossTenantSite.Event.DedupeKey = "camera-a:cross-tenant-site"
+	crossTenantSite.Event.SiteID = createdB.Site.ID
+	if _, err := eventRepository.Ingest(ctx, crossTenantSite); !errors.Is(err, eventing.ErrSiteNotFound) {
+		t.Fatalf("cross-tenant site reference must fail, got %v", err)
+	}
+	tenantBEvent := eventCommand
+	tenantBEvent.RequestID = uuid.NewString()
+	tenantBEvent.Event.EventID = uuid.NewString()
+	tenantBEvent.Event.TenantID = tenantB
+	tenantBEvent.Event.DedupeKey = "camera-b:42"
+	tenantBEvent.Event.SiteID = createdB.Site.ID
+	if _, err := eventRepository.Ingest(ctx, tenantBEvent); err != nil {
+		t.Fatal(err)
+	}
+	var eventsWithoutTenant int
+	if err := appPool.QueryRow(ctx, "SELECT count(*) FROM events.detection_events").Scan(&eventsWithoutTenant); err != nil {
+		t.Fatal(err)
+	}
+	if eventsWithoutTenant != 0 {
+		t.Fatalf("event RLS must fail closed without tenant context, got %d rows", eventsWithoutTenant)
+	}
+
 	auditTx, err := appPool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadWrite})
 	if err != nil {
 		t.Fatal(err)
@@ -169,6 +215,19 @@ func TestPostgresRepositoryEnforcesRLSIdempotencyAndAudit(t *testing.T) {
 	}
 	if auditCount != 1 {
 		t.Fatalf("expected one audit row after exact replay, got %d", auditCount)
+	}
+	var eventCount, outboxCount, eventAuditCount int
+	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM events.detection_events WHERE tenant_id = $1::uuid", tenantA).Scan(&eventCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM messaging.outbox_messages WHERE tenant_id = $1::uuid", tenantA).Scan(&outboxCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM audit.events WHERE tenant_id = $1::uuid AND action = 'event.accepted'", tenantA).Scan(&eventAuditCount); err != nil {
+		t.Fatal(err)
+	}
+	if eventCount != 1 || outboxCount != 1 || eventAuditCount != 1 {
+		t.Fatalf("event transaction was not exactly-once: events=%d outbox=%d audit=%d", eventCount, outboxCount, eventAuditCount)
 	}
 	if _, err := auditTx.Exec(ctx, "UPDATE audit.events SET action = 'tampered' WHERE tenant_id = $1::uuid", tenantA); err == nil {
 		t.Fatal("append-only audit trigger allowed an update")

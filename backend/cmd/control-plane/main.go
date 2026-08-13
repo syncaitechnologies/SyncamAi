@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/httpapi"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/tenant"
@@ -60,9 +61,10 @@ func main() {
 	defer pool.Close()
 
 	repository := tenant.NewPostgresRepository(pool)
+	eventRepository := eventing.NewPostgresRepository(pool)
 	server := &http.Server{
 		Addr:              envOrDefault("SYNCAM_HTTP_ADDR", ":8080"),
-		Handler:           httpapi.New(verifier, repository),
+		Handler:           httpapi.New(verifier, repository, eventRepository),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,

@@ -27,8 +27,11 @@ func TestFiveSeedRolesHaveExpectedLeastPrivilege(t *testing.T) {
 		allowed    bool
 	}{
 		{"super admin manages tenant", principal(identity.RoleSuperAdmin, CapabilityTenantManage), CapabilityTenantManage, true},
+		{"super admin ingests events", principal(identity.RoleSuperAdmin, CapabilityEventsWrite), CapabilityEventsWrite, true},
 		{"site admin cannot manage tenant", principal(identity.RoleSiteAdmin, CapabilityTenantManage), CapabilityTenantManage, false},
+		{"site admin ingests site events", principal(identity.RoleSiteAdmin, CapabilityEventsWrite), CapabilityEventsWrite, true},
 		{"operator handles alerts", principal(identity.RoleOperator, CapabilityAlertsWrite), CapabilityAlertsWrite, true},
+		{"operator cannot ingest events", principal(identity.RoleOperator, CapabilityEventsWrite), CapabilityEventsWrite, false},
 		{"auditor reads audit", principal(identity.RoleAuditor, CapabilityAuditRead), CapabilityAuditRead, true},
 		{"auditor cannot handle alerts", principal(identity.RoleAuditor, CapabilityAlertsWrite), CapabilityAlertsWrite, false},
 		{"viewer reads analytics", principal(identity.RoleViewer, CapabilityAnalyticsRead), CapabilityAnalyticsRead, true},

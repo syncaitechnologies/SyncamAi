@@ -77,11 +77,7 @@ paths:
         - oidc: [events:write]
       parameters:
         - $ref: "#/components/parameters/TenantHeader"
-        - name: X-SentinelVision-Request-ID
-          in: header
-          required: true
-          schema:
-            type: string
+        - $ref: "#/components/parameters/EventRequestId"
       requestBody:
         required: true
         content:
@@ -90,13 +86,27 @@ paths:
               $ref: "#/components/schemas/DetectionEvent"
       responses:
         "202":
-          description: Accepted for idempotent processing
-        "400":
-          description: Invalid event
+          description: Event accepted, or the same logical event replayed without another outbox message
+          headers:
+            Idempotent-Replayed:
+              description: Present and true when an existing identical event is replayed.
+              schema: { type: string, const: "true" }
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestEventEnvelope"
         "401":
           description: Authentication required
         "403":
           description: Tenant or capability denied
+        "404":
+          description: Tenant or site scope not found
+        "409":
+          description: Event identifier or dedupe key conflicts with different content
+        "422":
+          description: Event validation failed
+        "503":
+          description: Event persistence unavailable
 components:
   securitySchemes:
     oidc:
@@ -127,6 +137,14 @@ components:
       in: header
       required: false
       description: Client UUIDv4 or a server-generated UUIDv4 returned in the response.
+      schema:
+        type: string
+        format: uuid
+    EventRequestId:
+      name: X-SentinelVision-Request-ID
+      in: header
+      required: true
+      description: UUIDv4 used to correlate the accepted event and append-only audit record.
       schema:
         type: string
         format: uuid
@@ -170,6 +188,18 @@ components:
         review_state:
           type: string
           enum: [pending, acknowledged, confirmed, dismissed]
+    IngestEventEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [event_id, accepted]
+          properties:
+            event_id: { type: string, format: uuid }
+            accepted: { type: boolean, const: true }
     CurrentUserEnvelope:
       type: object
       additionalProperties: false

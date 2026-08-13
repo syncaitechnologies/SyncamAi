@@ -25,6 +25,7 @@ const (
 	CapabilityAuditRead      Capability = "audit:read"
 	CapabilityDataErase      Capability = "data:erase"
 	CapabilityAnalyticsRead  Capability = "analytics:read"
+	CapabilityEventsWrite    Capability = "events:write"
 )
 
 // ErrDenied intentionally does not reveal which authorization check failed.
@@ -59,6 +60,7 @@ var seedRoles = map[identity.Role]roleGrant{
 			CapabilityRawVideoRead, CapabilityAlertsRead, CapabilityAlertsWrite,
 			CapabilityEvidenceExport, CapabilityBiometricRead, CapabilityAuditRead,
 			CapabilityAnalyticsRead,
+			CapabilityEventsWrite,
 		),
 	},
 	identity.RoleSiteAdmin: {
@@ -67,6 +69,7 @@ var seedRoles = map[identity.Role]roleGrant{
 			CapabilityConfigRead, CapabilityConfigWrite, CapabilityRawVideoRead,
 			CapabilityAlertsRead, CapabilityAlertsWrite, CapabilityEvidenceExport,
 			CapabilityBiometricRead, CapabilityAnalyticsRead,
+			CapabilityEventsWrite,
 		),
 	},
 	identity.RoleOperator: {

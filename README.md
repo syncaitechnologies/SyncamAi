@@ -14,7 +14,7 @@ The Phase 0 foundation lives beside the root specifications:
 
 Run the complete verification gate with `make verify` on macOS/Linux or `pwsh scripts/verify.ps1` on Windows. Required runtimes are Go 1.25.12+, Python 3.12, Node.js 22, and pnpm 11.16.0. Go patch releases are security floors, not merely feature baselines.
 
-Phase 1 local persistence uses Postgres 16 with separate `syncam_admin` migration and `syncam_app` runtime roles. Copy `.env.example`, start `docker compose up -d postgres`, run `go run ./backend/cmd/migrate`, and follow the [Phase 1 development guide](docs/development/phase-1-identity.md). AWS is not required for this local workflow.
+Phase 1 local persistence uses Postgres 16 with separate `syncam_admin` migration and `syncam_app` runtime roles. It includes tenant/site persistence plus an authenticated event-ingestion spine with transactional outbox and append-only audit records. Copy `.env.example`, start `docker compose up -d postgres`, run `go run ./backend/cmd/migrate`, and follow the [Phase 1 development guide](docs/development/phase-1-identity.md). AWS is not required for this local workflow.
 
 ## Source availability
 

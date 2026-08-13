@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/authz"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/tenant"
 )
@@ -20,8 +21,9 @@ import (
 const tenantHeader = "X-SentinelVision-Tenant-ID"
 
 const (
-	idempotencyHeader = "Idempotency-Key"
-	correlationHeader = "X-Correlation-Id"
+	idempotencyHeader  = "Idempotency-Key"
+	correlationHeader  = "X-Correlation-Id"
+	eventRequestHeader = "X-SentinelVision-Request-ID"
 )
 
 type principalContextKey struct{}
@@ -30,17 +32,127 @@ type principalContextKey struct{}
 type Server struct {
 	verifier identity.Verifier
 	tenants  tenant.Repository
+	events   eventing.Repository
 	mux      *http.ServeMux
 }
 
 // New builds a fail-closed HTTP handler around explicit dependencies.
-func New(verifier identity.Verifier, tenants tenant.Repository) http.Handler {
+func New(verifier identity.Verifier, tenants tenant.Repository, eventRepositories ...eventing.Repository) http.Handler {
 	server := &Server{verifier: verifier, tenants: tenants, mux: http.NewServeMux()}
+	if len(eventRepositories) > 0 {
+		server.events = eventRepositories[0]
+	}
 	server.mux.HandleFunc("GET /healthz", server.health)
 	server.mux.Handle("GET /v1/auth/me", server.authenticate(http.HandlerFunc(server.me)))
 	server.mux.Handle("GET /v1/sites", server.authenticate(http.HandlerFunc(server.listSites)))
 	server.mux.Handle("POST /v1/sites", server.authenticate(http.HandlerFunc(server.createSite)))
+	server.mux.Handle("POST /v1/events", server.authenticate(http.HandlerFunc(server.ingestEvent)))
 	return server.mux
+}
+
+var eventTypes = map[string]struct{}{
+	"camera_health": {}, "intrusion": {}, "restricted_zone": {}, "loitering": {},
+	"vehicle_activity": {}, "weapon_review": {}, "fire_review": {}, "smoke_review": {},
+	"attendance_review": {}, "ppe_review": {}, "fall_review": {}, "fight_review": {},
+	"abandoned_object_review": {},
+}
+
+func (s *Server) ingestEvent(w http.ResponseWriter, r *http.Request) {
+	principal, ok := principalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Authentication required.")
+		return
+	}
+	tenantID, err := requestTenant(r, principal)
+	if errors.Is(err, authz.ErrDenied) {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found.")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Tenant header is required.")
+		return
+	}
+	if s.events == nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Event repository unavailable.")
+		return
+	}
+	requestID := strings.TrimSpace(r.Header.Get(eventRequestHeader))
+	parsedRequestID, err := uuid.Parse(requestID)
+	if err != nil || parsedRequestID.Version() != 4 {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "X-SentinelVision-Request-ID must be a UUIDv4.")
+		return
+	}
+
+	var event eventing.DetectionEvent
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&event); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Event body is invalid.")
+		return
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Request body must contain one JSON object.")
+		return
+	}
+	if err := validateDetectionEvent(event, tenantID); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", err.Error())
+		return
+	}
+	if err := authz.Authorize(principal, authz.Request{
+		Capability: authz.CapabilityEventsWrite, TenantID: tenantID, SiteID: event.SiteID,
+	}); err != nil {
+		writeError(w, http.StatusForbidden, "FORBIDDEN", "Access denied.")
+		return
+	}
+
+	result, err := s.events.Ingest(r.Context(), eventing.IngestCommand{
+		ActorID: principal.UserID, RequestID: requestID, Event: event,
+	})
+	switch {
+	case errors.Is(err, eventing.ErrDedupeConflict), errors.Is(err, eventing.ErrEventConflict):
+		writeError(w, http.StatusConflict, "IDEMPOTENCY_REPLAY", "Event identity was already used for different content.")
+		return
+	case errors.Is(err, eventing.ErrSiteNotFound):
+		writeError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found.")
+		return
+	case err != nil:
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Event repository unavailable.")
+		return
+	}
+	if result.Replayed {
+		w.Header().Set("Idempotent-Replayed", "true")
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"data": result})
+}
+
+func validateDetectionEvent(event eventing.DetectionEvent, tenantID string) error {
+	identifiers := []string{event.EventID, event.TenantID, event.SiteID, event.CameraID, event.ZoneID}
+	for _, identifier := range identifiers {
+		if _, err := uuid.Parse(identifier); err != nil {
+			return errors.New("Event identifiers must be UUIDs.")
+		}
+	}
+	if event.TenantID != tenantID {
+		return errors.New("Event tenant must match the verified tenant.")
+	}
+	if len(strings.TrimSpace(event.DedupeKey)) == 0 || len(event.DedupeKey) > 256 || event.OccurredAt.IsZero() {
+		return errors.New("Event dedupe key and occurrence time are required.")
+	}
+	if _, ok := eventTypes[event.EventType]; !ok || len(strings.TrimSpace(event.ModelVersion)) == 0 || len(event.ModelVersion) > 128 {
+		return errors.New("Event type or model version is invalid.")
+	}
+	if event.Confidence < 0 || event.Confidence > 1 || !event.RequiresHumanReview || event.ReviewState != "pending" {
+		return errors.New("New probabilistic events must be pending human review.")
+	}
+	if len(event.EvidenceRefs) > 32 {
+		return errors.New("Event evidence references are invalid.")
+	}
+	for _, ref := range event.EvidenceRefs {
+		if len(strings.TrimSpace(ref)) == 0 || len(ref) > 1024 {
+			return errors.New("Event evidence references are invalid.")
+		}
+	}
+	return nil
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
