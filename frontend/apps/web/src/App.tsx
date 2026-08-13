@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { AlertItem, AlertStatus, Severity } from "./alert-contracts";
+import { CameraWall } from "./CameraWall";
 import { Icon } from "./icon";
 import { OperationsDashboard } from "./OperationsDashboard";
 import { useAlertFeed } from "./use-alert-feed";
 
 type Filter = "all" | "critical" | "unacknowledged" | "acknowledged";
-type View = "dashboard" | "alerts";
+type View = "dashboard" | "alerts" | "cameras";
 
 const seedAlerts: AlertItem[] = [
   {
@@ -417,9 +418,14 @@ export function App() {
             <span>Alert Center</span>
             <span className="nav-count">{unacknowledgedCount}</span>
           </button>
-          <button className="nav-item" type="button">
+          <button
+            className={activeView === "cameras" ? "nav-item active" : "nav-item"}
+            type="button"
+            onClick={() => setActiveView("cameras")}
+            aria-current={activeView === "cameras" ? "page" : undefined}
+          >
             <Icon name="camera" />
-            Live view
+            <span>Camera Wall</span>
           </button>
           <button className="nav-item" type="button">
             <Icon name="chart" />
@@ -459,7 +465,11 @@ export function App() {
             <span>Monitor</span>
             <Icon name="chevron" size={14} />
             <strong>
-              {activeView === "dashboard" ? "Operations overview" : "Alert Center"}
+              {activeView === "dashboard"
+                ? "Operations overview"
+                : activeView === "cameras"
+                  ? "Camera Wall"
+                  : "Alert Center"}
             </strong>
           </div>
           <div className="topbar-actions">
@@ -498,7 +508,18 @@ export function App() {
               if (alertId) setSelectedId(alertId);
               setActiveView("alerts");
             }}
+            onOpenCameraWall={() => setActiveView("cameras")}
             onSiteChange={setSite}
+          />
+        ) : activeView === "cameras" ? (
+          <CameraWall
+            alerts={alerts}
+            dataMode={dataMode}
+            site={site}
+            onOpenAlertCenter={(alertId) => {
+              if (alertId) setSelectedId(alertId);
+              setActiveView("alerts");
+            }}
             onNotify={setToast}
           />
         ) : (
