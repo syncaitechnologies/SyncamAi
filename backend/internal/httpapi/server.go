@@ -5,15 +5,24 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
+	"time"
+	_ "time/tzdata"
 
+	"github.com/google/uuid"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/authz"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/tenant"
 )
 
 const tenantHeader = "X-SentinelVision-Tenant-ID"
+
+const (
+	idempotencyHeader = "Idempotency-Key"
+	correlationHeader = "X-Correlation-Id"
+)
 
 type principalContextKey struct{}
 
@@ -30,6 +39,7 @@ func New(verifier identity.Verifier, tenants tenant.Repository) http.Handler {
 	server.mux.HandleFunc("GET /healthz", server.health)
 	server.mux.Handle("GET /v1/auth/me", server.authenticate(http.HandlerFunc(server.me)))
 	server.mux.Handle("GET /v1/sites", server.authenticate(http.HandlerFunc(server.listSites)))
+	server.mux.Handle("POST /v1/sites", server.authenticate(http.HandlerFunc(server.createSite)))
 	return server.mux
 }
 
@@ -134,6 +144,107 @@ func (s *Server) listSites(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": visible, "meta": map[string]any{"count": len(visible), "next": nil}})
+}
+
+type createSiteRequest struct {
+	Name     string `json:"name"`
+	Address  string `json:"address"`
+	Timezone string `json:"timezone"`
+}
+
+func (s *Server) createSite(w http.ResponseWriter, r *http.Request) {
+	principal, ok := principalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Authentication required.")
+		return
+	}
+	tenantID, err := requestTenant(r, principal)
+	if errors.Is(err, authz.ErrDenied) {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found.")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Tenant header is required.")
+		return
+	}
+	if err := authz.Authorize(principal, authz.Request{Capability: authz.CapabilityTenantManage, TenantID: tenantID}); err != nil {
+		writeError(w, http.StatusForbidden, "FORBIDDEN", "Access denied.")
+		return
+	}
+	if s.tenants == nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Tenant repository unavailable.")
+		return
+	}
+
+	idempotencyKey := strings.TrimSpace(r.Header.Get(idempotencyHeader))
+	if idempotencyKey == "" || len(idempotencyKey) > 128 {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "A valid Idempotency-Key is required.")
+		return
+	}
+	requestID, err := correlationID(r.Header.Get(correlationHeader))
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "X-Correlation-Id must be a UUIDv4.")
+		return
+	}
+	w.Header().Set(correlationHeader, requestID)
+
+	var input createSiteRequest
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Request body is invalid.")
+		return
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Request body must contain one JSON object.")
+		return
+	}
+	input.Name = strings.TrimSpace(input.Name)
+	input.Address = strings.TrimSpace(input.Address)
+	input.Timezone = strings.TrimSpace(input.Timezone)
+	if len(input.Name) == 0 || len(input.Name) > 120 || len(input.Address) > 500 || len(input.Timezone) == 0 || len(input.Timezone) > 64 {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Site fields are invalid.")
+		return
+	}
+	if _, err := time.LoadLocation(input.Timezone); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Timezone must be an IANA timezone.")
+		return
+	}
+
+	result, err := s.tenants.CreateSite(r.Context(), tenant.CreateSiteCommand{
+		TenantID: tenantID, ActorID: principal.UserID, RequestID: requestID,
+		IdempotencyKey: idempotencyKey, Name: input.Name, Address: input.Address, Timezone: input.Timezone,
+	})
+	switch {
+	case errors.Is(err, tenant.ErrIdempotencyConflict):
+		writeError(w, http.StatusConflict, "IDEMPOTENCY_REPLAY", "Idempotency-Key was already used for a different request.")
+		return
+	case errors.Is(err, tenant.ErrSiteConflict):
+		writeError(w, http.StatusConflict, "RESOURCE_CONFLICT", "A site with this name already exists.")
+		return
+	case errors.Is(err, tenant.ErrTenantNotFound):
+		writeError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found.")
+		return
+	case err != nil:
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Tenant repository unavailable.")
+		return
+	}
+	if result.Replayed {
+		w.Header().Set("Idempotent-Replayed", "true")
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"data": result.Site})
+}
+
+func correlationID(raw string) (string, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return uuid.NewString(), nil
+	}
+	parsed, err := uuid.Parse(value)
+	if err != nil || parsed.Version() != 4 {
+		return "", errors.New("correlation identifier must be UUIDv4")
+	}
+	return parsed.String(), nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

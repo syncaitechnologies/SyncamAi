@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/google/uuid"
 )
 
 // Verifier converts a signed bearer token into the provider-neutral principal.
@@ -17,7 +18,8 @@ type Verifier interface {
 
 // OIDCVerifier validates tokens through OIDC discovery and a cached JWKS.
 type OIDCVerifier struct {
-	verifier *oidc.IDTokenVerifier
+	verifier         *oidc.IDTokenVerifier
+	expectedAudience string
 }
 
 // NewOIDCVerifier performs strict discovery for the configured issuer.
@@ -29,7 +31,10 @@ func NewOIDCVerifier(ctx context.Context, issuer, audience string) (*OIDCVerifie
 	if err != nil {
 		return nil, fmt.Errorf("identity: discover OIDC provider: %w", err)
 	}
-	return &OIDCVerifier{verifier: provider.Verifier(&oidc.Config{ClientID: audience})}, nil
+	return &OIDCVerifier{
+		verifier:         provider.Verifier(&oidc.Config{SkipClientIDCheck: true}),
+		expectedAudience: strings.TrimSpace(audience),
+	}, nil
 }
 
 // NewOIDCVerifierWithKeySet supports deterministic tests and providers whose
@@ -39,7 +44,8 @@ func NewOIDCVerifierWithKeySet(issuer, audience string, keys oidc.KeySet) (*OIDC
 		return nil, errors.New("identity: issuer, audience, and key set are required")
 	}
 	return &OIDCVerifier{
-		verifier: oidc.NewVerifier(issuer, keys, &oidc.Config{ClientID: audience}),
+		verifier:         oidc.NewVerifier(issuer, keys, &oidc.Config{SkipClientIDCheck: true}),
+		expectedAudience: strings.TrimSpace(audience),
 	}, nil
 }
 
@@ -61,11 +67,15 @@ func (s *stringList) UnmarshalJSON(data []byte) error {
 
 type tokenClaims struct {
 	Subject     string     `json:"sub"`
+	Audience    stringList `json:"aud"`
+	ClientID    string     `json:"client_id"`
 	Email       string     `json:"email"`
 	TenantID    string     `json:"tenant_id"`
 	SiteIDs     stringList `json:"site_ids"`
 	Scopes      stringList `json:"scopes"`
+	OAuthScopes stringList `json:"scope"`
 	Roles       stringList `json:"roles"`
+	Groups      stringList `json:"cognito:groups"`
 	DataClasses stringList `json:"data_class"`
 	MFALevel    string     `json:"mfa_level"`
 	TokenUse    string     `json:"token_use"`
@@ -84,8 +94,25 @@ func (v *OIDCVerifier) Verify(ctx context.Context, rawToken string) (Principal, 
 	if err := token.Claims(&claims); err != nil {
 		return Principal{}, fmt.Errorf("identity: decode claims: %w", err)
 	}
-	if claims.TokenUse != "" && claims.TokenUse != "access" {
+	if !claims.matchesAudience(v.expectedAudience) {
+		return Principal{}, errors.New("identity: token audience does not match the configured client")
+	}
+	if claims.TokenUse != "access" {
 		return Principal{}, errors.New("identity: bearer token is not an access token")
+	}
+	if _, err := uuid.Parse(claims.TenantID); err != nil {
+		return Principal{}, errors.New("identity: tenant claim must be a UUID")
+	}
+	for _, siteID := range claims.SiteIDs {
+		if _, err := uuid.Parse(siteID); err != nil {
+			return Principal{}, errors.New("identity: site claims must be UUIDs")
+		}
+	}
+	if len(claims.Scopes) == 0 {
+		claims.Scopes = claims.OAuthScopes
+	}
+	if len(claims.Roles) == 0 {
+		claims.Roles = claims.Groups
 	}
 
 	roles := make([]Role, 0, len(claims.Roles))
@@ -106,4 +133,19 @@ func (v *OIDCVerifier) Verify(ctx context.Context, rawToken string) (Principal, 
 		return Principal{}, err
 	}
 	return principal, nil
+}
+
+func (c tokenClaims) matchesAudience(expected string) bool {
+	if expected == "" {
+		return false
+	}
+	if c.ClientID == expected {
+		return true
+	}
+	for _, audience := range c.Audience {
+		if audience == expected {
+			return true
+		}
+	}
+	return false
 }

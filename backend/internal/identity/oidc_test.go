@@ -53,8 +53,8 @@ func TestOIDCVerifier(t *testing.T) {
 		"sub":        "user-1",
 		"exp":        time.Now().Add(time.Minute).Unix(),
 		"iat":        time.Now().Add(-time.Minute).Unix(),
-		"tenant_id":  "tenant-a",
-		"site_ids":   []string{"site-a"},
+		"tenant_id":  "11111111-1111-4111-8111-111111111111",
+		"site_ids":   []string{"22222222-2222-4222-8222-222222222222"},
 		"scopes":     "sites:read auth:read",
 		"roles":      []string{"viewer"},
 		"data_class": []string{"metadata"},
@@ -66,7 +66,7 @@ func TestOIDCVerifier(t *testing.T) {
 	if err != nil {
 		t.Fatalf("valid token rejected: %v", err)
 	}
-	if principal.UserID != "user-1" || principal.TenantID != "tenant-a" {
+	if principal.UserID != "user-1" || principal.TenantID != "11111111-1111-4111-8111-111111111111" {
 		t.Fatalf("unexpected principal: %+v", principal)
 	}
 	if !principal.HasScope("sites:read") || !principal.HasRole(RoleViewer) {
@@ -96,5 +96,45 @@ func TestOIDCVerifierConfiguration(t *testing.T) {
 	var verifier *OIDCVerifier
 	if _, err := verifier.Verify(context.Background(), "token"); err == nil {
 		t.Fatal("unconfigured verifier was accepted")
+	}
+}
+
+func TestOIDCVerifierAcceptsCognitoAccessTokenClaims(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifier, err := NewOIDCVerifierWithKeySet(
+		"https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_example",
+		"syncam-public-client",
+		&oidc.StaticKeySet{PublicKeys: []crypto.PublicKey{&key.PublicKey}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims := map[string]any{
+		"iss":            "https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_example",
+		"client_id":      "syncam-public-client",
+		"sub":            "cognito-subject",
+		"exp":            time.Now().Add(time.Minute).Unix(),
+		"iat":            time.Now().Add(-time.Minute).Unix(),
+		"tenant_id":      "11111111-1111-4111-8111-111111111111",
+		"site_ids":       []string{"22222222-2222-4222-8222-222222222222"},
+		"scope":          "sites:read auth:read",
+		"cognito:groups": []string{"viewer"},
+		"data_class":     []string{"metadata"},
+		"mfa_level":      "password",
+		"token_use":      "access",
+	}
+	principal, err := verifier.Verify(context.Background(), signedToken(t, key, claims))
+	if err != nil {
+		t.Fatalf("Cognito access token rejected: %v", err)
+	}
+	if !principal.HasScope("sites:read") || !principal.HasRole(RoleViewer) {
+		t.Fatalf("Cognito claims were not normalized: %+v", principal)
+	}
+	claims["client_id"] = "different-client"
+	if _, err := verifier.Verify(context.Background(), signedToken(t, key, claims)); err == nil {
+		t.Fatal("wrong Cognito client_id was accepted")
 	}
 }

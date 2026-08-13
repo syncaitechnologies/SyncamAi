@@ -34,6 +34,10 @@ func (leakyRepository) ListSites(_ context.Context, _ string) ([]tenant.Site, er
 	}, nil
 }
 
+func (leakyRepository) CreateSite(_ context.Context, command tenant.CreateSiteCommand) (tenant.CreateSiteResult, error) {
+	return tenant.CreateSiteResult{Site: tenant.Site{ID: "site-created", TenantID: command.TenantID, Name: command.Name, Timezone: command.Timezone, Status: "provisioning"}}, nil
+}
+
 func viewer() identity.Principal {
 	return identity.Principal{
 		UserID: "user-1", Email: "viewer@example.test", TenantID: "tenant-a",
@@ -50,6 +54,23 @@ func request(handler http.Handler, path, token, tenantID string) *httptest.Respo
 	}
 	if tenantID != "" {
 		req.Header.Set(tenantHeader, tenantID)
+	}
+	handler.ServeHTTP(recorder, req)
+	return recorder
+}
+
+func mutationRequest(handler http.Handler, body, token, tenantID, idempotencyKey string) *httptest.ResponseRecorder {
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/sites", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	if tenantID != "" {
+		req.Header.Set(tenantHeader, tenantID)
+	}
+	if idempotencyKey != "" {
+		req.Header.Set(idempotencyHeader, idempotencyKey)
 	}
 	handler.ServeHTTP(recorder, req)
 	return recorder
@@ -111,5 +132,60 @@ func TestListSitesFailsClosedWithoutRepository(t *testing.T) {
 	response := request(handler, "/v1/sites", "valid", "tenant-a")
 	if response.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestCreateSiteRequiresTenantManagerAndIdempotency(t *testing.T) {
+	if response := mutationRequest(New(fakeVerifier{principal: viewer()}, leakyRepository{}), `{"name":"Pilot","timezone":"Asia/Kolkata"}`, "valid", "tenant-a", "site-create-1"); response.Code != http.StatusForbidden {
+		t.Fatalf("viewer create: expected 403, got %d: %s", response.Code, response.Body.String())
+	}
+
+	principal := viewer()
+	principal.TenantID = "11111111-1111-4111-8111-111111111111"
+	principal.Roles = []identity.Role{identity.RoleSuperAdmin}
+	principal.Scopes = []string{"tenant:manage"}
+	principal.MFALevel = "mfa"
+	handler := New(fakeVerifier{principal: principal}, tenant.NewMemoryRepository(nil))
+	if response := mutationRequest(handler, `{"name":"Pilot","timezone":"Asia/Kolkata"}`, "valid", principal.TenantID, ""); response.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("missing idempotency key: expected 422, got %d", response.Code)
+	}
+	response := mutationRequest(handler, `{"name":"Pilot","timezone":"Asia/Kolkata"}`, "valid", principal.TenantID, "site-create-1")
+	if response.Code != http.StatusCreated || !strings.Contains(response.Body.String(), `"status":"provisioning"`) {
+		t.Fatalf("create failed: %d %s", response.Code, response.Body.String())
+	}
+	if response.Header().Get(correlationHeader) == "" {
+		t.Fatal("expected generated correlation identifier")
+	}
+	replay := mutationRequest(handler, `{"name":"Pilot","timezone":"Asia/Kolkata"}`, "valid", principal.TenantID, "site-create-1")
+	if replay.Code != http.StatusCreated || replay.Header().Get("Idempotent-Replayed") != "true" || replay.Body.String() != response.Body.String() {
+		t.Fatalf("idempotent replay failed: %d %s", replay.Code, replay.Body.String())
+	}
+	conflict := mutationRequest(handler, `{"name":"Different","timezone":"Asia/Kolkata"}`, "valid", principal.TenantID, "site-create-1")
+	if conflict.Code != http.StatusConflict || !strings.Contains(conflict.Body.String(), "IDEMPOTENCY_REPLAY") {
+		t.Fatalf("different replay: expected 409, got %d %s", conflict.Code, conflict.Body.String())
+	}
+}
+
+func TestCreateSiteRejectsUnknownFieldsAndInvalidCorrelationID(t *testing.T) {
+	principal := viewer()
+	principal.TenantID = "11111111-1111-4111-8111-111111111111"
+	principal.Roles = []identity.Role{identity.RoleSuperAdmin}
+	principal.Scopes = []string{"tenant:manage"}
+	principal.MFALevel = "mfa"
+	handler := New(fakeVerifier{principal: principal}, tenant.NewMemoryRepository(nil))
+
+	response := mutationRequest(handler, `{"name":"Pilot","timezone":"Asia/Kolkata","unexpected":true}`, "valid", principal.TenantID, "site-create-2")
+	if response.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("unknown field: expected 422, got %d", response.Code)
+	}
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/sites", strings.NewReader(`{"name":"Pilot","timezone":"Asia/Kolkata"}`))
+	req.Header.Set("Authorization", "Bearer valid")
+	req.Header.Set(tenantHeader, principal.TenantID)
+	req.Header.Set(idempotencyHeader, "site-create-3")
+	req.Header.Set(correlationHeader, "not-a-uuid")
+	handler.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("invalid correlation id: expected 422, got %d", recorder.Code)
 	}
 }

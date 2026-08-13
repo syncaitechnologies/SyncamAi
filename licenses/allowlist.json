@@ -13,7 +13,12 @@
     "vite"
   ],
   "go_module_allowlist": [
-    "github.com/coreos/go-oidc/v3"
+    "github.com/coreos/go-oidc/v3",
+    "github.com/google/uuid",
+    "github.com/jackc/pgx/v5",
+    "github.com/pashagolub/pgxmock/v5",
+    "github.com/testcontainers/testcontainers-go",
+    "github.com/testcontainers/testcontainers-go/modules/postgres"
   ],
   "notes": "Transitive licenses are checked by dependency review/SBOM tooling. Any new direct dependency requires explicit review."
 }

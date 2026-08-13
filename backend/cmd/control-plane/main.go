@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/httpapi"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/tenant"
@@ -24,6 +25,10 @@ func main() {
 	if issuer == "" || audience == "" {
 		log.Fatal("SYNCAM_OIDC_ISSUER and SYNCAM_OIDC_AUDIENCE are required")
 	}
+	databaseURL := strings.TrimSpace(os.Getenv("SYNCAM_DATABASE_URL"))
+	if databaseURL == "" {
+		log.Fatal("SYNCAM_DATABASE_URL is required")
+	}
 
 	discoveryContext, cancelDiscovery := context.WithTimeout(context.Background(), 10*time.Second)
 	verifier, err := identity.NewOIDCVerifier(discoveryContext, issuer, audience)
@@ -32,7 +37,29 @@ func main() {
 		log.Fatalf("configure OIDC verifier: %v", err)
 	}
 
-	repository := tenant.NewMemoryRepository(bootstrapSites())
+	databaseContext, cancelDatabase := context.WithTimeout(context.Background(), 10*time.Second)
+	poolConfig, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		cancelDatabase()
+		log.Fatalf("configure Postgres pool: %v", err)
+	}
+	poolConfig.MaxConns = 10
+	poolConfig.MinConns = 1
+	poolConfig.ConnConfig.RuntimeParams["application_name"] = "syncam-control-plane"
+	pool, err := pgxpool.NewWithConfig(databaseContext, poolConfig)
+	if err != nil {
+		cancelDatabase()
+		log.Fatalf("open Postgres pool: %v", err)
+	}
+	if err := pool.Ping(databaseContext); err != nil {
+		pool.Close()
+		cancelDatabase()
+		log.Fatalf("connect Postgres: %v", err)
+	}
+	cancelDatabase()
+	defer pool.Close()
+
+	repository := tenant.NewPostgresRepository(pool)
 	server := &http.Server{
 		Addr:              envOrDefault("SYNCAM_HTTP_ADDR", ":8080"),
 		Handler:           httpapi.New(verifier, repository),
@@ -57,15 +84,6 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("control-plane server: %v", err)
 	}
-}
-
-func bootstrapSites() []tenant.Site {
-	tenantID := strings.TrimSpace(os.Getenv("SYNCAM_BOOTSTRAP_TENANT_ID"))
-	siteID := strings.TrimSpace(os.Getenv("SYNCAM_BOOTSTRAP_SITE_ID"))
-	if tenantID == "" || siteID == "" {
-		return nil
-	}
-	return []tenant.Site{{ID: siteID, TenantID: tenantID, Name: envOrDefault("SYNCAM_BOOTSTRAP_SITE_NAME", "Pilot site")}}
 }
 
 func envOrDefault(name, fallback string) string {
