@@ -2653,6 +2653,7 @@ button.kpi-card:hover {
 .camera-status-online i { background: #62c9a4; }
 .camera-status-recording i { background: #ff756b; box-shadow: 0 0 0 3px rgba(255,117,107,.12); }
 .camera-status-offline i { background: #69747b; }
+.camera-status-pending i { background: #62a9c9; }
 .camera-status-degraded i { background: #e9a94b; }
 .camera-status-masked i { background: #9a85bd; }
 .camera-tile-surface > .camera-status {

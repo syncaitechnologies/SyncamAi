@@ -4,10 +4,12 @@ import test from "node:test";
 import type { AlertItem } from "./alert-contracts.ts";
 import {
   buildCameraWallTiles,
+  buildLiveCameraWallTiles,
   filterCameraWallTiles,
   groupCameraWallAlerts,
   wallColumnCount,
 } from "./camera-wall-model.ts";
+import type { ApiCamera } from "./camera-contracts.ts";
 
 function alert(overrides: Partial<AlertItem>): AlertItem {
   return {
@@ -33,6 +35,32 @@ function alert(overrides: Partial<AlertItem>): AlertItem {
 
 test("camera wall never creates synthetic cameras in live mode", () => {
   assert.deepEqual(buildCameraWallTiles([alert({})], "live"), []);
+});
+
+test("camera wall maps live registry metadata without inventing footage", () => {
+  const camera: ApiCamera = {
+    id: "55555555-5555-4555-8555-555555555555",
+    tenant_id: "11111111-1111-4111-8111-111111111111",
+    site_id: "33333333-3333-4333-8333-333333333333",
+    serial_number: "SN-01",
+    name: "Front gate",
+    group_name: "Perimeter",
+    tags: ["gate", "north"],
+    lifecycle_status: "active",
+    config_version: 1,
+    created_at: "2026-08-13T12:00:00Z",
+    updated_at: "2026-08-13T12:00:00Z",
+  };
+  const [tile] = buildLiveCameraWallTiles(
+    [camera],
+    [alert({ cameraId: camera.id })],
+  );
+
+  assert.equal(tile?.synthetic, false);
+  assert.equal(tile?.status, "online");
+  assert.equal(tile?.alert?.id, "alert-1");
+  assert.equal(tile?.location, "gate · north");
+  assert.deepEqual(tile?.activity, [0, 0, 0, 0, 0, 0, 0, 0]);
 });
 
 test("camera wall attaches the highest-priority active alert", () => {

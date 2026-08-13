@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/alerting"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/authz"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/device"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/realtime"
@@ -38,6 +39,7 @@ type Server struct {
 	alerts   alerting.Repository
 	realtime realtime.Repository
 	tickets  realtime.TicketStore
+	cameras  device.Repository
 	mux      *http.ServeMux
 }
 
@@ -57,12 +59,22 @@ func NewWithAlerts(verifier identity.Verifier, tenants tenant.Repository, events
 
 // NewWithRealtime wires the complete local control-plane and realtime boundary.
 func NewWithRealtime(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository, realtimeRepository realtime.Repository, tickets realtime.TicketStore) http.Handler {
-	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, realtime: realtimeRepository, tickets: tickets, mux: http.NewServeMux()}
+	return NewWithCameras(verifier, tenants, events, alerts, realtimeRepository, tickets, nil)
+}
+
+// NewWithCameras wires the camera registry into the local control-plane boundary.
+func NewWithCameras(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository, realtimeRepository realtime.Repository, tickets realtime.TicketStore, cameras device.Repository) http.Handler {
+	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, realtime: realtimeRepository, tickets: tickets, cameras: cameras, mux: http.NewServeMux()}
 	server.mux.HandleFunc("GET /healthz", server.health)
 	server.mux.Handle("GET /v1/auth/me", server.authenticate(http.HandlerFunc(server.me)))
 	server.mux.Handle("POST /v1/auth/ws-ticket", server.authenticate(http.HandlerFunc(server.issueRealtimeTicket)))
 	server.mux.Handle("GET /v1/sites", server.authenticate(http.HandlerFunc(server.listSites)))
 	server.mux.Handle("POST /v1/sites", server.authenticate(http.HandlerFunc(server.createSite)))
+	server.mux.Handle("GET /v1/cameras", server.authenticate(http.HandlerFunc(server.listCameras)))
+	server.mux.Handle("POST /v1/cameras", server.authenticate(http.HandlerFunc(server.createCamera)))
+	server.mux.Handle("GET /v1/cameras/{id}", server.authenticate(http.HandlerFunc(server.getCamera)))
+	server.mux.Handle("PATCH /v1/cameras/{id}", server.authenticate(http.HandlerFunc(server.updateCamera)))
+	server.mux.Handle("DELETE /v1/cameras/{id}", server.authenticate(http.HandlerFunc(server.retireCamera)))
 	server.mux.Handle("POST /v1/events", server.authenticate(http.HandlerFunc(server.ingestEvent)))
 	server.mux.Handle("GET /v1/alerts", server.authenticate(http.HandlerFunc(server.listAlerts)))
 	server.mux.Handle("POST /v1/alerts/{id}/acknowledge", server.authenticate(http.HandlerFunc(server.acknowledgeAlert)))

@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/alerting"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/database"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/device"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/outbox"
 	"github.com/testcontainers/testcontainers-go"
@@ -157,6 +158,50 @@ func TestPostgresRepositoryEnforcesRLSIdempotencyAndAudit(t *testing.T) {
 		t.Fatalf("RLS must fail closed without transaction tenant context, got %d rows", rowsWithoutTenant)
 	}
 
+	cameraRepository := device.NewPostgresRepository(appPool)
+	cameraCommand := device.CreateCameraCommand{
+		TenantID: tenantA, ActorID: "user-a", RequestID: uuid.NewString(), IdempotencyKey: "create-camera-a",
+		SiteID: created.Site.ID, SerialNumber: "SN-A-001", Name: "Front gate", GroupName: "Perimeter", Tags: []string{"gate"},
+	}
+	createdCamera, err := cameraRepository.Create(ctx, cameraCommand)
+	if err != nil || createdCamera.Replayed || createdCamera.Camera.LifecycleStatus != "pending" {
+		t.Fatalf("camera create failed: %+v %v", createdCamera, err)
+	}
+	replayedCamera, err := cameraRepository.Create(ctx, cameraCommand)
+	if err != nil || !replayedCamera.Replayed || replayedCamera.Camera.ID != createdCamera.Camera.ID {
+		t.Fatalf("camera replay failed: %+v %v", replayedCamera, err)
+	}
+	crossTenantCamera := cameraCommand
+	crossTenantCamera.RequestID = uuid.NewString()
+	crossTenantCamera.IdempotencyKey = "cross-tenant-camera"
+	crossTenantCamera.SiteID = createdB.Site.ID
+	crossTenantCamera.SerialNumber = "SN-A-002"
+	if _, err := cameraRepository.Create(ctx, crossTenantCamera); !errors.Is(err, device.ErrSiteNotFound) {
+		t.Fatalf("cross-tenant camera site must fail, got %v", err)
+	}
+	active := "active"
+	updatedCamera, err := cameraRepository.Update(ctx, device.UpdateCameraCommand{
+		TenantID: tenantA, ActorID: "user-a", RequestID: uuid.NewString(), CameraID: createdCamera.Camera.ID,
+		ExpectedVersion: createdCamera.Camera.ConfigVersion, LifecycleStatus: &active,
+	})
+	if err != nil || updatedCamera.LifecycleStatus != "active" || updatedCamera.ConfigVersion != 2 {
+		t.Fatalf("camera activation failed: %+v %v", updatedCamera, err)
+	}
+	camerasA, err := cameraRepository.List(ctx, tenantA, created.Site.ID)
+	if err != nil || len(camerasA) != 1 || camerasA[0].TenantID != tenantA {
+		t.Fatalf("camera tenant isolation failed: %+v %v", camerasA, err)
+	}
+	if _, err := cameraRepository.Retire(ctx, device.RetireCameraCommand{TenantID: tenantA, ActorID: "user-a", RequestID: uuid.NewString(), CameraID: createdCamera.Camera.ID}); err != nil {
+		t.Fatalf("camera retirement failed: %v", err)
+	}
+	var camerasWithoutTenant int
+	if err := appPool.QueryRow(ctx, "SELECT count(*) FROM config.cameras").Scan(&camerasWithoutTenant); err != nil {
+		t.Fatal(err)
+	}
+	if camerasWithoutTenant != 0 {
+		t.Fatalf("camera RLS must fail closed without tenant context, got %d rows", camerasWithoutTenant)
+	}
+
 	eventRepository := eventing.NewPostgresRepository(appPool)
 	eventCommand := eventing.IngestCommand{ActorID: "edge-a", RequestID: uuid.NewString(), Event: eventing.DetectionEvent{
 		EventID: uuid.NewString(), TenantID: tenantA, DedupeKey: "camera-a:42", OccurredAt: time.Now().UTC(),
@@ -247,7 +292,7 @@ func TestPostgresRepositoryEnforcesRLSIdempotencyAndAudit(t *testing.T) {
 	if auditCount != 1 {
 		t.Fatalf("expected one audit row after exact replay, got %d", auditCount)
 	}
-	var eventCount, outboxCount, publishedCount, alertCount, receiptCount, eventAuditCount, alertAuditCount, acknowledgmentAuditCount, actionCount, realtimeCount int
+	var eventCount, outboxCount, publishedCount, alertCount, receiptCount, eventAuditCount, alertAuditCount, acknowledgmentAuditCount, cameraAuditCount, actionCount, realtimeCount int
 	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM events.detection_events WHERE tenant_id = $1::uuid", tenantA).Scan(&eventCount); err != nil {
 		t.Fatal(err)
 	}
@@ -272,14 +317,17 @@ func TestPostgresRepositoryEnforcesRLSIdempotencyAndAudit(t *testing.T) {
 	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM audit.events WHERE tenant_id = $1::uuid AND action = 'alert.acknowledged'", tenantA).Scan(&acknowledgmentAuditCount); err != nil {
 		t.Fatal(err)
 	}
+	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM audit.events WHERE tenant_id = $1::uuid AND action LIKE 'camera.%'", tenantA).Scan(&cameraAuditCount); err != nil {
+		t.Fatal(err)
+	}
 	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM alerts.alert_actions WHERE tenant_id = $1::uuid", tenantA).Scan(&actionCount); err != nil {
 		t.Fatal(err)
 	}
 	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM realtime.messages WHERE tenant_id = $1::uuid", tenantA).Scan(&realtimeCount); err != nil {
 		t.Fatal(err)
 	}
-	if eventCount != 1 || outboxCount != 1 || publishedCount != 1 || alertCount != 1 || receiptCount != 1 || eventAuditCount != 1 || alertAuditCount != 1 || acknowledgmentAuditCount != 1 || actionCount != 1 || realtimeCount != 2 {
-		t.Fatalf("event workflow was not exactly-once: events=%d outbox=%d published=%d alerts=%d receipts=%d event_audit=%d alert_audit=%d acknowledgment_audit=%d actions=%d realtime=%d", eventCount, outboxCount, publishedCount, alertCount, receiptCount, eventAuditCount, alertAuditCount, acknowledgmentAuditCount, actionCount, realtimeCount)
+	if eventCount != 1 || outboxCount != 1 || publishedCount != 1 || alertCount != 1 || receiptCount != 1 || eventAuditCount != 1 || alertAuditCount != 1 || acknowledgmentAuditCount != 1 || cameraAuditCount != 3 || actionCount != 1 || realtimeCount != 2 {
+		t.Fatalf("event workflow was not exactly-once: events=%d outbox=%d published=%d alerts=%d receipts=%d event_audit=%d alert_audit=%d acknowledgment_audit=%d camera_audit=%d actions=%d realtime=%d", eventCount, outboxCount, publishedCount, alertCount, receiptCount, eventAuditCount, alertAuditCount, acknowledgmentAuditCount, cameraAuditCount, actionCount, realtimeCount)
 	}
 	if _, err := auditTx.Exec(ctx, "UPDATE alerts.alert_actions SET action = 'resolve' WHERE tenant_id = $1::uuid", tenantA); err == nil {
 		t.Fatal("append-only alert action trigger allowed an update")
