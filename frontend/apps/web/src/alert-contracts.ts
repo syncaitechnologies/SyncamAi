@@ -19,6 +19,7 @@ export type AlertItem = {
   siteId?: string;
   zone: string;
   camera: string;
+  cameraId?: string;
   occurredAt: string;
   confidence: number;
   model: string;
@@ -211,6 +212,7 @@ export function toAlertItem(alert: ApiAlert): AlertItem {
     siteId: alert.site_id,
     zone: `Zone ${compactId(alert.zone_id)}`,
     camera: `CAM ${compactId(alert.camera_id)}`,
+    cameraId: alert.camera_id,
     occurredAt: alert.occurred_at,
     confidence: alert.confidence,
     model: "Reported by event contract",

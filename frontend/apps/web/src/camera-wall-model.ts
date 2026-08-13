@@ -1,9 +1,11 @@
 import type { AlertItem, Severity } from "./alert-contracts";
+import type { ApiCamera } from "./camera-contracts";
 
 export type CameraStatus =
   | "online"
   | "recording"
   | "offline"
+  | "pending"
   | "degraded"
   | "masked";
 
@@ -12,6 +14,7 @@ export type CameraWallFilter =
   | "active"
   | "online"
   | "offline"
+  | "pending"
   | "degraded"
   | "masked";
 
@@ -125,8 +128,9 @@ const statusOrder: Record<CameraStatus, number> = {
   recording: 0,
   degraded: 1,
   offline: 2,
-  online: 3,
-  masked: 4,
+  pending: 3,
+  online: 4,
+  masked: 5,
 };
 
 function cameraId(camera: string) {
@@ -139,7 +143,7 @@ function activeAlertForCamera(alerts: AlertItem[], id: string) {
       (alert) =>
         !alert.placeholder &&
         !inactiveStatuses.has(alert.status) &&
-        cameraId(alert.camera) === id,
+        (alert.cameraId === id || cameraId(alert.camera) === id),
     )
     .sort((left, right) => {
       const severityDifference =
@@ -150,6 +154,42 @@ function activeAlertForCamera(alerts: AlertItem[], id: string) {
           new Date(left.occurredAt).getTime()
       );
     })[0] ?? null;
+}
+
+function toneForCamera(id: string) {
+  let hash = 0;
+  for (const character of id) hash = (hash * 31 + character.charCodeAt(0)) | 0;
+  return Math.abs(hash % 9) + 1;
+}
+
+export function buildLiveCameraWallTiles(
+  cameras: ApiCamera[],
+  alerts: AlertItem[],
+): CameraTile[] {
+  return cameras
+    .filter((camera) => camera.lifecycle_status !== "retired")
+    .map((camera) => {
+      const alert = activeAlertForCamera(alerts, camera.id);
+      const status: CameraStatus =
+        camera.lifecycle_status === "offline"
+          ? "offline"
+          : camera.lifecycle_status === "pending"
+            ? "pending"
+            : "online";
+      return {
+        id: camera.id,
+        name: camera.name,
+        location: camera.tags.length
+          ? camera.tags.join(" · ")
+          : "No location tags",
+        group: camera.group_name || "Ungrouped",
+        status,
+        activity: [0, 0, 0, 0, 0, 0, 0, 0],
+        alert,
+        synthetic: false,
+        tone: toneForCamera(camera.id),
+      };
+    });
 }
 
 export function buildCameraWallTiles(

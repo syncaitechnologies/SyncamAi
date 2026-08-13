@@ -187,8 +187,17 @@
       "phase": 2,
       "owner": "Frontend",
       "dependencies": ["T-0319", "T-0320"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "The responsive Camera Wall provides searchable and filterable camera metadata, 1/4/9/16/25 layouts, keyboard tile navigation, alert-linked spotlight and queue views, synthetic-only demo scenes, and an explicit unavailable state until tenant-scoped audited streaming APIs exist."
+    },
+    {
+      "id": "T-0322",
+      "title": "Implement the tenant-scoped camera registry foundation",
+      "phase": 2,
+      "owner": "Platform and Frontend",
+      "dependencies": ["T-0313", "T-0314", "T-0321", "T-0007"],
+      "status": "in_review",
+      "acceptance": "Camera CRUD enforces tenant and site authorization, transaction-local RLS, per-tenant serial uniqueness, optimistic configuration versions, allowed lifecycle transitions, idempotent creation, soft retirement, and atomic append-only auditing; Camera Wall validates and renders metadata-only live inventory without exposing credentials or footage."
     }
   ]
 }

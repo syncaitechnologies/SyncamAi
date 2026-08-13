@@ -93,6 +93,119 @@ paths:
         "404": { description: Tenant scope not found }
         "409": { description: Resource conflict or idempotency key reused with a different body }
         "422": { description: Request validation failed }
+  /cameras:
+    get:
+      operationId: listCameras
+      summary: List metadata-only cameras visible inside the verified tenant and site scope
+      security:
+        - oidc: [config:read]
+      parameters:
+        - $ref: "#/components/parameters/TenantHeader"
+        - name: site_id
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Active tenant- and site-scoped camera metadata
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CameraListEnvelope" }
+        "401": { description: Authentication required }
+        "403": { description: Capability denied }
+        "404": { description: Tenant or site scope not found }
+        "422": { description: Filter validation failed }
+        "503": { description: Camera repository unavailable }
+    post:
+      operationId: createCamera
+      summary: Register one tenant camera with an idempotent, audited mutation
+      security:
+        - oidc: [config:write]
+      parameters:
+        - $ref: "#/components/parameters/TenantHeader"
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateCameraRequest" }
+      responses:
+        "201":
+          description: Camera registered or exact stored response replayed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CameraEnvelope" }
+        "401": { description: Authentication required }
+        "403": { description: Capability or site scope denied }
+        "404": { description: Tenant or site scope not found }
+        "409": { description: Serial conflict or idempotency key reused with a different body }
+        "422": { description: Request validation failed }
+        "503": { description: Camera repository unavailable }
+  /cameras/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - $ref: "#/components/parameters/TenantHeader"
+    get:
+      operationId: getCamera
+      summary: Return one authorized camera metadata record
+      security:
+        - oidc: [config:read]
+      responses:
+        "200":
+          description: Camera metadata
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CameraEnvelope" }
+        "401": { description: Authentication required }
+        "403": { description: Capability denied }
+        "404": { description: Camera or tenant scope not found }
+        "503": { description: Camera repository unavailable }
+    patch:
+      operationId: updateCamera
+      summary: Update mutable camera metadata using optimistic concurrency and an atomic audit record
+      security:
+        - oidc: [config:write]
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateCameraRequest" }
+      responses:
+        "200":
+          description: Updated camera metadata
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CameraEnvelope" }
+        "401": { description: Authentication required }
+        "403": { description: Capability or site scope denied }
+        "404": { description: Camera or tenant scope not found }
+        "409": { description: Configuration version or lifecycle transition conflict }
+        "422": { description: Request validation failed }
+        "503": { description: Camera repository unavailable }
+    delete:
+      operationId: retireCamera
+      summary: Soft-retire one camera while preserving evidence references and audit history
+      security:
+        - oidc: [config:write]
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200":
+          description: Retired camera metadata
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CameraEnvelope" }
+        "401": { description: Authentication required }
+        "403": { description: Capability or site scope denied }
+        "404": { description: Camera or tenant scope not found }
+        "422": { description: Correlation header validation failed }
+        "503": { description: Camera repository unavailable }
   /events:
     post:
       operationId: ingestEvent
@@ -414,3 +527,81 @@ components:
           type: string
           enum: [provisioning, active, offline, retired]
         created_at: { type: string, format: date-time }
+    CameraListEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          maxItems: 500
+          items: { $ref: "#/components/schemas/Camera" }
+        meta:
+          type: object
+          additionalProperties: false
+          required: [count, next]
+          properties:
+            count: { type: integer, minimum: 0, maximum: 500 }
+            next: { type: [string, "null"] }
+    CameraEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/Camera" }
+    CreateCameraRequest:
+      type: object
+      additionalProperties: false
+      required: [site_id, serial_number, name]
+      properties:
+        site_id: { type: string, format: uuid }
+        serial_number: { type: string, minLength: 1, maxLength: 128 }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        group_name: { type: string, maxLength: 120 }
+        tags:
+          type: array
+          maxItems: 32
+          items: { type: string, minLength: 1, maxLength: 64 }
+    UpdateCameraRequest:
+      type: object
+      additionalProperties: false
+      required: [config_version]
+      anyOf:
+        - required: [name]
+        - required: [group_name]
+        - required: [tags]
+        - required: [lifecycle_status]
+      properties:
+        config_version: { type: integer, minimum: 1 }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        group_name: { type: string, maxLength: 120 }
+        tags:
+          type: array
+          maxItems: 32
+          items: { type: string, minLength: 1, maxLength: 64 }
+        lifecycle_status:
+          type: string
+          description: Retirement is available only through DELETE /cameras/{id}.
+          enum: [pending, active, offline]
+    Camera:
+      type: object
+      additionalProperties: false
+      description: Metadata-only camera record; credentials and stream URLs are intentionally excluded.
+      required: [id, tenant_id, site_id, serial_number, name, tags, lifecycle_status, config_version, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        site_id: { type: string, format: uuid }
+        serial_number: { type: string, minLength: 1, maxLength: 128 }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        group_name: { type: string, maxLength: 120 }
+        tags:
+          type: array
+          maxItems: 32
+          items: { type: string, minLength: 1, maxLength: 64 }
+        lifecycle_status:
+          type: string
+          enum: [pending, active, offline, retired]
+        config_version: { type: integer, minimum: 1 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }

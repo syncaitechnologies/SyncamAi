@@ -2,7 +2,6 @@ import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import type { AlertItem, Severity } from "./alert-contracts";
 import {
-  buildCameraWallTiles,
   filterCameraWallTiles,
   groupCameraWallAlerts,
   wallColumnCount,
@@ -11,6 +10,7 @@ import {
   type CameraWallLayout,
 } from "./camera-wall-model";
 import { Icon } from "./icon";
+import { useCameraInventory } from "./use-camera-inventory";
 
 interface CameraWallProps {
   alerts: AlertItem[];
@@ -25,6 +25,7 @@ const statusLabels: Record<CameraTile["status"], string> = {
   online: "Online",
   recording: "Recording",
   offline: "Offline",
+  pending: "Pending",
   degraded: "Degraded",
   masked: "Masked",
 };
@@ -44,7 +45,11 @@ function CameraVisual({ tile }: { tile: CameraTile }) {
       <span className="camera-structure camera-structure-two" />
       <span className="camera-grid-lines" />
       <span className="privacy-preview-label">
-        {tile.status === "masked" ? "Masked zone" : "No footage · demo visual"}
+        {tile.status === "masked"
+          ? "Masked zone"
+          : tile.synthetic
+            ? "No footage · demo visual"
+            : "Metadata only · stream not requested"}
       </span>
     </div>
   );
@@ -73,10 +78,8 @@ export function CameraWall({
   const [showAlerts, setShowAlerts] = useState(true);
   const [spotlightId, setSpotlightId] = useState<string | null>(null);
   const wallRef = useRef<HTMLDivElement>(null);
-  const tiles = useMemo(
-    () => buildCameraWallTiles(alerts, dataMode),
-    [alerts, dataMode],
-  );
+  const inventory = useCameraInventory(alerts, dataMode);
+  const tiles = inventory.tiles;
   const filteredTiles = useMemo(
     () => filterCameraWallTiles(tiles, query, filter),
     [filter, query, tiles],
@@ -132,11 +135,11 @@ export function CameraWall({
       <div className={`wall-boundary-banner ${dataMode === "live" ? "wall-boundary-live" : ""}`} role="status">
         <span className="wall-boundary-icon"><Icon name="shield" size={17} /></span>
         <span>
-          <strong>{dataMode === "demo" ? "Privacy-safe demonstration" : "Streaming boundary not connected"}</strong>
+          <strong>{dataMode === "demo" ? "Privacy-safe demonstration" : "Metadata-only live inventory"}</strong>
           <small>
             {dataMode === "demo"
               ? "Camera metadata and scene graphics are synthetic. No footage, stream credentials, or customer data are present."
-              : "Camera inventory and audited WebRTC session APIs are required before raw pixels can render."}
+              : "Tenant-scoped camera metadata is live. Audited WebRTC sessions remain unavailable, so raw pixels never render."}
           </small>
         </span>
       </div>
@@ -159,6 +162,7 @@ export function CameraWall({
             <option value="active">Has active event</option>
             <option value="online">Online</option>
             <option value="offline">Offline</option>
+            <option value="pending">Pending activation</option>
             <option value="degraded">Degraded</option>
             <option value="masked">Masked</option>
           </select>
@@ -194,13 +198,17 @@ export function CameraWall({
         </button>
       </div>
 
-      {dataMode === "live" ? (
+      {dataMode === "live" && (!inventory.loaded || inventory.error || tiles.length === 0) ? (
         <div className="wall-empty-state">
           <span className="wall-empty-orbit"><Icon name="camera" size={30} /></span>
-          <span className="dashboard-overline">Awaiting camera services</span>
-          <h2>Live streams are intentionally unavailable</h2>
+          <span className="dashboard-overline">
+            {!inventory.loaded ? "Loading tenant inventory" : inventory.error ? "Inventory unavailable" : "Camera registry empty"}
+          </span>
+          <h2>
+            {!inventory.loaded ? "Loading authorized cameras" : inventory.error ? "Camera metadata could not be loaded" : "No cameras are registered for this site"}
+          </h2>
           <p>
-            This screen will request tenant-scoped, short-lived viewing sessions only after the camera registry and playback service are implemented.
+            {inventory.error || "Register a camera for this site to populate the metadata-only wall. Live viewing remains disabled until audited stream sessions are implemented."}
           </p>
           <button type="button" onClick={() => onOpenAlertCenter()}>
             Review metadata-only alerts <Icon name="arrow" size={14} />
@@ -239,7 +247,7 @@ export function CameraWall({
               <div
                 ref={wallRef}
                 className={`camera-grid camera-grid-${columns}`}
-                aria-label={`${visibleTiles.length} synthetic camera tiles for ${site}`}
+                aria-label={`${visibleTiles.length} ${dataMode === "demo" ? "synthetic" : "metadata-only"} camera tiles for ${site}`}
               >
                 {visibleTiles.map((tile) => (
                   <article key={tile.id} className={`camera-tile ${tile.alert ? severityClass(tile.alert.severity) : ""}`}>
@@ -249,7 +257,7 @@ export function CameraWall({
                       data-camera-tile
                       onClick={() => setSpotlightId(tile.id)}
                       onKeyDown={handleGridKeyDown}
-                      aria-label={`${tile.id}, ${tile.name}, ${statusLabels[tile.status]}${tile.alert ? `, active ${tile.alert.severity} alert ${tile.alert.title}` : ""}. Synthetic preview; no footage.`}
+                      aria-label={`${tile.id}, ${tile.name}, ${statusLabels[tile.status]}${tile.alert ? `, active ${tile.alert.severity} alert ${tile.alert.title}` : ""}. ${tile.synthetic ? "Synthetic preview" : "Live metadata"}; no footage.`}
                     >
                       <CameraVisual tile={tile} />
                       <span className={`camera-status camera-status-${tile.status}`}><i />{statusLabels[tile.status]}</span>
@@ -273,7 +281,7 @@ export function CameraWall({
             )}
 
             <div className="camera-wall-legend" aria-label="Camera status legend">
-              {(["online", "recording", "offline", "degraded", "masked"] as const).map((status) => (
+              {(["online", "recording", "offline", "pending", "degraded", "masked"] as const).map((status) => (
                 <span key={status} className={`camera-status camera-status-${status}`}><i />{statusLabels[status]}</span>
               ))}
               <small>Arrow keys move between tiles · Enter opens spotlight</small>

@@ -15,6 +15,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/alerting"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/device"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/httpapi"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
@@ -66,10 +67,11 @@ func main() {
 	eventRepository := eventing.NewPostgresRepository(pool)
 	alertRepository := alerting.NewPostgresRepository(pool)
 	realtimeRepository := realtime.NewPostgresRepository(pool)
+	cameraRepository := device.NewPostgresRepository(pool)
 	tickets := realtime.NewMemoryTicketStore()
 	server := &http.Server{
 		Addr:              envOrDefault("SYNCAM_HTTP_ADDR", ":8080"),
-		Handler:           httpapi.NewWithRealtime(verifier, repository, eventRepository, alertRepository, realtimeRepository, tickets),
+		Handler:           httpapi.NewWithCameras(verifier, repository, eventRepository, alertRepository, realtimeRepository, tickets, cameraRepository),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,
