@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "tsc -b && vite build",
-    "check": "tsc -b --pretty false"
+    "check": "tsc -b --pretty false && pnpm test",
+    "dev": "vite",
+    "test": "node --experimental-strip-types --test src/alert-contracts.test.ts"
   },
   "dependencies": {
     "react": "18.3.1",
