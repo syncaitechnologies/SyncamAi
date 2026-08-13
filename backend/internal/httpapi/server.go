@@ -33,14 +33,15 @@ type principalContextKey struct{}
 
 // Server owns the first tenant-safe control-plane routes.
 type Server struct {
-	verifier identity.Verifier
-	tenants  tenant.Repository
-	events   eventing.Repository
-	alerts   alerting.Repository
-	realtime realtime.Repository
-	tickets  realtime.TicketStore
-	cameras  device.Repository
-	mux      *http.ServeMux
+	verifier   identity.Verifier
+	tenants    tenant.Repository
+	events     eventing.Repository
+	alerts     alerting.Repository
+	realtime   realtime.Repository
+	tickets    realtime.TicketStore
+	cameras    device.Repository
+	enrollment device.EnrollmentRepository
+	mux        *http.ServeMux
 }
 
 // New builds a fail-closed HTTP handler around explicit dependencies.
@@ -64,7 +65,12 @@ func NewWithRealtime(verifier identity.Verifier, tenants tenant.Repository, even
 
 // NewWithCameras wires the camera registry into the local control-plane boundary.
 func NewWithCameras(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository, realtimeRepository realtime.Repository, tickets realtime.TicketStore, cameras device.Repository) http.Handler {
-	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, realtime: realtimeRepository, tickets: tickets, cameras: cameras, mux: http.NewServeMux()}
+	return NewWithDeviceEnrollment(verifier, tenants, events, alerts, realtimeRepository, tickets, cameras, nil)
+}
+
+// NewWithDeviceEnrollment wires one-time edge-device enrollment into the local control-plane boundary.
+func NewWithDeviceEnrollment(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository, realtimeRepository realtime.Repository, tickets realtime.TicketStore, cameras device.Repository, enrollment device.EnrollmentRepository) http.Handler {
+	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, realtime: realtimeRepository, tickets: tickets, cameras: cameras, enrollment: enrollment, mux: http.NewServeMux()}
 	server.mux.HandleFunc("GET /healthz", server.health)
 	server.mux.Handle("GET /v1/auth/me", server.authenticate(http.HandlerFunc(server.me)))
 	server.mux.Handle("POST /v1/auth/ws-ticket", server.authenticate(http.HandlerFunc(server.issueRealtimeTicket)))
@@ -75,6 +81,8 @@ func NewWithCameras(verifier identity.Verifier, tenants tenant.Repository, event
 	server.mux.Handle("GET /v1/cameras/{id}", server.authenticate(http.HandlerFunc(server.getCamera)))
 	server.mux.Handle("PATCH /v1/cameras/{id}", server.authenticate(http.HandlerFunc(server.updateCamera)))
 	server.mux.Handle("DELETE /v1/cameras/{id}", server.authenticate(http.HandlerFunc(server.retireCamera)))
+	server.mux.Handle("POST /v1/device-claims", server.authenticate(http.HandlerFunc(server.issueDeviceClaim)))
+	server.mux.HandleFunc("POST /v1/edge/devices/{id}/pair", server.activateDevice)
 	server.mux.Handle("POST /v1/events", server.authenticate(http.HandlerFunc(server.ingestEvent)))
 	server.mux.Handle("GET /v1/alerts", server.authenticate(http.HandlerFunc(server.listAlerts)))
 	server.mux.Handle("POST /v1/alerts/{id}/acknowledge", server.authenticate(http.HandlerFunc(server.acknowledgeAlert)))
