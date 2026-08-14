@@ -223,8 +223,17 @@
       "phase": 2,
       "owner": "Edge",
       "dependencies": ["T-0324", "T-0151"],
-      "status": "in_progress",
+      "status": "complete",
       "acceptance": "The edge agent sends bounded telemetry over a caller-configured TLS 1.3/mTLS client to the documented heartbeat route, generates correlation and heartbeat UUIDv4 values, preserves replay identity, rejects malformed responses, and schedules attempts no slower than the canonical 30-second interval without tenant or user credentials."
+    },
+    {
+      "id": "T-0326",
+      "title": "Add supervised FFmpeg RTSP ingest transport",
+      "phase": 2,
+      "owner": "Edge",
+      "dependencies": ["T-0325", "T-0152"],
+      "status": "complete",
+      "acceptance": "The Go edge agent validates RTSP/RTSPS camera sources, starts a TCP-by-default FFmpeg pull with bounded connection timeouts, reports credential-safe lifecycle state, and restarts unexpected exits with bounded exponential backoff; fake-runner tests cover command construction, cancellation, retries, and secret-safe errors."
     }
   ]
 }
