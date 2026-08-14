@@ -176,6 +176,9 @@ func (c *HeartbeatClient) Run(ctx context.Context, interval time.Duration, snaps
 		report(result, err)
 	}
 	send()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
@@ -184,6 +187,9 @@ func (c *HeartbeatClient) Run(ctx context.Context, interval time.Duration, snaps
 			return ctx.Err()
 		case <-ticker.C:
 			send()
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 		}
 	}
 }

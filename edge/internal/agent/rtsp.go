@@ -40,6 +40,7 @@ type RTSPIngestConfig struct {
 	ConnectTimeout time.Duration
 	RetryMinimum   time.Duration
 	RetryMaximum   time.Duration
+	Decode         *DecodeProfile
 }
 
 type RTSPState string
@@ -52,10 +53,13 @@ const (
 )
 
 type RTSPStatus struct {
-	SourceID string
-	State    RTSPState
-	Attempt  int
-	Err      error
+	SourceID            string
+	State               RTSPState
+	Attempt             int
+	Codec               VideoCodec
+	Decoder             string
+	HardwareAccelerated bool
+	Err                 error
 }
 
 // CommandRunner is the process boundary used by RTSPIngest. Implementations
@@ -86,10 +90,11 @@ func (execCommandRunner) Run(ctx context.Context, binary string, args []string, 
 // frames to FFmpeg's null muxer in this slice; later decode and ring-buffer
 // tasks replace that sink without changing lifecycle and retry semantics.
 type RTSPIngest struct {
-	source RTSPSource
-	config RTSPIngestConfig
-	runner CommandRunner
-	sleep  func(context.Context, time.Duration) error
+	source  RTSPSource
+	config  RTSPIngestConfig
+	runner  CommandRunner
+	sleep   func(context.Context, time.Duration) error
+	decoder DecoderSelection
 
 	mu     sync.RWMutex
 	status RTSPStatus
@@ -130,12 +135,20 @@ func NewRTSPIngest(source RTSPSource, config RTSPIngestConfig, runner CommandRun
 	if runner == nil {
 		runner = execCommandRunner{}
 	}
+	var decoder DecoderSelection
+	if config.Decode != nil {
+		decoder, err = SelectDecoder(*config.Decode)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return &RTSPIngest{
-		source: source,
-		config: config,
-		runner: runner,
-		sleep:  sleepContext,
-		status: RTSPStatus{SourceID: source.ID, State: RTSPStopped},
+		source:  source,
+		config:  config,
+		runner:  runner,
+		sleep:   sleepContext,
+		decoder: decoder,
+		status:  RTSPStatus{SourceID: source.ID, State: RTSPStopped, Codec: decoder.Codec, Decoder: decoder.Name, HardwareAccelerated: decoder.HardwareAccelerated},
 	}, nil
 }
 
@@ -155,25 +168,25 @@ func (i *RTSPIngest) Run(ctx context.Context, report func(RTSPStatus)) error {
 	attempt := 0
 	for {
 		if err := ctx.Err(); err != nil {
-			i.publish(report, RTSPStatus{SourceID: i.source.ID, State: RTSPStopped, Attempt: attempt})
+			i.publish(report, i.newStatus(RTSPStopped, attempt, nil))
 			return err
 		}
 		attempt++
-		i.publish(report, RTSPStatus{SourceID: i.source.ID, State: RTSPConnecting, Attempt: attempt})
+		i.publish(report, i.newStatus(RTSPConnecting, attempt, nil))
 		err := i.runner.Run(ctx, i.config.Binary, i.arguments(), func() {
-			i.publish(report, RTSPStatus{SourceID: i.source.ID, State: RTSPStreaming, Attempt: attempt})
+			i.publish(report, i.newStatus(RTSPStreaming, attempt, nil))
 		})
 		if ctx.Err() != nil {
-			i.publish(report, RTSPStatus{SourceID: i.source.ID, State: RTSPStopped, Attempt: attempt})
+			i.publish(report, i.newStatus(RTSPStopped, attempt, nil))
 			return ctx.Err()
 		}
 		safeErr := errors.New("rtsp ingest process stopped")
 		if err == nil {
 			safeErr = errors.New("rtsp ingest process ended")
 		}
-		i.publish(report, RTSPStatus{SourceID: i.source.ID, State: RTSPRetrying, Attempt: attempt, Err: safeErr})
+		i.publish(report, i.newStatus(RTSPRetrying, attempt, safeErr))
 		if err := i.sleep(ctx, retryDelay(i.config.RetryMinimum, i.config.RetryMaximum, attempt)); err != nil {
-			i.publish(report, RTSPStatus{SourceID: i.source.ID, State: RTSPStopped, Attempt: attempt})
+			i.publish(report, i.newStatus(RTSPStopped, attempt, nil))
 			return err
 		}
 	}
@@ -181,12 +194,26 @@ func (i *RTSPIngest) Run(ctx context.Context, report func(RTSPStatus)) error {
 
 func (i *RTSPIngest) arguments() []string {
 	timeoutMicros := i.config.ConnectTimeout.Microseconds()
-	return []string{
+	args := []string{
 		"-nostdin", "-hide_banner", "-loglevel", "warning",
 		"-rtsp_transport", i.source.Transport,
 		"-rw_timeout", fmt.Sprintf("%d", timeoutMicros),
-		"-i", i.source.URL,
-		"-map", "0:v:0", "-an", "-f", "null", "-",
+	}
+	if i.decoder.Name != "" {
+		args = append(args, "-c:v", i.decoder.Name)
+	}
+	return append(args, "-i", i.source.URL, "-map", "0:v:0", "-an", "-f", "null", "-")
+}
+
+func (i *RTSPIngest) newStatus(state RTSPState, attempt int, err error) RTSPStatus {
+	return RTSPStatus{
+		SourceID:            i.source.ID,
+		State:               state,
+		Attempt:             attempt,
+		Codec:               i.decoder.Codec,
+		Decoder:             i.decoder.Name,
+		HardwareAccelerated: i.decoder.HardwareAccelerated,
+		Err:                 err,
 	}
 }
 
