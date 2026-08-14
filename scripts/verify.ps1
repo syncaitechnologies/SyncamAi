@@ -30,7 +30,7 @@ python -m unittest discover -s tests/validators -v
 Assert-NativeSuccess
 
 if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
-    throw "Go 1.25.12+ is required to run the complete verification suite."
+    throw "Go 1.25.13+ is required to run the complete verification suite."
 }
 
 New-Item -ItemType Directory -Path coverage -Force | Out-Null
