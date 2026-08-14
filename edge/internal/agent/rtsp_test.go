@@ -115,6 +115,35 @@ func TestRTSPIngestRetriesWithBoundedBackoff(t *testing.T) {
 	}
 }
 
+func TestRTSPIngestAppliesCodecDecoderAndReportsSafeCapability(t *testing.T) {
+	runner := &fakeRTSPRunner{}
+	ingest, err := NewRTSPIngest(
+		RTSPSource{ID: "camera-h265", URL: "rtsp://operator:private@camera.local/live"},
+		RTSPIngestConfig{Decode: &DecodeProfile{Codec: CodecH265, Preference: DecodeAuto, AvailableDecoders: []string{"hevc_nvv4l2dec"}}},
+		runner,
+	)
+	if err != nil {
+		t.Fatalf("new ingest: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	ingest.sleep = func(context.Context, time.Duration) error { cancel(); return context.Canceled }
+	var statuses []RTSPStatus
+	if err := ingest.Run(ctx, func(status RTSPStatus) { statuses = append(statuses, status) }); !errors.Is(err, context.Canceled) {
+		t.Fatalf("run: %v", err)
+	}
+	if len(runner.runs) != 1 || !containsArgumentPair(runner.runs[0].args, "-c:v", "hevc_nvv4l2dec") {
+		t.Fatalf("hardware decoder missing from args: %q", runner.runs)
+	}
+	for _, status := range statuses {
+		if status.Codec != CodecH265 || status.Decoder != "hevc_nvv4l2dec" || !status.HardwareAccelerated {
+			t.Fatalf("decoder capability missing from status: %+v", status)
+		}
+		if strings.Contains(status.SourceID+errorText(status.Err), "private") {
+			t.Fatalf("credential leaked through status: %+v", status)
+		}
+	}
+}
+
 func TestRetryDelay(t *testing.T) {
 	for attempt, want := range []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 5 * time.Second, 5 * time.Second} {
 		if got := retryDelay(time.Second, 5*time.Second, attempt+1); got != want {
@@ -128,4 +157,13 @@ func errorText(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+func containsArgumentPair(args []string, key, value string) bool {
+	for index := 0; index+1 < len(args); index++ {
+		if args[index] == key && args[index+1] == value {
+			return true
+		}
+	}
+	return false
 }

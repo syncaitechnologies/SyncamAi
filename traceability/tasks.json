@@ -234,6 +234,15 @@
       "dependencies": ["T-0325", "T-0152"],
       "status": "complete",
       "acceptance": "The Go edge agent validates RTSP/RTSPS camera sources, starts a TCP-by-default FFmpeg pull with bounded connection timeouts, reports credential-safe lifecycle state, and restarts unexpected exits with bounded exponential backoff; fake-runner tests cover command construction, cancellation, retries, and secret-safe errors."
+    },
+    {
+      "id": "T-0327",
+      "title": "Add codec-aware H.264 and H.265 decode selection",
+      "phase": 2,
+      "owner": "Edge",
+      "dependencies": ["T-0326", "T-0153"],
+      "status": "complete",
+      "acceptance": "The edge RTSP supervisor selects normalized H.264/H.265 FFmpeg decoders, prefers allowlisted Jetson or CUDA hardware paths in auto mode, falls back deterministically to software, fails closed for unavailable forced hardware, and reports only credential-safe codec capability state."
     }
   ]
 }
