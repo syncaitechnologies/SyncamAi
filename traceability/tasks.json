@@ -243,6 +243,15 @@
       "dependencies": ["T-0326", "T-0153"],
       "status": "complete",
       "acceptance": "The edge RTSP supervisor selects normalized H.264/H.265 FFmpeg decoders, prefers allowlisted Jetson or CUDA hardware paths in auto mode, falls back deterministically to software, fails closed for unavailable forced hardware, and reports only credential-safe codec capability state."
+    },
+    {
+      "id": "T-0328",
+      "title": "Add durable bounded edge store-and-forward spool",
+      "phase": 2,
+      "owner": "Edge",
+      "dependencies": ["T-0327", "T-0154"],
+      "status": "complete",
+      "acceptance": "Opaque payloads persist atomically across restart with integrity verification; replay prioritizes metadata, evidence, then archive video and removes items only after acknowledgement; quota pressure evicts the globally oldest item first; queue depth, bytes, oldest age, enqueue, acknowledgement, and eviction metrics are available for telemetry."
     }
   ]
 }
