@@ -205,8 +205,17 @@
       "phase": 2,
       "owner": "Edge and Platform",
       "dependencies": ["T-0322", "T-0008"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "An authorized administrator issues an idempotent 24-hour device claim whose bearer token is never persisted in plaintext; activation validates the signed tenant and serial, atomically consumes the token once, binds the edge device to its tenant and site under RLS, and appends audit records without secrets."
+    },
+    {
+      "id": "T-0324",
+      "title": "Implement certificate-authenticated device heartbeat and fleet status",
+      "phase": 2,
+      "owner": "Edge and Platform",
+      "dependencies": ["T-0323", "T-0009"],
+      "status": "in_review",
+      "acceptance": "An active registry device submits bounded idempotent telemetry only when its verified client-certificate UUID matches the route; tenant/site-scoped fleet reads derive offline after the canonical 90-second heartbeat age, and RLS plus the guarded heartbeat function prevent cross-tenant table access."
     }
   ]
 }

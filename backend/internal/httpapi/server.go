@@ -33,15 +33,17 @@ type principalContextKey struct{}
 
 // Server owns the first tenant-safe control-plane routes.
 type Server struct {
-	verifier   identity.Verifier
-	tenants    tenant.Repository
-	events     eventing.Repository
-	alerts     alerting.Repository
-	realtime   realtime.Repository
-	tickets    realtime.TicketStore
-	cameras    device.Repository
-	enrollment device.EnrollmentRepository
-	mux        *http.ServeMux
+	verifier       identity.Verifier
+	tenants        tenant.Repository
+	events         eventing.Repository
+	alerts         alerting.Repository
+	realtime       realtime.Repository
+	tickets        realtime.TicketStore
+	cameras        device.Repository
+	enrollment     device.EnrollmentRepository
+	deviceStatus   device.StatusRepository
+	deviceVerifier device.DeviceIdentityVerifier
+	mux            *http.ServeMux
 }
 
 // New builds a fail-closed HTTP handler around explicit dependencies.
@@ -70,7 +72,12 @@ func NewWithCameras(verifier identity.Verifier, tenants tenant.Repository, event
 
 // NewWithDeviceEnrollment wires one-time edge-device enrollment into the local control-plane boundary.
 func NewWithDeviceEnrollment(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository, realtimeRepository realtime.Repository, tickets realtime.TicketStore, cameras device.Repository, enrollment device.EnrollmentRepository) http.Handler {
-	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, realtime: realtimeRepository, tickets: tickets, cameras: cameras, enrollment: enrollment, mux: http.NewServeMux()}
+	return NewWithDeviceStatus(verifier, tenants, events, alerts, realtimeRepository, tickets, cameras, enrollment, nil, nil)
+}
+
+// NewWithDeviceStatus wires certificate-authenticated heartbeats and tenant fleet reads.
+func NewWithDeviceStatus(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository, realtimeRepository realtime.Repository, tickets realtime.TicketStore, cameras device.Repository, enrollment device.EnrollmentRepository, deviceStatus device.StatusRepository, deviceVerifier device.DeviceIdentityVerifier) http.Handler {
+	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, realtime: realtimeRepository, tickets: tickets, cameras: cameras, enrollment: enrollment, deviceStatus: deviceStatus, deviceVerifier: deviceVerifier, mux: http.NewServeMux()}
 	server.mux.HandleFunc("GET /healthz", server.health)
 	server.mux.Handle("GET /v1/auth/me", server.authenticate(http.HandlerFunc(server.me)))
 	server.mux.Handle("POST /v1/auth/ws-ticket", server.authenticate(http.HandlerFunc(server.issueRealtimeTicket)))
@@ -83,6 +90,8 @@ func NewWithDeviceEnrollment(verifier identity.Verifier, tenants tenant.Reposito
 	server.mux.Handle("DELETE /v1/cameras/{id}", server.authenticate(http.HandlerFunc(server.retireCamera)))
 	server.mux.Handle("POST /v1/device-claims", server.authenticate(http.HandlerFunc(server.issueDeviceClaim)))
 	server.mux.HandleFunc("POST /v1/edge/devices/{id}/pair", server.activateDevice)
+	server.mux.Handle("GET /v1/edge/devices", server.authenticate(http.HandlerFunc(server.listEdgeDevices)))
+	server.mux.HandleFunc("POST /v1/edge/devices/{id}/heartbeat", server.recordDeviceHeartbeat)
 	server.mux.Handle("POST /v1/events", server.authenticate(http.HandlerFunc(server.ingestEvent)))
 	server.mux.Handle("GET /v1/alerts", server.authenticate(http.HandlerFunc(server.listAlerts)))
 	server.mux.Handle("POST /v1/alerts/{id}/acknowledge", server.authenticate(http.HandlerFunc(server.acknowledgeAlert)))

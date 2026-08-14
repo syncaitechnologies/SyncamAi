@@ -236,6 +236,29 @@ paths:
         "409": { description: Serial conflict or idempotency key reused with a different body }
         "422": { description: Request validation failed }
         "503": { description: Device enrollment repository unavailable }
+  /edge/devices:
+    get:
+      operationId: listEdgeDevices
+      summary: List the authorized tenant fleet with status derived using the canonical 90-second staleness threshold
+      security:
+        - oidc: [config:read]
+      parameters:
+        - $ref: "#/components/parameters/TenantHeader"
+        - name: site_id
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Tenant- and site-scoped fleet status observed at one server timestamp
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EdgeDeviceListEnvelope" }
+        "401": { description: Authentication required }
+        "403": { description: Capability denied }
+        "404": { description: Tenant or site scope not found }
+        "422": { description: Filter validation failed }
+        "503": { description: Device status repository unavailable }
   /edge/devices/{id}/pair:
     post:
       operationId: activateDevice
@@ -264,6 +287,34 @@ paths:
         "401": { description: Claim is invalid, expired, already consumed, or does not match the device serial }
         "422": { description: Request validation failed }
         "503": { description: Device enrollment repository unavailable }
+  /edge/devices/{id}/heartbeat:
+    post:
+      operationId: recordDeviceHeartbeat
+      summary: Idempotently record liveness and bounded operational telemetry for the certificate-bound device
+      security:
+        - deviceMutualTLS: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Must match the UUID in the verified client certificate common name.
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeviceHeartbeatRequest" }
+      responses:
+        "200":
+          description: Heartbeat accepted or replayed without advancing liveness twice
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeviceHeartbeatEnvelope" }
+        "401": { description: Verified active device certificate required }
+        "409": { description: Heartbeat identifier reused with different telemetry }
+        "422": { description: Request validation failed }
+        "503": { description: Device heartbeat service unavailable }
   /events:
     post:
       operationId: ingestEvent
@@ -357,6 +408,9 @@ components:
     oidc:
       type: openIdConnect
       openIdConnectUrl: https://auth.sentinelvision.ai/.well-known/openid-configuration
+    deviceMutualTLS:
+      type: mutualTLS
+      description: TLS-verified edge client certificate with CN equal to the registered device UUID.
   parameters:
     TenantHeader:
       name: X-SentinelVision-Tenant-ID
@@ -722,11 +776,50 @@ components:
       required: [data]
       properties:
         data: { $ref: "#/components/schemas/EdgeDevice" }
+    EdgeDeviceListEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          maxItems: 500
+          items: { $ref: "#/components/schemas/EdgeDevice" }
+        meta:
+          type: object
+          additionalProperties: false
+          required: [count, next, observed_at]
+          properties:
+            count: { type: integer, minimum: 0, maximum: 500 }
+            next: { type: [string, "null"] }
+            observed_at: { type: string, format: date-time }
+    DeviceHeartbeatRequest:
+      type: object
+      additionalProperties: false
+      required: [heartbeat_id, reported_at, uptime_seconds, store_forward_depth, firmware_version]
+      properties:
+        heartbeat_id: { type: string, format: uuid }
+        reported_at: { type: string, format: date-time }
+        uptime_seconds: { type: integer, minimum: 0, maximum: 3155760000 }
+        store_forward_depth: { type: integer, minimum: 0, maximum: 1000000000 }
+        firmware_version: { type: string, minLength: 1, maxLength: 128 }
+    DeviceHeartbeatEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [device, observed_at]
+          properties:
+            device: { $ref: "#/components/schemas/EdgeDevice" }
+            observed_at: { type: string, format: date-time }
     EdgeDevice:
       type: object
       additionalProperties: false
       description: Tenant/site binding metadata only; private keys and certificate material are never returned.
-      required: [id, tenant_id, site_id, serial_number, hardware_tier, status, certificate_status, created_at, updated_at]
+      required: [id, tenant_id, site_id, serial_number, hardware_tier, status, certificate_status, store_forward_depth, uptime_seconds, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         tenant_id: { type: string, format: uuid }
@@ -736,6 +829,10 @@ components:
         model: { type: string, maxLength: 120 }
         status: { type: string, enum: [pending, active, offline, retired] }
         certificate_status: { type: string, enum: [pending, active, revoked, rotating] }
+        firmware_version: { type: string, maxLength: 128 }
+        store_forward_depth: { type: integer, minimum: 0, maximum: 1000000000 }
+        uptime_seconds: { type: integer, minimum: 0, maximum: 3155760000 }
+        last_heartbeat: { type: string, format: date-time }
         activated_at: { type: string, format: date-time }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }

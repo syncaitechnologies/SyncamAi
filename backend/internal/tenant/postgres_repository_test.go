@@ -236,7 +236,32 @@ func TestPostgresRepositoryEnforcesRLSIdempotencyAndAudit(t *testing.T) {
 	if _, err := enrollmentRepository.Activate(ctx, device.ActivateDeviceCommand{DeviceID: issuedClaim.Claim.DeviceID, ClaimToken: issuedClaim.ClaimToken, SerialNumber: "EDGE-A-001", RequestID: uuid.NewString()}); !errors.Is(err, device.ErrClaimConsumed) {
 		t.Fatalf("device claim reuse must fail, got %v", err)
 	}
-	for _, table := range []string{"config.edge_devices", "platform.device_claims"} {
+	if _, err := adminPool.Exec(ctx, "UPDATE config.edge_devices SET cert_status = 'active' WHERE id = $1::uuid", activatedDevice.ID); err != nil {
+		t.Fatal(err)
+	}
+	statusRepository := device.NewPostgresStatusRepository(appPool)
+	heartbeatCommand := device.HeartbeatCommand{
+		DeviceID: activatedDevice.ID, HeartbeatID: uuid.NewString(), ReportedAt: time.Now().UTC(),
+		UptimeSeconds: 42, StoreForwardDepth: 7, FirmwareVersion: "1.2.3",
+	}
+	heartbeat, err := statusRepository.RecordHeartbeat(ctx, heartbeatCommand)
+	if err != nil || heartbeat.Replayed || heartbeat.Device.Status != "active" || heartbeat.Device.StoreForwardDepth != 7 {
+		t.Fatalf("device heartbeat failed: %+v %v", heartbeat, err)
+	}
+	replayedHeartbeat, err := statusRepository.RecordHeartbeat(ctx, heartbeatCommand)
+	if err != nil || !replayedHeartbeat.Replayed || !replayedHeartbeat.ObservedAt.Equal(heartbeat.ObservedAt) {
+		t.Fatalf("device heartbeat replay failed: %+v %v", replayedHeartbeat, err)
+	}
+	conflictingHeartbeat := heartbeatCommand
+	conflictingHeartbeat.FirmwareVersion = "1.2.4"
+	if _, err := statusRepository.RecordHeartbeat(ctx, conflictingHeartbeat); !errors.Is(err, device.ErrHeartbeatConflict) {
+		t.Fatalf("device heartbeat conflict must fail, got %v", err)
+	}
+	listedDevices, err := statusRepository.ListDevices(ctx, tenantA, created.Site.ID, time.Now().UTC())
+	if err != nil || len(listedDevices) != 1 || listedDevices[0].ID != activatedDevice.ID || listedDevices[0].Status != "active" {
+		t.Fatalf("tenant-scoped device status failed: %+v %v", listedDevices, err)
+	}
+	for _, table := range []string{"config.edge_devices", "platform.device_claims", "edge.device_heartbeats"} {
 		var count int
 		if err := appPool.QueryRow(ctx, "SELECT count(*) FROM "+table).Scan(&count); err != nil {
 			t.Fatal(err)
