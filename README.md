@@ -16,6 +16,8 @@ Run the complete verification gate with `make verify` on macOS/Linux or `pwsh sc
 
 Phase 1 local persistence uses Postgres 16 with separate `syncam_admin` migration and `syncam_app` runtime roles. It includes tenant/site persistence, authenticated event ingestion, a leased transactional-outbox worker, an idempotent alert queue, audited acknowledgment, and a ticketed resumable alert WebSocket. Copy `.env.example`, start `docker compose up -d postgres`, run `go run ./backend/cmd/migrate`, and follow the [Phase 1 development guide](docs/development/phase-1-identity.md). AWS is not required for this local workflow.
 
+The FR-103a event-only vehicle adapter converts confirmed camera-local tracks into review-required events without LPR, ReID, speed, risk scoring, or theft claims. See the [vehicle-activity development guide](docs/development/phase-6-vehicle-activity.md).
+
 ## Source availability
 
 This repository is temporarily public but carries no open-source license. Viewing the source does not make it open source, and no permission to copy, modify, or redistribute it is granted. See the [source-publication policy](docs/governance/source-publication-policy.md).

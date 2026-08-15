@@ -350,6 +350,58 @@ func TestValidateDetectionEventRejectsEveryBoundary(t *testing.T) {
 	}
 }
 
+func TestVehicleActivityRequiresBoundedObservedMetadata(t *testing.T) {
+	valid := eventing.DetectionEvent{
+		EventID: "22222222-2222-4222-8222-222222222222", TenantID: "11111111-1111-4111-8111-111111111111",
+		DedupeKey: "vehicle_activity:camera-1:42", OccurredAt: time.Date(2026, 8, 15, 6, 30, 0, 0, time.UTC),
+		SiteID: "33333333-3333-4333-8333-333333333333", CameraID: "44444444-4444-4444-8444-444444444444",
+		ZoneID: "55555555-5555-4555-8555-555555555555", EventType: "vehicle_activity", ModelVersion: "shared-detector-1",
+		Confidence: 0.93, EvidenceRefs: []string{"evidence://vehicle-42"}, RequiresHumanReview: true, ReviewState: "pending",
+		ObservedBehavior: "detected", SubjectClass: "car",
+	}
+	if err := validateDetectionEvent(valid, valid.TenantID); err != nil {
+		t.Fatalf("valid vehicle activity rejected: %v", err)
+	}
+	tests := []struct {
+		name   string
+		mutate func(*eventing.DetectionEvent)
+	}{
+		{"missing behavior", func(event *eventing.DetectionEvent) { event.ObservedBehavior = "" }},
+		{"theft claim", func(event *eventing.DetectionEvent) { event.ObservedBehavior = "theft_detected" }},
+		{"identity enrichment", func(event *eventing.DetectionEvent) { event.SubjectClass = "license_plate" }},
+		{"missing subject class", func(event *eventing.DetectionEvent) { event.SubjectClass = "" }},
+		{"metadata on other event", func(event *eventing.DetectionEvent) { event.EventType = "intrusion" }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			event := valid
+			test.mutate(&event)
+			if err := validateDetectionEvent(event, valid.TenantID); err == nil {
+				t.Fatal("expected validation error")
+			}
+		})
+	}
+}
+
+func TestIngestVehicleActivityRejectsUnknownTheftEnrichment(t *testing.T) {
+	principal := viewer()
+	principal.TenantID = "11111111-1111-4111-8111-111111111111"
+	principal.SiteIDs = []string{"33333333-3333-4333-8333-333333333333"}
+	principal.Roles = []identity.Role{identity.RoleSiteAdmin}
+	principal.Scopes = []string{"events:write"}
+	handler := New(fakeVerifier{principal: principal}, leakyRepository{}, eventing.NewMemoryRepository())
+	body := strings.Replace(validEventBody, `"event_type":"intrusion",`, `"event_type":"vehicle_activity","observed_behavior":"detected","subject_class":"car",`, 1)
+	response := eventRequest(handler, body, "valid", principal.TenantID, "66666666-6666-4666-8666-666666666666")
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("valid vehicle activity: expected 202, got %d %s", response.Code, response.Body.String())
+	}
+	unknownClaim := strings.Replace(body, `"subject_class":"car",`, `"subject_class":"car","theft_score":0.9,`, 1)
+	response = eventRequest(handler, unknownClaim, "valid", principal.TenantID, "77777777-7777-4777-8777-777777777777")
+	if response.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("unknown theft enrichment: expected 422, got %d %s", response.Code, response.Body.String())
+	}
+}
+
 func TestIngestEventMapsScopeAndRepositoryFailures(t *testing.T) {
 	principal := viewer()
 	principal.TenantID = "11111111-1111-4111-8111-111111111111"

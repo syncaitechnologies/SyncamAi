@@ -487,6 +487,14 @@ components:
         review_state:
           type: string
           enum: [pending, acknowledged, confirmed, dismissed]
+        observed_behavior:
+          type: string
+          enum: [detected]
+          description: Required for vehicle_activity; describes only the directly observed behavior and never a theft or risk conclusion.
+        subject_class:
+          type: string
+          enum: [bicycle, bus, car, motorcycle, truck, van]
+          description: Required for vehicle_activity; a shared-detector class, not plate, ReID, speed, or identity enrichment.
     IngestEventEnvelope:
       type: object
       additionalProperties: false
