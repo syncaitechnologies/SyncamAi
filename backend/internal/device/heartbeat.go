@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
 	"sort"
 	"strings"
@@ -18,8 +19,9 @@ import (
 const DeviceOfflineAfter = 90 * time.Second
 
 var (
-	ErrDeviceUnauthorized = errors.New("edge device is not authorized")
-	ErrHeartbeatConflict  = errors.New("heartbeat identifier reused with different telemetry")
+	ErrDeviceUnauthorized  = errors.New("edge device is not authorized")
+	ErrHeartbeatConflict   = errors.New("heartbeat identifier reused with different telemetry")
+	ErrInvalidDeviceHealth = errors.New("edge device health telemetry is invalid")
 )
 
 type HeartbeatCommand struct {
@@ -29,6 +31,7 @@ type HeartbeatCommand struct {
 	UptimeSeconds     int64
 	StoreForwardDepth int64
 	FirmwareVersion   string
+	Health            *DeviceHealth
 }
 
 type HeartbeatResult struct {
@@ -111,6 +114,9 @@ func (r *MemoryStatusRepository) ListDevices(_ context.Context, tenantID, siteID
 func (r *MemoryStatusRepository) RecordHeartbeat(_ context.Context, command HeartbeatCommand) (HeartbeatResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if !ValidDeviceHealth(command.Health) {
+		return HeartbeatResult{}, ErrInvalidDeviceHealth
+	}
 	device, ok := r.devices[command.DeviceID]
 	if !ok || device.CertificateStatus != "active" || device.Status == "pending" || device.Status == "retired" {
 		return HeartbeatResult{}, ErrDeviceUnauthorized
@@ -133,6 +139,7 @@ func (r *MemoryStatusRepository) RecordHeartbeat(_ context.Context, command Hear
 	device.FirmwareVersion = strings.TrimSpace(command.FirmwareVersion)
 	device.StoreForwardDepth = command.StoreForwardDepth
 	device.UptimeSeconds = command.UptimeSeconds
+	device.Health = cloneDeviceHealth(command.Health)
 	device.LastHeartbeat = &observedAt
 	device.UpdatedAt = observedAt
 	r.devices[device.ID] = device
@@ -157,14 +164,45 @@ func EffectiveDeviceStatus(device EdgeDevice, observedAt time.Time) string {
 
 func hashHeartbeat(command HeartbeatCommand) (string, error) {
 	payload, err := json.Marshal(struct {
-		ReportedAt        time.Time `json:"reported_at"`
-		UptimeSeconds     int64     `json:"uptime_seconds"`
-		StoreForwardDepth int64     `json:"store_forward_depth"`
-		FirmwareVersion   string    `json:"firmware_version"`
-	}{command.ReportedAt.UTC(), command.UptimeSeconds, command.StoreForwardDepth, strings.TrimSpace(command.FirmwareVersion)})
+		ReportedAt        time.Time     `json:"reported_at"`
+		UptimeSeconds     int64         `json:"uptime_seconds"`
+		StoreForwardDepth int64         `json:"store_forward_depth"`
+		FirmwareVersion   string        `json:"firmware_version"`
+		Health            *DeviceHealth `json:"health,omitempty"`
+	}{command.ReportedAt.UTC(), command.UptimeSeconds, command.StoreForwardDepth, strings.TrimSpace(command.FirmwareVersion), cloneDeviceHealth(command.Health)})
 	if err != nil {
 		return "", err
 	}
 	hash := sha256.Sum256(payload)
 	return hex.EncodeToString(hash[:]), nil
+}
+
+func ValidDeviceHealth(health *DeviceHealth) bool {
+	if health == nil {
+		return true
+	}
+	values := []float64{health.CPUUtilizationPercent, health.GPUUtilizationPercent, health.TemperatureCelsius, health.InferenceLatencyMs}
+	for _, value := range values {
+		if math.IsNaN(value) || math.IsInf(value, 0) {
+			return false
+		}
+	}
+	if health.CPUUtilizationPercent < 0 || health.CPUUtilizationPercent > 100 || health.GPUUtilizationPercent < 0 || health.GPUUtilizationPercent > 100 || health.TemperatureCelsius < -40 || health.TemperatureCelsius > 150 || health.InferenceLatencyMs < 0 || health.InferenceLatencyMs > 600000 {
+		return false
+	}
+	want := "normal"
+	if health.TemperatureCelsius >= 90 {
+		want = "critical"
+	} else if health.TemperatureCelsius >= 80 {
+		want = "warning"
+	}
+	return health.ThermalState == want
+}
+
+func cloneDeviceHealth(health *DeviceHealth) *DeviceHealth {
+	if health == nil {
+		return nil
+	}
+	copy := *health
+	return &copy
 }

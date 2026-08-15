@@ -61,6 +61,9 @@ func (r *PostgresStatusRepository) RecordHeartbeat(ctx context.Context, command 
 	if r == nil || r.pool == nil {
 		return HeartbeatResult{}, fmt.Errorf("postgres device status repository is unavailable")
 	}
+	if !ValidDeviceHealth(command.Health) {
+		return HeartbeatResult{}, ErrInvalidDeviceHealth
+	}
 	requestHash, err := hashHeartbeat(command)
 	if err != nil {
 		return HeartbeatResult{}, err
@@ -73,18 +76,24 @@ func (r *PostgresStatusRepository) RecordHeartbeat(ctx context.Context, command 
 	defer func() { _ = tx.Rollback(ctx) }()
 	var result HeartbeatResult
 	var activatedAt, lastHeartbeat pgtype.Timestamptz
+	var cpuUtilization, gpuUtilization, temperature, inferenceLatency pgtype.Float8
+	var thermalState pgtype.Text
+	cpuArgument, gpuArgument, temperatureArgument, latencyArgument, thermalArgument := deviceHealthArguments(command.Health)
 	err = tx.QueryRow(ctx, `
 		SELECT device_id::text, tenant_id::text, site_id::text, serial_number, hardware_tier,
 			COALESCE(model, ''), device_status, certificate_status, COALESCE(firmware_version, ''),
-			store_forward_depth, uptime_seconds, last_heartbeat, activated_at, created_at, updated_at,
+			store_forward_depth, uptime_seconds, cpu_utilization_percent, gpu_utilization_percent,
+			temperature_celsius, inference_latency_ms, thermal_state,
+			last_heartbeat, activated_at, created_at, updated_at,
 			observed_at, replayed
-		FROM edge.record_device_heartbeat($1::uuid, $2::uuid, $3::char(64), $4, $5, $6, $7::varchar(128))`,
+		FROM edge.record_device_heartbeat($1::uuid, $2::uuid, $3::char(64), $4, $5, $6, $7::varchar(128), $8, $9, $10, $11, $12::varchar(16))`,
 		command.DeviceID, command.HeartbeatID, requestHash, command.ReportedAt, command.UptimeSeconds,
-		command.StoreForwardDepth, command.FirmwareVersion,
+		command.StoreForwardDepth, command.FirmwareVersion, cpuArgument, gpuArgument, temperatureArgument, latencyArgument, thermalArgument,
 	).Scan(
 		&result.Device.ID, &result.Device.TenantID, &result.Device.SiteID, &result.Device.SerialNumber,
 		&result.Device.HardwareTier, &result.Device.Model, &result.Device.Status, &result.Device.CertificateStatus,
 		&result.Device.FirmwareVersion, &result.Device.StoreForwardDepth, &result.Device.UptimeSeconds,
+		&cpuUtilization, &gpuUtilization, &temperature, &inferenceLatency, &thermalState,
 		&lastHeartbeat, &activatedAt, &result.Device.CreatedAt, &result.Device.UpdatedAt, &result.ObservedAt, &result.Replayed,
 	)
 	if err != nil {
@@ -96,6 +105,7 @@ func (r *PostgresStatusRepository) RecordHeartbeat(ctx context.Context, command 
 	if activatedAt.Valid {
 		result.Device.ActivatedAt = &activatedAt.Time
 	}
+	result.Device.Health = scannedDeviceHealth(cpuUtilization, gpuUtilization, temperature, inferenceLatency, thermalState)
 	if err := tx.Commit(ctx); err != nil {
 		return HeartbeatResult{}, fmt.Errorf("commit device heartbeat: %w", err)
 	}
@@ -105,16 +115,22 @@ func (r *PostgresStatusRepository) RecordHeartbeat(ctx context.Context, command 
 const edgeDeviceSelect = `
 	SELECT id::text, tenant_id::text, site_id::text, serial_number, hardware_tier,
 		COALESCE(model, ''), status, cert_status, COALESCE(firmware_version, ''),
-		store_forward_depth, uptime_seconds, last_heartbeat, activated_at, created_at, updated_at
+		store_forward_depth, uptime_seconds, cpu_utilization_percent, gpu_utilization_percent,
+		temperature_celsius, inference_latency_ms, thermal_state,
+		last_heartbeat, activated_at, created_at, updated_at
 	FROM config.edge_devices`
 
 func scanEdgeDevice(row rowScanner) (EdgeDevice, error) {
 	var device EdgeDevice
 	var activatedAt, lastHeartbeat pgtype.Timestamptz
+	var cpuUtilization, gpuUtilization, temperature, inferenceLatency pgtype.Float8
+	var thermalState pgtype.Text
 	if err := row.Scan(
 		&device.ID, &device.TenantID, &device.SiteID, &device.SerialNumber, &device.HardwareTier,
 		&device.Model, &device.Status, &device.CertificateStatus, &device.FirmwareVersion,
-		&device.StoreForwardDepth, &device.UptimeSeconds, &lastHeartbeat, &activatedAt,
+		&device.StoreForwardDepth, &device.UptimeSeconds,
+		&cpuUtilization, &gpuUtilization, &temperature, &inferenceLatency, &thermalState,
+		&lastHeartbeat, &activatedAt,
 		&device.CreatedAt, &device.UpdatedAt,
 	); err != nil {
 		return EdgeDevice{}, err
@@ -125,7 +141,28 @@ func scanEdgeDevice(row rowScanner) (EdgeDevice, error) {
 	if activatedAt.Valid {
 		device.ActivatedAt = &activatedAt.Time
 	}
+	device.Health = scannedDeviceHealth(cpuUtilization, gpuUtilization, temperature, inferenceLatency, thermalState)
 	return device, nil
+}
+
+func deviceHealthArguments(health *DeviceHealth) (any, any, any, any, any) {
+	if health == nil {
+		return nil, nil, nil, nil, nil
+	}
+	return health.CPUUtilizationPercent, health.GPUUtilizationPercent, health.TemperatureCelsius, health.InferenceLatencyMs, health.ThermalState
+}
+
+func scannedDeviceHealth(cpu, gpu, temperature, latency pgtype.Float8, thermal pgtype.Text) *DeviceHealth {
+	if !cpu.Valid || !gpu.Valid || !temperature.Valid || !latency.Valid || !thermal.Valid {
+		return nil
+	}
+	return &DeviceHealth{
+		CPUUtilizationPercent: cpu.Float64,
+		GPUUtilizationPercent: gpu.Float64,
+		TemperatureCelsius:    temperature.Float64,
+		InferenceLatencyMs:    latency.Float64,
+		ThermalState:          thermal.String,
+	}
 }
 
 func (r *PostgresStatusRepository) begin(ctx context.Context, tenantID string, mode pgx.TxAccessMode) (pgx.Tx, error) {

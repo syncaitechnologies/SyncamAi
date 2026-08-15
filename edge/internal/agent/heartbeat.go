@@ -36,21 +36,23 @@ var (
 // caller may supply HeartbeatID to retry the same logical heartbeat; an empty
 // value is replaced with a fresh UUIDv4 by Send.
 type Telemetry struct {
-	HeartbeatID       string    `json:"heartbeat_id,omitempty"`
-	ReportedAt        time.Time `json:"reported_at"`
-	UptimeSeconds     int64     `json:"uptime_seconds"`
-	StoreForwardDepth int64     `json:"store_forward_depth"`
-	FirmwareVersion   string    `json:"firmware_version"`
+	HeartbeatID       string           `json:"heartbeat_id,omitempty"`
+	ReportedAt        time.Time        `json:"reported_at"`
+	UptimeSeconds     int64            `json:"uptime_seconds"`
+	StoreForwardDepth int64            `json:"store_forward_depth"`
+	FirmwareVersion   string           `json:"firmware_version"`
+	Health            *HealthTelemetry `json:"health,omitempty"`
 }
 
 type DeviceStatus struct {
-	ID                string    `json:"id"`
-	Status            string    `json:"status"`
-	CertificateStatus string    `json:"certificate_status"`
-	FirmwareVersion   string    `json:"firmware_version,omitempty"`
-	StoreForwardDepth int64     `json:"store_forward_depth"`
-	UptimeSeconds     int64     `json:"uptime_seconds"`
-	LastHeartbeat     time.Time `json:"last_heartbeat"`
+	ID                string           `json:"id"`
+	Status            string           `json:"status"`
+	CertificateStatus string           `json:"certificate_status"`
+	FirmwareVersion   string           `json:"firmware_version,omitempty"`
+	StoreForwardDepth int64            `json:"store_forward_depth"`
+	UptimeSeconds     int64            `json:"uptime_seconds"`
+	LastHeartbeat     time.Time        `json:"last_heartbeat"`
+	Health            *HealthTelemetry `json:"health,omitempty"`
 }
 
 type HeartbeatResult struct {
@@ -211,7 +213,7 @@ func (c *HeartbeatClient) normalizeTelemetry(telemetry Telemetry) (Telemetry, er
 	} else {
 		telemetry.ReportedAt = telemetry.ReportedAt.UTC()
 	}
-	if telemetry.ReportedAt.After(c.now().UTC().Add(5*time.Minute)) || telemetry.UptimeSeconds < 0 || telemetry.UptimeSeconds > maxUptimeSeconds || telemetry.StoreForwardDepth < 0 || telemetry.StoreForwardDepth > maxStoreForwardDepth {
+	if telemetry.ReportedAt.After(c.now().UTC().Add(5*time.Minute)) || telemetry.UptimeSeconds < 0 || telemetry.UptimeSeconds > maxUptimeSeconds || telemetry.StoreForwardDepth < 0 || telemetry.StoreForwardDepth > maxStoreForwardDepth || (telemetry.Health != nil && !validHealthTelemetry(*telemetry.Health)) {
 		return Telemetry{}, ErrInvalidTelemetry
 	}
 	telemetry.FirmwareVersion = strings.TrimSpace(telemetry.FirmwareVersion)
@@ -222,7 +224,7 @@ func (c *HeartbeatClient) normalizeTelemetry(telemetry Telemetry) (Telemetry, er
 }
 
 func validateHeartbeatResult(deviceID string, result HeartbeatResult) error {
-	if result.Device.ID != deviceID || result.Device.Status == "" || result.Device.CertificateStatus == "" || result.ObservedAt.IsZero() {
+	if result.Device.ID != deviceID || result.Device.Status == "" || result.Device.CertificateStatus == "" || result.ObservedAt.IsZero() || (result.Device.Health != nil && !validHealthTelemetry(*result.Device.Health)) {
 		return ErrMalformedHeartbeat
 	}
 	return nil

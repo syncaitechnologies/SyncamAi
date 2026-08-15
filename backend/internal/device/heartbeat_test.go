@@ -50,9 +50,10 @@ func TestMemoryStatusRepositoryFiltersFleetAndRecordsIdempotentHeartbeat(t *test
 	command := HeartbeatCommand{
 		DeviceID: edgeDeviceA, HeartbeatID: "66666666-6666-4666-8666-666666666666",
 		ReportedAt: fixed.Add(-time.Second), UptimeSeconds: 42, StoreForwardDepth: 7, FirmwareVersion: " 1.2.3 ",
+		Health: &DeviceHealth{CPUUtilizationPercent: 45, GPUUtilizationPercent: 65, TemperatureCelsius: 81, InferenceLatencyMs: 17, ThermalState: "warning"},
 	}
 	result, err := repository.RecordHeartbeat(context.Background(), command)
-	if err != nil || result.Replayed || result.Device.Status != "active" || result.Device.FirmwareVersion != "1.2.3" || result.Device.StoreForwardDepth != 7 || result.Device.UptimeSeconds != 42 || result.Device.LastHeartbeat == nil || *result.Device.LastHeartbeat != fixed {
+	if err != nil || result.Replayed || result.Device.Status != "active" || result.Device.FirmwareVersion != "1.2.3" || result.Device.StoreForwardDepth != 7 || result.Device.UptimeSeconds != 42 || result.Device.Health == nil || result.Device.Health.ThermalState != "warning" || result.Device.LastHeartbeat == nil || *result.Device.LastHeartbeat != fixed {
 		t.Fatalf("unexpected heartbeat: %+v %v", result, err)
 	}
 	replayed, err := repository.RecordHeartbeat(context.Background(), command)
@@ -65,6 +66,21 @@ func TestMemoryStatusRepositoryFiltersFleetAndRecordsIdempotentHeartbeat(t *test
 	}
 	if _, err := repository.RecordHeartbeat(context.Background(), HeartbeatCommand{DeviceID: "missing", HeartbeatID: command.HeartbeatID}); !errors.Is(err, ErrDeviceUnauthorized) {
 		t.Fatalf("expected unknown device rejection, got %v", err)
+	}
+}
+
+func TestValidDeviceHealthRequiresBoundedConsistentThermalState(t *testing.T) {
+	if !ValidDeviceHealth(nil) || !ValidDeviceHealth(&DeviceHealth{CPUUtilizationPercent: 10, GPUUtilizationPercent: 20, TemperatureCelsius: 90, InferenceLatencyMs: 12, ThermalState: "critical"}) {
+		t.Fatal("valid health was rejected")
+	}
+	for _, health := range []*DeviceHealth{
+		{CPUUtilizationPercent: 101, ThermalState: "normal"},
+		{TemperatureCelsius: 80, ThermalState: "normal"},
+		{InferenceLatencyMs: -1, ThermalState: "normal"},
+	} {
+		if ValidDeviceHealth(health) {
+			t.Fatalf("invalid health accepted: %+v", health)
+		}
 	}
 }
 
