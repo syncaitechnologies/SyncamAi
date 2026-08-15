@@ -40,6 +40,8 @@ type DetectionEvent struct {
 	EvidenceRefs        []string  `json:"evidence_refs"`
 	RequiresHumanReview bool      `json:"requires_human_review"`
 	ReviewState         string    `json:"review_state"`
+	ObservedBehavior    string    `json:"observed_behavior,omitempty"`
+	SubjectClass        string    `json:"subject_class,omitempty"`
 }
 
 type IngestCommand struct {
@@ -177,6 +179,8 @@ func normalizeEvent(event DetectionEvent) DetectionEvent {
 	event.ZoneID = strings.TrimSpace(event.ZoneID)
 	event.EventType = strings.TrimSpace(event.EventType)
 	event.ModelVersion = strings.TrimSpace(event.ModelVersion)
+	event.ObservedBehavior = strings.TrimSpace(event.ObservedBehavior)
+	event.SubjectClass = strings.TrimSpace(strings.ToLower(event.SubjectClass))
 	event.OccurredAt = event.OccurredAt.UTC()
 	if event.EvidenceRefs == nil {
 		event.EvidenceRefs = []string{}

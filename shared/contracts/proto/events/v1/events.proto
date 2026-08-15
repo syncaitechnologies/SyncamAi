@@ -18,6 +18,8 @@ message DetectionEvent {
   repeated string evidence_refs = 11;
   bool requires_human_review = 12;
   string review_state = 13;
+  string observed_behavior = 14;
+  string subject_class = 15;
 }
 
 message IngestEventResponse {

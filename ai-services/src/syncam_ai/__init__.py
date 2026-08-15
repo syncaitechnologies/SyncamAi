@@ -1,6 +1,3 @@
-"""SyncCam AI service scaffolds.
-
-Inference and model behavior are intentionally absent from the foundation PR.
-"""
+"""SyncCam AI service and inference-boundary helpers."""
 
 RUNTIME = "python3.12"

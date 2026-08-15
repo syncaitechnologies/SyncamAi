@@ -27,6 +27,7 @@ REQUIRED_FIELDS = {
     "requires_human_review",
     "review_state",
 }
+VEHICLE_ACTIVITY_FIELDS = {"observed_behavior", "subject_class"}
 
 
 def main() -> int:
@@ -38,16 +39,19 @@ def main() -> int:
         errors.append(f"Avro missing: {', '.join(missing_avro)}")
     if avro_fields.get("requires_human_review", {}).get("default") is not True:
         errors.append("Avro requires_human_review must default to true")
+    for field in VEHICLE_ACTIVITY_FIELDS:
+        if avro_fields.get(field, {}).get("default", "missing") is not None:
+            errors.append(f"Avro {field} must be optional with a null default")
 
     openapi = OPENAPI.read_text(encoding="utf-8")
-    for token in REQUIRED_FIELDS | {"api.sentinelvision.ai", "X-SentinelVision-Tenant-ID"}:
+    for token in REQUIRED_FIELDS | VEHICLE_ACTIVITY_FIELDS | {"api.sentinelvision.ai", "X-SentinelVision-Tenant-ID"}:
         if token not in openapi:
             errors.append(f"OpenAPI missing invariant {token}")
     if not re.search(r"requires_human_review:\s*\n\s*type: boolean\s*\n\s*const: true", openapi):
         errors.append("OpenAPI must constrain requires_human_review to true")
 
     proto = PROTO.read_text(encoding="utf-8")
-    for field in REQUIRED_FIELDS:
+    for field in REQUIRED_FIELDS | VEHICLE_ACTIVITY_FIELDS:
         if not re.search(rf"\b{re.escape(field)}\s*=\s*\d+;", proto):
             errors.append(f"Proto missing field {field}")
 

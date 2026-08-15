@@ -2,6 +2,7 @@ package eventing
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -28,6 +29,41 @@ func testCommand() IngestCommand {
 		ModelVersion: "detector-1", Confidence: 0.91, EvidenceRefs: []string{"evidence://clip-1"},
 		RequiresHumanReview: true, ReviewState: "pending",
 	}}
+}
+
+func TestCanonicalPayloadCarriesVehicleActivityWithoutChangingLegacyEvents(t *testing.T) {
+	legacyPayload, _, err := canonicalPayload(testCommand().Event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(legacyPayload) == "" || containsJSONField(t, legacyPayload, "observed_behavior") || containsJSONField(t, legacyPayload, "subject_class") {
+		t.Fatalf("legacy payload must omit optional vehicle metadata: %s", legacyPayload)
+	}
+	vehicle := testCommand().Event
+	vehicle.EventType = "vehicle_activity"
+	vehicle.ObservedBehavior = " detected "
+	vehicle.SubjectClass = " Car "
+	payload, _, err := canonicalPayload(vehicle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded["observed_behavior"] != "detected" || decoded["subject_class"] != "car" {
+		t.Fatalf("vehicle metadata was not normalized: %s", payload)
+	}
+}
+
+func containsJSONField(t *testing.T, payload []byte, field string) bool {
+	t.Helper()
+	var decoded map[string]any
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	_, ok := decoded[field]
+	return ok
 }
 
 func TestPostgresRepositoryIngestsEventOutboxAndAuditAtomically(t *testing.T) {

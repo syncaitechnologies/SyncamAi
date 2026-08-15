@@ -61,8 +61,8 @@
       "phase": 6,
       "owner": "AI and Platform",
       "dependencies": ["T-0107", "T-0303"],
-      "status": "planned",
-      "acceptance": "Vehicle events contain observed behavior and human-review state without LPR, ReID, theft scoring, or theft claims."
+      "status": "complete",
+      "acceptance": "Confirmed camera-local vehicle tracks produce deterministic, bounded vehicle_activity events with detected behavior, a canonical shared-detector class, model provenance, and pending human-review state; AI and platform validation exclude LPR, ReID, speed, identity, risk scoring, and theft claims."
     },
     {
       "id": "T-0308",

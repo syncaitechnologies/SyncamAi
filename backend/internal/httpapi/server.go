@@ -143,6 +143,10 @@ var eventTypes = map[string]struct{}{
 	"abandoned_object_review": {},
 }
 
+var vehicleSubjectClasses = map[string]struct{}{
+	"bicycle": {}, "bus": {}, "car": {}, "motorcycle": {}, "truck": {}, "van": {},
+}
+
 func (s *Server) ingestEvent(w http.ResponseWriter, r *http.Request) {
 	principal, ok := principalFromContext(r.Context())
 	if !ok {
@@ -229,6 +233,18 @@ func validateDetectionEvent(event eventing.DetectionEvent, tenantID string) erro
 	}
 	if event.Confidence < 0 || event.Confidence > 1 || !event.RequiresHumanReview || event.ReviewState != "pending" {
 		return errors.New("New probabilistic events must be pending human review.")
+	}
+	behavior := strings.TrimSpace(event.ObservedBehavior)
+	subjectClass := strings.ToLower(strings.TrimSpace(event.SubjectClass))
+	if event.EventType == "vehicle_activity" {
+		if behavior != "detected" {
+			return errors.New("Vehicle activity must describe only the observed detected behavior.")
+		}
+		if _, ok := vehicleSubjectClasses[subjectClass]; !ok {
+			return errors.New("Vehicle activity subject class is invalid.")
+		}
+	} else if behavior != "" || subjectClass != "" {
+		return errors.New("Vehicle activity metadata is valid only for vehicle activity events.")
 	}
 	if len(event.EvidenceRefs) > 32 {
 		return errors.New("Event evidence references are invalid.")
