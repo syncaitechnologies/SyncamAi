@@ -53,10 +53,10 @@ func TestDeviceHeartbeatRequiresVerifiedMatchingDeviceAndReplays(t *testing.T) {
 	}})
 	verifier := deviceVerifierFunc(func(*http.Request) (string, error) { return statusDeviceID, nil })
 	handler := statusHandler(cameraPrincipal(identity.RoleViewer, "config:read"), repository, verifier)
-	body := `{"heartbeat_id":"66666666-6666-4666-8666-666666666666","reported_at":"` + now.Format(time.RFC3339Nano) + `","uptime_seconds":42,"store_forward_depth":7,"firmware_version":"1.2.3"}`
+	body := `{"heartbeat_id":"66666666-6666-4666-8666-666666666666","reported_at":"` + now.Format(time.RFC3339Nano) + `","uptime_seconds":42,"store_forward_depth":7,"firmware_version":"1.2.3","health":{"cpu_utilization_percent":45,"gpu_utilization_percent":65,"temperature_celsius":81,"inference_latency_ms":17,"thermal_state":"warning"}}`
 	path := "/v1/edge/devices/" + statusDeviceID + "/heartbeat"
 	response := enrollmentRequest(handler, http.MethodPost, path, body, false, nil)
-	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"status":"active"`) || !strings.Contains(response.Body.String(), `"store_forward_depth":7`) || response.Header().Get(correlationHeader) == "" {
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"status":"active"`) || !strings.Contains(response.Body.String(), `"store_forward_depth":7`) || !strings.Contains(response.Body.String(), `"thermal_state":"warning"`) || response.Header().Get(correlationHeader) == "" {
 		t.Fatalf("heartbeat failed: %d %s", response.Code, response.Body.String())
 	}
 	replayed := enrollmentRequest(handler, http.MethodPost, path, body, false, nil)
@@ -97,6 +97,7 @@ func TestDeviceStatusRoutesFailClosedAndValidateHeartbeat(t *testing.T) {
 		`{"heartbeat_id":"66666666-6666-4666-8666-666666666666","reported_at":"` + future + `","uptime_seconds":1,"store_forward_depth":0,"firmware_version":"1"}`,
 		`{"heartbeat_id":"66666666-6666-4666-8666-666666666666","reported_at":"2026-08-13T12:00:00Z","uptime_seconds":-1,"store_forward_depth":0,"firmware_version":"1"}`,
 		`{"heartbeat_id":"66666666-6666-4666-8666-666666666666","reported_at":"2026-08-13T12:00:00Z","uptime_seconds":1,"store_forward_depth":0,"firmware_version":"1","unknown":true}`,
+		`{"heartbeat_id":"66666666-6666-4666-8666-666666666666","reported_at":"2026-08-13T12:00:00Z","uptime_seconds":1,"store_forward_depth":0,"firmware_version":"1","health":{"cpu_utilization_percent":101,"gpu_utilization_percent":0,"temperature_celsius":50,"inference_latency_ms":1,"thermal_state":"normal"}}`,
 	} {
 		if response := enrollmentRequest(handler, http.MethodPost, "/v1/edge/devices/"+statusDeviceID+"/heartbeat", body, false, nil); response.Code != http.StatusUnprocessableEntity {
 			t.Fatalf("invalid heartbeat: expected 422, got %d %s", response.Code, response.Body.String())

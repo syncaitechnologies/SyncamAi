@@ -17,11 +17,12 @@ import (
 const heartbeatBodyLimit = 64 << 10
 
 type deviceHeartbeatRequest struct {
-	HeartbeatID       string    `json:"heartbeat_id"`
-	ReportedAt        time.Time `json:"reported_at"`
-	UptimeSeconds     int64     `json:"uptime_seconds"`
-	StoreForwardDepth int64     `json:"store_forward_depth"`
-	FirmwareVersion   string    `json:"firmware_version"`
+	HeartbeatID       string               `json:"heartbeat_id"`
+	ReportedAt        time.Time            `json:"reported_at"`
+	UptimeSeconds     int64                `json:"uptime_seconds"`
+	StoreForwardDepth int64                `json:"store_forward_depth"`
+	FirmwareVersion   string               `json:"firmware_version"`
+	Health            *device.DeviceHealth `json:"health,omitempty"`
 }
 
 func (s *Server) listEdgeDevices(w http.ResponseWriter, r *http.Request) {
@@ -89,13 +90,13 @@ func (s *Server) recordDeviceHeartbeat(w http.ResponseWriter, r *http.Request) {
 	input.HeartbeatID = strings.TrimSpace(input.HeartbeatID)
 	input.FirmwareVersion = strings.TrimSpace(input.FirmwareVersion)
 	heartbeatID, parseErr := uuid.Parse(input.HeartbeatID)
-	if parseErr != nil || heartbeatID.Version() != 4 || input.ReportedAt.IsZero() || input.ReportedAt.After(time.Now().UTC().Add(5*time.Minute)) || input.UptimeSeconds < 0 || input.UptimeSeconds > 3155760000 || input.StoreForwardDepth < 0 || input.StoreForwardDepth > 1000000000 || input.FirmwareVersion == "" || len(input.FirmwareVersion) > 128 {
+	if parseErr != nil || heartbeatID.Version() != 4 || input.ReportedAt.IsZero() || input.ReportedAt.After(time.Now().UTC().Add(5*time.Minute)) || input.UptimeSeconds < 0 || input.UptimeSeconds > 3155760000 || input.StoreForwardDepth < 0 || input.StoreForwardDepth > 1000000000 || input.FirmwareVersion == "" || len(input.FirmwareVersion) > 128 || !device.ValidDeviceHealth(input.Health) {
 		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Device heartbeat fields are invalid.")
 		return
 	}
 	result, err := s.deviceStatus.RecordHeartbeat(r.Context(), device.HeartbeatCommand{
 		DeviceID: deviceID, HeartbeatID: heartbeatID.String(), ReportedAt: input.ReportedAt,
-		UptimeSeconds: input.UptimeSeconds, StoreForwardDepth: input.StoreForwardDepth, FirmwareVersion: input.FirmwareVersion,
+		UptimeSeconds: input.UptimeSeconds, StoreForwardDepth: input.StoreForwardDepth, FirmwareVersion: input.FirmwareVersion, Health: input.Health,
 	})
 	switch {
 	case errors.Is(err, device.ErrDeviceUnauthorized):

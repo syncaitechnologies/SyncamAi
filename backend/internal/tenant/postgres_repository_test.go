@@ -243,9 +243,10 @@ func TestPostgresRepositoryEnforcesRLSIdempotencyAndAudit(t *testing.T) {
 	heartbeatCommand := device.HeartbeatCommand{
 		DeviceID: activatedDevice.ID, HeartbeatID: uuid.NewString(), ReportedAt: time.Now().UTC(),
 		UptimeSeconds: 42, StoreForwardDepth: 7, FirmwareVersion: "1.2.3",
+		Health: &device.DeviceHealth{CPUUtilizationPercent: 45, GPUUtilizationPercent: 65, TemperatureCelsius: 81, InferenceLatencyMs: 17, ThermalState: "warning"},
 	}
 	heartbeat, err := statusRepository.RecordHeartbeat(ctx, heartbeatCommand)
-	if err != nil || heartbeat.Replayed || heartbeat.Device.Status != "active" || heartbeat.Device.StoreForwardDepth != 7 {
+	if err != nil || heartbeat.Replayed || heartbeat.Device.Status != "active" || heartbeat.Device.StoreForwardDepth != 7 || heartbeat.Device.Health == nil || heartbeat.Device.Health.ThermalState != "warning" {
 		t.Fatalf("device heartbeat failed: %+v %v", heartbeat, err)
 	}
 	replayedHeartbeat, err := statusRepository.RecordHeartbeat(ctx, heartbeatCommand)
@@ -258,7 +259,7 @@ func TestPostgresRepositoryEnforcesRLSIdempotencyAndAudit(t *testing.T) {
 		t.Fatalf("device heartbeat conflict must fail, got %v", err)
 	}
 	listedDevices, err := statusRepository.ListDevices(ctx, tenantA, created.Site.ID, time.Now().UTC())
-	if err != nil || len(listedDevices) != 1 || listedDevices[0].ID != activatedDevice.ID || listedDevices[0].Status != "active" {
+	if err != nil || len(listedDevices) != 1 || listedDevices[0].ID != activatedDevice.ID || listedDevices[0].Status != "active" || listedDevices[0].Health == nil || listedDevices[0].Health.TemperatureCelsius != 81 {
 		t.Fatalf("tenant-scoped device status failed: %+v %v", listedDevices, err)
 	}
 	for _, table := range []string{"config.edge_devices", "platform.device_claims", "edge.device_heartbeats"} {

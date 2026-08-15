@@ -13,18 +13,28 @@ import (
 
 func edgeDeviceRows(device EdgeDevice) *pgxmock.Rows {
 	var lastHeartbeat, activatedAt any
+	var cpuUtilization, gpuUtilization, temperature, inferenceLatency, thermalState any
 	if device.LastHeartbeat != nil {
 		lastHeartbeat = *device.LastHeartbeat
 	}
 	if device.ActivatedAt != nil {
 		activatedAt = *device.ActivatedAt
 	}
+	if device.Health != nil {
+		cpuUtilization = device.Health.CPUUtilizationPercent
+		gpuUtilization = device.Health.GPUUtilizationPercent
+		temperature = device.Health.TemperatureCelsius
+		inferenceLatency = device.Health.InferenceLatencyMs
+		thermalState = device.Health.ThermalState
+	}
 	return pgxmock.NewRows([]string{
 		"id", "tenant_id", "site_id", "serial_number", "hardware_tier", "model", "status", "cert_status",
-		"firmware_version", "store_forward_depth", "uptime_seconds", "last_heartbeat", "activated_at", "created_at", "updated_at",
+		"firmware_version", "store_forward_depth", "uptime_seconds", "cpu_utilization_percent", "gpu_utilization_percent",
+		"temperature_celsius", "inference_latency_ms", "thermal_state", "last_heartbeat", "activated_at", "created_at", "updated_at",
 	}).AddRow(
 		device.ID, device.TenantID, device.SiteID, device.SerialNumber, device.HardwareTier, device.Model, device.Status, device.CertificateStatus,
-		device.FirmwareVersion, device.StoreForwardDepth, device.UptimeSeconds, lastHeartbeat, activatedAt, device.CreatedAt, device.UpdatedAt,
+		device.FirmwareVersion, device.StoreForwardDepth, device.UptimeSeconds, cpuUtilization, gpuUtilization, temperature, inferenceLatency, thermalState,
+		lastHeartbeat, activatedAt, device.CreatedAt, device.UpdatedAt,
 	)
 }
 
@@ -60,15 +70,17 @@ func TestPostgresStatusRepositoryRecordsHeartbeatThroughGuardedFunction(t *testi
 	defer mock.Close()
 	now := time.Date(2026, 8, 13, 12, 0, 0, 0, time.UTC)
 	heartbeatID := "66666666-6666-4666-8666-666666666666"
-	command := HeartbeatCommand{DeviceID: edgeDeviceA, HeartbeatID: heartbeatID, ReportedAt: now.Add(-time.Second), UptimeSeconds: 42, StoreForwardDepth: 7, FirmwareVersion: " 1.2.3 "}
+	health := &DeviceHealth{CPUUtilizationPercent: 45, GPUUtilizationPercent: 65, TemperatureCelsius: 81, InferenceLatencyMs: 17, ThermalState: "warning"}
+	command := HeartbeatCommand{DeviceID: edgeDeviceA, HeartbeatID: heartbeatID, ReportedAt: now.Add(-time.Second), UptimeSeconds: 42, StoreForwardDepth: 7, FirmwareVersion: " 1.2.3 ", Health: health}
 	mock.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadWrite})
-	mock.ExpectQuery("FROM edge.record_device_heartbeat").WithArgs(edgeDeviceA, heartbeatID, pgxmock.AnyArg(), command.ReportedAt, int64(42), int64(7), "1.2.3").WillReturnRows(pgxmock.NewRows([]string{
+	mock.ExpectQuery("FROM edge.record_device_heartbeat").WithArgs(edgeDeviceA, heartbeatID, pgxmock.AnyArg(), command.ReportedAt, int64(42), int64(7), "1.2.3", 45.0, 65.0, 81.0, 17.0, "warning").WillReturnRows(pgxmock.NewRows([]string{
 		"device_id", "tenant_id", "site_id", "serial_number", "hardware_tier", "model", "status", "certificate_status",
-		"firmware_version", "store_forward_depth", "uptime_seconds", "last_heartbeat", "activated_at", "created_at", "updated_at", "observed_at", "replayed",
-	}).AddRow(edgeDeviceA, tenantA, siteA, "EDGE-01", "m", "Jetson", "active", "active", "1.2.3", int64(7), int64(42), now, now.Add(-time.Hour), now.Add(-time.Hour), now, now, false))
+		"firmware_version", "store_forward_depth", "uptime_seconds", "cpu_utilization_percent", "gpu_utilization_percent",
+		"temperature_celsius", "inference_latency_ms", "thermal_state", "last_heartbeat", "activated_at", "created_at", "updated_at", "observed_at", "replayed",
+	}).AddRow(edgeDeviceA, tenantA, siteA, "EDGE-01", "m", "Jetson", "active", "active", "1.2.3", int64(7), int64(42), 45.0, 65.0, 81.0, 17.0, "warning", now, now.Add(-time.Hour), now.Add(-time.Hour), now, now, false))
 	mock.ExpectCommit()
 	result, err := NewPostgresStatusRepository(mock).RecordHeartbeat(context.Background(), command)
-	if err != nil || result.Replayed || result.Device.TenantID != tenantA || result.Device.LastHeartbeat == nil || result.Device.FirmwareVersion != "1.2.3" {
+	if err != nil || result.Replayed || result.Device.TenantID != tenantA || result.Device.LastHeartbeat == nil || result.Device.FirmwareVersion != "1.2.3" || result.Device.Health == nil || result.Device.Health.ThermalState != "warning" {
 		t.Fatalf("unexpected heartbeat result: %+v %v", result, err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {

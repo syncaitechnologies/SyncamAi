@@ -47,7 +47,7 @@ func TestHeartbeatClientSendsBoundedTelemetry(t *testing.T) {
 			t.Errorf("decode request: %v", err)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"data":{"device":{"id":"` + testDeviceID + `","status":"active","certificate_status":"active","firmware_version":"1.2.3","store_forward_depth":7,"uptime_seconds":42},"observed_at":"2026-08-13T12:00:00Z"}}`))
+		_, _ = w.Write([]byte(`{"data":{"device":{"id":"` + testDeviceID + `","status":"active","certificate_status":"active","firmware_version":"1.2.3","store_forward_depth":7,"uptime_seconds":42,"health":{"cpu_utilization_percent":42,"gpu_utilization_percent":64,"temperature_celsius":81,"inference_latency_ms":17,"thermal_state":"warning"}},"observed_at":"2026-08-13T12:00:00Z"}}`))
 	}))
 	defer server.Close()
 
@@ -56,11 +56,15 @@ func TestHeartbeatClientSendsBoundedTelemetry(t *testing.T) {
 		t.Fatalf("new client: %v", err)
 	}
 	client.now = func() time.Time { return time.Date(2026, 8, 13, 12, 0, 0, 0, time.UTC) }
-	result, err := client.Send(context.Background(), Telemetry{ReportedAt: time.Time{}, UptimeSeconds: 42, StoreForwardDepth: 7, FirmwareVersion: " 1.2.3 "})
+	health, err := NormalizeHealth(HealthSample{CPUUtilizationPercent: 42, GPUUtilizationPercent: 64, TemperatureCelsius: 81, InferenceLatencyMs: 17})
+	if err != nil {
+		t.Fatalf("normalize health: %v", err)
+	}
+	result, err := client.Send(context.Background(), Telemetry{ReportedAt: time.Time{}, UptimeSeconds: 42, StoreForwardDepth: 7, FirmwareVersion: " 1.2.3 ", Health: &health})
 	if err != nil {
 		t.Fatalf("send heartbeat: %v", err)
 	}
-	if result.Device.ID != testDeviceID || result.Device.Status != "active" || result.Replayed || received.HeartbeatID == "" || received.ReportedAt.IsZero() || received.FirmwareVersion != "1.2.3" {
+	if result.Device.ID != testDeviceID || result.Device.Status != "active" || result.Device.Health == nil || result.Device.Health.ThermalState != ThermalWarning || result.Replayed || received.HeartbeatID == "" || received.ReportedAt.IsZero() || received.FirmwareVersion != "1.2.3" || received.Health == nil || received.Health.ThermalState != ThermalWarning {
 		t.Fatalf("unexpected heartbeat exchange: result=%+v request=%+v", result, received)
 	}
 }
@@ -78,6 +82,7 @@ func TestHeartbeatClientRejectsInvalidTelemetryAndResponses(t *testing.T) {
 		{HeartbeatID: "bad", FirmwareVersion: "1"},
 		{UptimeSeconds: -1, FirmwareVersion: "1"},
 		{StoreForwardDepth: maxStoreForwardDepth + 1, FirmwareVersion: "1"},
+		{FirmwareVersion: "1", Health: &HealthTelemetry{CPUUtilizationPercent: 101, ThermalState: ThermalNormal}},
 		{FirmwareVersion: strings.Repeat("x", maxFirmwareVersionSize+1)},
 	} {
 		if _, err := client.Send(context.Background(), telemetry); !errors.Is(err, ErrInvalidTelemetry) {
@@ -95,11 +100,15 @@ func TestHeartbeatClientRejectsInvalidTelemetryAndResponses(t *testing.T) {
 }
 
 func TestHeartbeatClientMarksReplayAndRejectsMalformedPayload(t *testing.T) {
-	malformed := true
+	responseMode := 0
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Idempotent-Replayed", "true")
-		if malformed {
+		if responseMode == 0 {
 			_, _ = w.Write([]byte(`{"data":{"device":{"id":"bad"}}}`))
+			return
+		}
+		if responseMode == 1 {
+			_, _ = w.Write([]byte(`{"data":{"device":{"id":"` + testDeviceID + `","status":"active","certificate_status":"active","health":{"cpu_utilization_percent":1,"gpu_utilization_percent":2,"temperature_celsius":80,"inference_latency_ms":3,"thermal_state":"normal"}},"observed_at":"2026-08-13T12:00:00Z"}}`))
 			return
 		}
 		_, _ = w.Write([]byte(`{"data":{"device":{"id":"` + testDeviceID + `","status":"active","certificate_status":"active"},"observed_at":"2026-08-13T12:00:00Z"}}`))
@@ -112,7 +121,11 @@ func TestHeartbeatClientMarksReplayAndRejectsMalformedPayload(t *testing.T) {
 	if _, err := client.Send(context.Background(), Telemetry{FirmwareVersion: "1"}); !errors.Is(err, ErrMalformedHeartbeat) {
 		t.Fatalf("expected malformed response, got %v", err)
 	}
-	malformed = false
+	responseMode = 1
+	if _, err := client.Send(context.Background(), Telemetry{FirmwareVersion: "1"}); !errors.Is(err, ErrMalformedHeartbeat) {
+		t.Fatalf("expected invalid response health rejection, got %v", err)
+	}
+	responseMode = 2
 	result, err := client.Send(context.Background(), Telemetry{FirmwareVersion: "1"})
 	if err != nil || !result.Replayed {
 		t.Fatalf("expected replayed heartbeat, result=%+v err=%v", result, err)

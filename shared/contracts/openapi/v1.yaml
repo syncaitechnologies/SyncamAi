@@ -803,6 +803,17 @@ components:
         uptime_seconds: { type: integer, minimum: 0, maximum: 3155760000 }
         store_forward_depth: { type: integer, minimum: 0, maximum: 1000000000 }
         firmware_version: { type: string, minLength: 1, maxLength: 128 }
+        health: { $ref: "#/components/schemas/DeviceHealth" }
+    DeviceHealth:
+      type: object
+      additionalProperties: false
+      required: [cpu_utilization_percent, gpu_utilization_percent, temperature_celsius, inference_latency_ms, thermal_state]
+      properties:
+        cpu_utilization_percent: { type: number, minimum: 0, maximum: 100 }
+        gpu_utilization_percent: { type: number, minimum: 0, maximum: 100 }
+        temperature_celsius: { type: number, minimum: -40, maximum: 150 }
+        inference_latency_ms: { type: number, minimum: 0, maximum: 600000 }
+        thermal_state: { type: string, enum: [normal, warning, critical] }
     DeviceHeartbeatEnvelope:
       type: object
       additionalProperties: false
@@ -832,6 +843,7 @@ components:
         firmware_version: { type: string, maxLength: 128 }
         store_forward_depth: { type: integer, minimum: 0, maximum: 1000000000 }
         uptime_seconds: { type: integer, minimum: 0, maximum: 3155760000 }
+        health: { $ref: "#/components/schemas/DeviceHealth" }
         last_heartbeat: { type: string, format: date-time }
         activated_at: { type: string, format: date-time }
         created_at: { type: string, format: date-time }

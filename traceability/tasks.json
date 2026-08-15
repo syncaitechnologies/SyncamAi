@@ -252,6 +252,15 @@
       "dependencies": ["T-0327", "T-0154"],
       "status": "complete",
       "acceptance": "Opaque payloads persist atomically across restart with integrity verification; replay prioritizes metadata, evidence, then archive video and removes items only after acknowledgement; quota pressure evicts the globally oldest item first; queue depth, bytes, oldest age, enqueue, acknowledgement, and eviction metrics are available for telemetry."
+    },
+    {
+      "id": "T-0329",
+      "title": "Extend edge heartbeat with bounded health telemetry",
+      "phase": 2,
+      "owner": "Edge and Platform",
+      "dependencies": ["T-0325", "T-0155"],
+      "status": "complete",
+      "acceptance": "The edge health monitor reports bounded CPU, GPU, temperature, and inference-latency samples no slower than every 30 seconds, derives thermal warnings at canonical thresholds, and transports optional backward-compatible health through the certificate-authenticated heartbeat into tenant-scoped persisted fleet status."
     }
   ]
 }

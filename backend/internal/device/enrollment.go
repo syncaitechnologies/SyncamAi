@@ -30,21 +30,30 @@ var (
 // EdgeDevice is the cloud registry binding for one physical edge appliance.
 // Certificate material and claim-token digests are intentionally excluded.
 type EdgeDevice struct {
-	ID                string     `json:"id"`
-	TenantID          string     `json:"tenant_id"`
-	SiteID            string     `json:"site_id"`
-	SerialNumber      string     `json:"serial_number"`
-	HardwareTier      string     `json:"hardware_tier"`
-	Model             string     `json:"model,omitempty"`
-	Status            string     `json:"status"`
-	CertificateStatus string     `json:"certificate_status"`
-	FirmwareVersion   string     `json:"firmware_version,omitempty"`
-	StoreForwardDepth int64      `json:"store_forward_depth"`
-	UptimeSeconds     int64      `json:"uptime_seconds"`
-	LastHeartbeat     *time.Time `json:"last_heartbeat,omitempty"`
-	ActivatedAt       *time.Time `json:"activated_at,omitempty"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
+	ID                string        `json:"id"`
+	TenantID          string        `json:"tenant_id"`
+	SiteID            string        `json:"site_id"`
+	SerialNumber      string        `json:"serial_number"`
+	HardwareTier      string        `json:"hardware_tier"`
+	Model             string        `json:"model,omitempty"`
+	Status            string        `json:"status"`
+	CertificateStatus string        `json:"certificate_status"`
+	FirmwareVersion   string        `json:"firmware_version,omitempty"`
+	StoreForwardDepth int64         `json:"store_forward_depth"`
+	UptimeSeconds     int64         `json:"uptime_seconds"`
+	Health            *DeviceHealth `json:"health,omitempty"`
+	LastHeartbeat     *time.Time    `json:"last_heartbeat,omitempty"`
+	ActivatedAt       *time.Time    `json:"activated_at,omitempty"`
+	CreatedAt         time.Time     `json:"created_at"`
+	UpdatedAt         time.Time     `json:"updated_at"`
+}
+
+type DeviceHealth struct {
+	CPUUtilizationPercent float64 `json:"cpu_utilization_percent"`
+	GPUUtilizationPercent float64 `json:"gpu_utilization_percent"`
+	TemperatureCelsius    float64 `json:"temperature_celsius"`
+	InferenceLatencyMs    float64 `json:"inference_latency_ms"`
+	ThermalState          string  `json:"thermal_state"`
 }
 
 // DeviceClaim is safe registry metadata. The bearer claim is returned separately
