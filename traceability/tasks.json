@@ -70,8 +70,8 @@
       "phase": 8,
       "owner": "AI",
       "dependencies": ["T-0098", "T-0107"],
-      "status": "planned",
-      "acceptance": "Track-separation and dwell rules meet the approved evaluation card and emit review-required alerts."
+      "status": "complete",
+      "acceptance": "Camera-local track-separation and configurable 30--60 second dwell rules emit deterministic, review-required abandoned-object alerts; synthetic temporal evaluation passes and production promotion remains gated on held-out per-zone evaluation."
     },
     {
       "id": "T-0309",
