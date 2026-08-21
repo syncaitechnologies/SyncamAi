@@ -19,6 +19,7 @@ import (
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/realtime"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/tenant"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/zones"
 )
 
 const tenantHeader = "X-SentinelVision-Tenant-ID"
@@ -43,6 +44,7 @@ type Server struct {
 	enrollment     device.EnrollmentRepository
 	deviceStatus   device.StatusRepository
 	deviceVerifier device.DeviceIdentityVerifier
+	zones          zones.Repository
 	mux            *http.ServeMux
 }
 
@@ -77,7 +79,12 @@ func NewWithDeviceEnrollment(verifier identity.Verifier, tenants tenant.Reposito
 
 // NewWithDeviceStatus wires certificate-authenticated heartbeats and tenant fleet reads.
 func NewWithDeviceStatus(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository, realtimeRepository realtime.Repository, tickets realtime.TicketStore, cameras device.Repository, enrollment device.EnrollmentRepository, deviceStatus device.StatusRepository, deviceVerifier device.DeviceIdentityVerifier) http.Handler {
-	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, realtime: realtimeRepository, tickets: tickets, cameras: cameras, enrollment: enrollment, deviceStatus: deviceStatus, deviceVerifier: deviceVerifier, mux: http.NewServeMux()}
+	return NewWithZones(verifier, tenants, events, alerts, realtimeRepository, tickets, cameras, enrollment, deviceStatus, deviceVerifier, nil)
+}
+
+// NewWithZones wires versioned zone configuration into the local control-plane boundary.
+func NewWithZones(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository, realtimeRepository realtime.Repository, tickets realtime.TicketStore, cameras device.Repository, enrollment device.EnrollmentRepository, deviceStatus device.StatusRepository, deviceVerifier device.DeviceIdentityVerifier, zoneRepository zones.Repository) http.Handler {
+	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, realtime: realtimeRepository, tickets: tickets, cameras: cameras, enrollment: enrollment, deviceStatus: deviceStatus, deviceVerifier: deviceVerifier, zones: zoneRepository, mux: http.NewServeMux()}
 	server.mux.HandleFunc("GET /healthz", server.health)
 	server.mux.Handle("GET /v1/auth/me", server.authenticate(http.HandlerFunc(server.me)))
 	server.mux.Handle("POST /v1/auth/ws-ticket", server.authenticate(http.HandlerFunc(server.issueRealtimeTicket)))
@@ -88,6 +95,10 @@ func NewWithDeviceStatus(verifier identity.Verifier, tenants tenant.Repository, 
 	server.mux.Handle("GET /v1/cameras/{id}", server.authenticate(http.HandlerFunc(server.getCamera)))
 	server.mux.Handle("PATCH /v1/cameras/{id}", server.authenticate(http.HandlerFunc(server.updateCamera)))
 	server.mux.Handle("DELETE /v1/cameras/{id}", server.authenticate(http.HandlerFunc(server.retireCamera)))
+	server.mux.Handle("GET /v1/zones", server.authenticate(http.HandlerFunc(server.listZones)))
+	server.mux.Handle("POST /v1/zones", server.authenticate(http.HandlerFunc(server.createZone)))
+	server.mux.Handle("GET /v1/zones/{id}", server.authenticate(http.HandlerFunc(server.getZone)))
+	server.mux.Handle("PATCH /v1/zones/{id}", server.authenticate(http.HandlerFunc(server.updateZone)))
 	server.mux.Handle("POST /v1/device-claims", server.authenticate(http.HandlerFunc(server.issueDeviceClaim)))
 	server.mux.HandleFunc("POST /v1/edge/devices/{id}/pair", server.activateDevice)
 	server.mux.Handle("GET /v1/edge/devices", server.authenticate(http.HandlerFunc(server.listEdgeDevices)))
