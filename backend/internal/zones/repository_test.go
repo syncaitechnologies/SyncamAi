@@ -246,3 +246,21 @@ func TestPostgresRepositoryRejectsUnreadableZoneRowsAndReplays(t *testing.T) {
 	if _, err := NewPostgresRepository(mock).Create(context.Background(), command); err == nil { t.Fatal("unreadable replay must fail") }
 	if err := mock.ExpectationsWereMet(); err != nil { t.Fatal(err) }
 }
+
+func TestPostgresRepositoryRejectsReadCommitFailures(t *testing.T) {
+	commitFailure := errors.New("commit unavailable")
+	zone := Zone{ID: testZone, TenantID: testTenant, SiteID: testSite, Name: "Loading bay", Kind: "intrusion", Geometry: testPolygon, Enabled: true, ConfigVersion: 1}
+	mock, err := pgxmock.NewPool(); if err != nil { t.Fatal(err) }
+	expectZoneTransaction(mock, pgx.ReadOnly)
+	mock.ExpectQuery("SELECT id::text").WillReturnRows(zoneRows(zone))
+	mock.ExpectCommit().WillReturnError(commitFailure)
+	if _, err := NewPostgresRepository(mock).List(context.Background(), testTenant, ""); !errors.Is(err, commitFailure) { t.Fatalf("list commit failure: %v", err) }
+	if err := mock.ExpectationsWereMet(); err != nil { t.Fatal(err) }; mock.Close()
+
+	mock, err = pgxmock.NewPool(); if err != nil { t.Fatal(err) }; defer mock.Close()
+	expectZoneTransaction(mock, pgx.ReadOnly)
+	mock.ExpectQuery("SELECT id::text").WithArgs(testZone).WillReturnRows(zoneRows(zone))
+	mock.ExpectCommit().WillReturnError(commitFailure)
+	if _, err := NewPostgresRepository(mock).Get(context.Background(), testTenant, testZone); !errors.Is(err, commitFailure) { t.Fatalf("get commit failure: %v", err) }
+	if err := mock.ExpectationsWereMet(); err != nil { t.Fatal(err) }
+}
