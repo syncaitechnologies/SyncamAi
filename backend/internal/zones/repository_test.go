@@ -185,3 +185,43 @@ func TestPostgresRepositoryCoversZoneStorageFailures(t *testing.T) {
 	if _, err := NewPostgresRepository(mock).Update(context.Background(), UpdateCommand{TenantID: testTenant, ZoneID: testZone, ExpectedVersion: 1}); !errors.Is(err, ErrNotFound) { t.Fatalf("missing update: %v", err) }
 	if err := mock.ExpectationsWereMet(); err != nil { t.Fatal(err) }
 }
+
+func TestPostgresRepositoryFailsClosedOnStorageErrors(t *testing.T) {
+	setContextFailure := errors.New("tenant context unavailable")
+	mock, err := pgxmock.NewPool(); if err != nil { t.Fatal(err) }
+	mock.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	mock.ExpectExec("SELECT set_config").WithArgs(testTenant).WillReturnError(setContextFailure)
+	mock.ExpectRollback()
+	if _, err := NewPostgresRepository(mock).List(context.Background(), testTenant, ""); !errors.Is(err, setContextFailure) { t.Fatalf("set context failure: %v", err) }
+	if err := mock.ExpectationsWereMet(); err != nil { t.Fatal(err) }; mock.Close()
+
+	queryFailure := errors.New("query unavailable")
+	mock, err = pgxmock.NewPool(); if err != nil { t.Fatal(err) }; defer mock.Close()
+	expectZoneTransaction(mock, pgx.ReadOnly)
+	mock.ExpectQuery("SELECT id::text").WithArgs(testSite).WillReturnError(queryFailure)
+	mock.ExpectRollback()
+	if _, err := NewPostgresRepository(mock).List(context.Background(), testTenant, testSite); !errors.Is(err, queryFailure) { t.Fatalf("list failure: %v", err) }
+	if err := mock.ExpectationsWereMet(); err != nil { t.Fatal(err) }
+}
+
+func TestPostgresRepositoryRejectsBadZoneCreateAndUpdateStorage(t *testing.T) {
+	invalid := CreateCommand{TenantID: testTenant, IdempotencyKey: "zone-invalid", Geometry: json.RawMessage("{")}
+	mock, err := pgxmock.NewPool(); if err != nil { t.Fatal(err) }
+	expectZoneTransaction(mock, pgx.ReadWrite)
+	mock.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs(testTenant + ":zone-invalid").WillReturnResult(pgxmock.NewResult("SELECT", 1))
+	mock.ExpectExec("DELETE FROM platform.idempotency_keys").WithArgs(testTenant, "zone-invalid").WillReturnResult(pgxmock.NewResult("DELETE", 0))
+	mock.ExpectRollback()
+	if _, err := NewPostgresRepository(mock).Create(context.Background(), invalid); err == nil { t.Fatal("invalid create must fail") }
+	if err := mock.ExpectationsWereMet(); err != nil { t.Fatal(err) }; mock.Close()
+
+	zone := Zone{ID: testZone, TenantID: testTenant, SiteID: testSite, Name: "Loading bay", Kind: "intrusion", Geometry: testPolygon, Enabled: true, ConfigVersion: 1}
+	mock, err = pgxmock.NewPool(); if err != nil { t.Fatal(err) }; defer mock.Close()
+	writeFailure := errors.New("write unavailable")
+	expectZoneTransaction(mock, pgx.ReadWrite)
+	mock.ExpectQuery("SELECT id::text").WithArgs(testZone).WillReturnRows(zoneRows(zone))
+	mock.ExpectQuery("UPDATE config.zones").WithArgs(testZone, "", "Loading bay north", testPolygon, true, "user-1").WillReturnError(writeFailure)
+	mock.ExpectRollback()
+	name := "Loading bay north"
+	if _, err := NewPostgresRepository(mock).Update(context.Background(), UpdateCommand{TenantID: testTenant, ActorID: "user-1", ZoneID: testZone, ExpectedVersion: 1, Name: &name}); !errors.Is(err, writeFailure) { t.Fatalf("write failure: %v", err) }
+	if err := mock.ExpectationsWereMet(); err != nil { t.Fatal(err) }
+}
