@@ -36,12 +36,13 @@ var (
 // caller may supply HeartbeatID to retry the same logical heartbeat; an empty
 // value is replaced with a fresh UUIDv4 by Send.
 type Telemetry struct {
-	HeartbeatID       string           `json:"heartbeat_id,omitempty"`
-	ReportedAt        time.Time        `json:"reported_at"`
-	UptimeSeconds     int64            `json:"uptime_seconds"`
-	StoreForwardDepth int64            `json:"store_forward_depth"`
-	FirmwareVersion   string           `json:"firmware_version"`
-	Health            *HealthTelemetry `json:"health,omitempty"`
+	HeartbeatID           string           `json:"heartbeat_id,omitempty"`
+	ReportedAt            time.Time        `json:"reported_at"`
+	UptimeSeconds         int64            `json:"uptime_seconds"`
+	DesiredConfigRevision int64            `json:"desired_config_revision,omitempty"`
+	StoreForwardDepth     int64            `json:"store_forward_depth"`
+	FirmwareVersion       string           `json:"firmware_version"`
+	Health                *HealthTelemetry `json:"health,omitempty"`
 }
 
 type DeviceStatus struct {
