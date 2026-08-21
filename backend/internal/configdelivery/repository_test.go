@@ -45,6 +45,12 @@ func TestMemoryRepositoryPublishesPullsAndReportsDeviceOutcome(t *testing.T) {
 
 func TestMemoryRepositoryDoesNotCrossSiteOrAcceptInvalidReports(t *testing.T) {
 	repository := NewMemoryRepository([]DeviceBinding{{ID: deviceID, TenantID: tenantID, SiteID: siteID}})
+	if desired, err := repository.DesiredRevision(context.Background(), deviceID); err != nil || desired != 0 {
+		t.Fatalf("empty desired revision: %d, %v", desired, err)
+	}
+	if _, err := repository.DesiredRevision(context.Background(), "44444444-4444-4444-8444-444444444444"); !errors.Is(err, ErrDeviceNotFound) {
+		t.Fatalf("unknown desired revision: %v", err)
+	}
 	if _, err := repository.Pull(context.Background(), "44444444-4444-4444-8444-444444444444", 0); !errors.Is(err, ErrDeviceNotFound) {
 		t.Fatalf("unknown device pull: %v", err)
 	}
@@ -53,5 +59,36 @@ func TestMemoryRepositoryDoesNotCrossSiteOrAcceptInvalidReports(t *testing.T) {
 	}
 	if _, err := repository.Publish(context.Background(), PublishCommand{TenantID: tenantID, SiteID: siteID, Payload: []byte(`[]`)}); err == nil {
 		t.Fatal("array payload must not become a configuration snapshot")
+	}
+}
+
+func TestMemoryRepositoryListsTenantRevisionsAndReturnsDeviceStatus(t *testing.T) {
+	repository := NewMemoryRepository([]DeviceBinding{{ID: deviceID, TenantID: tenantID, SiteID: siteID}})
+	for _, command := range []PublishCommand{
+		{TenantID: tenantID, SiteID: siteID, Payload: []byte(`{"zones":[1]}`)},
+		{TenantID: tenantID, SiteID: siteID, Payload: []byte(`{"zones":[2]}`)},
+		{TenantID: "44444444-4444-4444-8444-444444444444", SiteID: siteID, Payload: []byte(`{"zones":[3]}`)},
+	} {
+		if _, err := repository.Publish(context.Background(), command); err != nil {
+			t.Fatal(err)
+		}
+	}
+	listed, err := repository.List(context.Background(), tenantID, siteID)
+	if err != nil || len(listed) != 2 || listed[0].Number != 2 {
+		t.Fatalf("site revisions: %#v, %v", listed, err)
+	}
+	all, err := repository.List(context.Background(), tenantID, "")
+	if err != nil || len(all) != 2 {
+		t.Fatalf("tenant revisions: %#v, %v", all, err)
+	}
+	if _, err := repository.Report(context.Background(), ReportCommand{DeviceID: deviceID, Revision: 2, State: StatusApplied}); err != nil {
+		t.Fatal(err)
+	}
+	status, err := repository.GetStatus(context.Background(), tenantID, deviceID)
+	if err != nil || status.State != StatusApplied || status.AppliedAt == nil {
+		t.Fatalf("status: %#v, %v", status, err)
+	}
+	if _, err := repository.GetStatus(context.Background(), "44444444-4444-4444-8444-444444444444", deviceID); !errors.Is(err, ErrDeviceNotFound) {
+		t.Fatalf("cross-tenant status: %v", err)
 	}
 }
