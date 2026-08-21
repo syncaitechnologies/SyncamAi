@@ -96,3 +96,33 @@ func TestPostgresRepositoryFailsClosed(t *testing.T) {
 	mock, err := pgxmock.NewPool(); if err != nil { t.Fatal(err) }; defer mock.Close()
 	if _, err := NewPostgresRepository(mock).Get(context.Background(), "bad", testZone); err == nil { t.Fatal("expected invalid tenant") }
 }
+
+func TestPostgresRepositoryReplaysNoOpsAndHidesMissingZones(t *testing.T) {
+	mock, err := pgxmock.NewPool(); if err != nil { t.Fatal(err) }; defer mock.Close()
+	createdAt := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	zone := Zone{ID: testZone, TenantID: testTenant, SiteID: testSite, Floor: "Dock", Name: "Loading bay", Kind: "intrusion", Geometry: testPolygon, Enabled: true, ConfigVersion: 1, CreatedAt: createdAt, UpdatedAt: createdAt}
+
+	expectZoneTransaction(mock, pgx.ReadOnly)
+	mock.ExpectQuery("SELECT id::text").WithArgs("99999999-9999-4999-8999-999999999999").WillReturnRows(zoneRows(zone).RowError(0, pgx.ErrNoRows))
+	mock.ExpectRollback()
+	if _, err := NewPostgresRepository(mock).Get(context.Background(), testTenant, "99999999-9999-4999-8999-999999999999"); !errors.Is(err, ErrNotFound) { t.Fatalf("missing get: %v", err) }
+
+	command := CreateCommand{TenantID: testTenant, ActorID: "user-1", RequestID: testRequest, IdempotencyKey: "zone-replay", SiteID: testSite, Floor: "Dock", Name: "Loading bay", Kind: "intrusion", Geometry: testPolygon, Enabled: true}
+	hash, err := hashCreate(command); if err != nil { t.Fatal(err) }
+	stored, err := json.Marshal(zone); if err != nil { t.Fatal(err) }
+	expectZoneTransaction(mock, pgx.ReadWrite)
+	mock.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs(testTenant + ":zone-replay").WillReturnResult(pgxmock.NewResult("SELECT", 1))
+	mock.ExpectExec("DELETE FROM platform.idempotency_keys").WithArgs(testTenant, "zone-replay").WillReturnResult(pgxmock.NewResult("DELETE", 0))
+	mock.ExpectQuery("SELECT request_hash, response_body").WithArgs(testTenant, "zone-replay").WillReturnRows(pgxmock.NewRows([]string{"request_hash", "response_body"}).AddRow(hash, stored))
+	mock.ExpectCommit()
+	replayed, err := NewPostgresRepository(mock).Create(context.Background(), command)
+	if err != nil || !replayed.Replayed || replayed.Zone.ID != testZone { t.Fatalf("replay: %+v %v", replayed, err) }
+
+	name := zone.Name
+	expectZoneTransaction(mock, pgx.ReadWrite)
+	mock.ExpectQuery("SELECT id::text").WithArgs(testZone).WillReturnRows(zoneRows(zone))
+	mock.ExpectCommit()
+	unchanged, err := NewPostgresRepository(mock).Update(context.Background(), UpdateCommand{TenantID: testTenant, ZoneID: testZone, ExpectedVersion: 1, Name: &name})
+	if err != nil || unchanged.ConfigVersion != 1 { t.Fatalf("unchanged update: %+v %v", unchanged, err) }
+	if err := mock.ExpectationsWereMet(); err != nil { t.Fatal(err) }
+}
