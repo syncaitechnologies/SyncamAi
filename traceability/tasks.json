@@ -261,6 +261,15 @@
       "dependencies": ["T-0325", "T-0155"],
       "status": "complete",
       "acceptance": "The edge health monitor reports bounded CPU, GPU, temperature, and inference-latency samples no slower than every 30 seconds, derives thermal warnings at canonical thresholds, and transports optional backward-compatible health through the certificate-authenticated heartbeat into tenant-scoped persisted fleet status."
+    },
+    {
+      "id": "T-0330",
+      "title": "Implement Phase 3 zone registry and rule-builder foundation",
+      "phase": 3,
+      "owner": "Platform and Web",
+      "dependencies": ["T-0322", "T-0006", "T-0214"],
+      "status": "in_progress",
+      "acceptance": "Tenant/site-scoped GeoJSON intrusion, restricted-zone, loitering, abandoned-object, and tripwire configuration has versioned, idempotent, audited REST persistence under RLS; the responsive console exposes a clearly synthetic rule-builder workspace without claiming live footage, edge push, simulation, or mask-zone dual approval."
     }
   ]
 }

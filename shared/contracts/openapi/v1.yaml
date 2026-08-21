@@ -206,6 +206,101 @@ paths:
         "404": { description: Camera or tenant scope not found }
         "422": { description: Correlation header validation failed }
         "503": { description: Camera repository unavailable }
+  /zones:
+    get:
+      operationId: listZones
+      summary: List versioned rule zones visible inside verified tenant and site scope
+      security:
+        - oidc: [config:read]
+      parameters:
+        - $ref: "#/components/parameters/TenantHeader"
+        - name: site_id
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Authorized zone records and GeoJSON geometry only; footage is never included
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ZoneListEnvelope" }
+        "401": { description: Authentication required }
+        "403": { description: Capability denied }
+        "404": { description: Tenant or site scope not found }
+        "422": { description: Filter validation failed }
+        "503": { description: Zone repository unavailable }
+    post:
+      operationId: createZone
+      summary: Create one tenant-scoped rule zone with an idempotent audited mutation
+      security:
+        - oidc: [config:write]
+      parameters:
+        - $ref: "#/components/parameters/TenantHeader"
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateZoneRequest" }
+      responses:
+        "201":
+          description: Zone created or exact stored response replayed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ZoneEnvelope" }
+        "401": { description: Authentication required }
+        "403": { description: Capability or site scope denied }
+        "404": { description: Tenant or site scope not found }
+        "409": { description: Idempotency key reused with a different body }
+        "422": { description: Zone or GeoJSON validation failed }
+        "503": { description: Zone repository unavailable }
+  /zones/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - $ref: "#/components/parameters/TenantHeader"
+    get:
+      operationId: getZone
+      summary: Return one authorized versioned zone
+      security:
+        - oidc: [config:read]
+      responses:
+        "200":
+          description: Zone configuration metadata and geometry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ZoneEnvelope" }
+        "401": { description: Authentication required }
+        "403": { description: Capability denied }
+        "404": { description: Zone or tenant scope not found }
+        "503": { description: Zone repository unavailable }
+    patch:
+      operationId: updateZone
+      summary: Update mutable zone fields using optimistic configuration versions and an atomic audit record
+      security:
+        - oidc: [config:write]
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateZoneRequest" }
+      responses:
+        "200":
+          description: Updated zone configuration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ZoneEnvelope" }
+        "401": { description: Authentication required }
+        "403": { description: Capability or site scope denied }
+        "404": { description: Zone or tenant scope not found }
+        "409": { description: Configuration version conflict }
+        "422": { description: Zone or GeoJSON validation failed }
+        "503": { description: Zone repository unavailable }
   /device-claims:
     post:
       operationId: issueDeviceClaim
@@ -722,6 +817,117 @@ components:
         lifecycle_status:
           type: string
           enum: [pending, active, offline, retired]
+        config_version: { type: integer, minimum: 1 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ZoneListEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          maxItems: 500
+          items: { $ref: "#/components/schemas/Zone" }
+        meta:
+          type: object
+          additionalProperties: false
+          required: [count, next]
+          properties:
+            count: { type: integer, minimum: 0, maximum: 500 }
+            next: { type: [string, "null"] }
+    ZoneEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/Zone" }
+    GeoJSONPolygon:
+      type: object
+      additionalProperties: false
+      required: [type, coordinates]
+      properties:
+        type: { type: string, const: Polygon }
+        coordinates:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            type: array
+            minItems: 4
+            items:
+              type: array
+              minItems: 2
+              maxItems: 2
+              items: { type: number, minimum: -1000000, maximum: 1000000 }
+    GeoJSONLineString:
+      type: object
+      additionalProperties: false
+      required: [type, coordinates]
+      properties:
+        type: { type: string, const: LineString }
+        coordinates:
+          type: array
+          minItems: 2
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items: { type: number, minimum: -1000000, maximum: 1000000 }
+    CreateZoneRequest:
+      type: object
+      additionalProperties: false
+      required: [site_id, name, kind, geometry]
+      properties:
+        site_id: { type: string, format: uuid }
+        camera_id: { type: string, format: uuid }
+        floor: { type: string, maxLength: 120 }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        kind:
+          type: string
+          enum: [intrusion, restricted_zone, loitering, abandoned, tripwire]
+          description: Mask zones are intentionally excluded pending the documented Super Admin dual-approval workflow.
+        geometry:
+          oneOf:
+            - $ref: "#/components/schemas/GeoJSONPolygon"
+            - $ref: "#/components/schemas/GeoJSONLineString"
+        enabled: { type: boolean, default: true }
+    UpdateZoneRequest:
+      type: object
+      additionalProperties: false
+      required: [config_version]
+      anyOf:
+        - required: [name]
+        - required: [floor]
+        - required: [geometry]
+        - required: [enabled]
+      properties:
+        config_version: { type: integer, minimum: 1 }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        floor: { type: string, maxLength: 120 }
+        geometry:
+          oneOf:
+            - $ref: "#/components/schemas/GeoJSONPolygon"
+            - $ref: "#/components/schemas/GeoJSONLineString"
+        enabled: { type: boolean }
+    Zone:
+      type: object
+      additionalProperties: false
+      description: Versioned metadata-only rule-zone configuration. No footage, image pixels, or stream credentials are included.
+      required: [id, tenant_id, site_id, name, kind, geometry, enabled, config_version, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        site_id: { type: string, format: uuid }
+        camera_id: { type: string, format: uuid }
+        floor: { type: string, maxLength: 120 }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        kind: { type: string, enum: [intrusion, restricted_zone, loitering, abandoned, tripwire] }
+        geometry:
+          oneOf:
+            - $ref: "#/components/schemas/GeoJSONPolygon"
+            - $ref: "#/components/schemas/GeoJSONLineString"
+        enabled: { type: boolean }
         config_version: { type: integer, minimum: 1 }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }

@@ -5,9 +5,10 @@ import { CameraWall } from "./CameraWall";
 import { Icon } from "./icon";
 import { OperationsDashboard } from "./OperationsDashboard";
 import { useAlertFeed } from "./use-alert-feed";
+import { ZoneBuilder } from "./ZoneBuilder";
 
 type Filter = "all" | "critical" | "unacknowledged" | "acknowledged";
-type View = "dashboard" | "alerts" | "cameras";
+type View = "dashboard" | "alerts" | "cameras" | "zones";
 
 const seedAlerts: AlertItem[] = [
   {
@@ -427,6 +428,15 @@ export function App() {
             <Icon name="camera" />
             <span>Camera Wall</span>
           </button>
+          <button
+            className={activeView === "zones" ? "nav-item active" : "nav-item"}
+            type="button"
+            onClick={() => setActiveView("zones")}
+            aria-current={activeView === "zones" ? "page" : undefined}
+          >
+            <Icon name="polygon" />
+            <span>Zones & rules</span>
+          </button>
           <button className="nav-item" type="button">
             <Icon name="chart" />
             Incidents
@@ -469,6 +479,8 @@ export function App() {
                 ? "Operations overview"
                 : activeView === "cameras"
                   ? "Camera Wall"
+                  : activeView === "zones"
+                    ? "Zones & rules"
                   : "Alert Center"}
             </strong>
           </div>
@@ -522,6 +534,8 @@ export function App() {
             }}
             onNotify={setToast}
           />
+        ) : activeView === "zones" ? (
+          <ZoneBuilder dataMode={dataMode} onNotify={setToast} />
         ) : (
           <>
         <section className="page-heading">
