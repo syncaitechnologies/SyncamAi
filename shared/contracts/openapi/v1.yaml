@@ -301,6 +301,53 @@ paths:
         "409": { description: Configuration version conflict }
         "422": { description: Zone or GeoJSON validation failed }
         "503": { description: Zone repository unavailable }
+  /zones/{id}/push:
+    post:
+      operationId: publishZoneConfiguration
+      summary: Publish an immutable site configuration revision for edge pull delivery
+      security:
+        - oidc: [config:write]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/TenantHeader"
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "201":
+          description: Immutable site revision published; active edge devices receive a heartbeat revision hint and pull the snapshot over mTLS.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConfigurationRevisionEnvelope" }
+        "401": { description: Authentication required }
+        "403": { description: Capability or site scope denied }
+        "404": { description: Zone or tenant scope not found }
+        "422": { description: Correlation header validation failed }
+        "503": { description: Configuration delivery unavailable }
+  /config/versions:
+    get:
+      operationId: listConfigurationRevisions
+      summary: List immutable site configuration revision history without credentials or footage
+      security:
+        - oidc: [config:read]
+      parameters:
+        - $ref: "#/components/parameters/TenantHeader"
+        - name: site_id
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Authorized configuration revision history
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConfigurationRevisionListEnvelope" }
+        "401": { description: Authentication required }
+        "403": { description: Capability denied }
+        "404": { description: Tenant or site scope not found }
+        "422": { description: Filter validation failed }
+        "503": { description: Configuration delivery unavailable }
   /device-claims:
     post:
       operationId: issueDeviceClaim
@@ -410,6 +457,57 @@ paths:
         "409": { description: Heartbeat identifier reused with different telemetry }
         "422": { description: Request validation failed }
         "503": { description: Device heartbeat service unavailable }
+  /edge/devices/{id}/config:
+    get:
+      operationId: pullDeviceConfiguration
+      summary: Return the newest immutable site configuration revision after the supplied edge revision
+      security:
+        - deviceMutualTLS: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: after_revision
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: Newer revision is available
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConfigurationRevisionEnvelope" }
+        "204": { description: The edge already has the latest revision }
+        "401": { description: Verified active device certificate required }
+        "422": { description: Revision validation failed }
+        "503": { description: Configuration delivery unavailable }
+  /edge/devices/{id}/config/status:
+    post:
+      operationId: reportDeviceConfiguration
+      summary: Record the edge's applied or failed outcome for one immutable revision
+      security:
+        - deviceMutualTLS: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeviceConfigurationStatusRequest" }
+      responses:
+        "200":
+          description: Edge application outcome recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeviceConfigurationStatusEnvelope" }
+        "401": { description: Verified active device certificate required }
+        "422": { description: Status or revision validation failed }
+        "503": { description: Configuration delivery unavailable }
   /events:
     post:
       operationId: ingestEvent
@@ -1057,8 +1155,72 @@ components:
         firmware_version: { type: string, maxLength: 128 }
         store_forward_depth: { type: integer, minimum: 0, maximum: 1000000000 }
         uptime_seconds: { type: integer, minimum: 0, maximum: 3155760000 }
+        desired_config_revision: { type: integer, minimum: 0, description: Authenticated heartbeat push hint; the edge still pulls the immutable revision over mTLS. }
         health: { $ref: "#/components/schemas/DeviceHealth" }
         last_heartbeat: { type: string, format: date-time }
         activated_at: { type: string, format: date-time }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+    ConfigurationRevisionEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/ConfigurationRevision" }
+    ConfigurationRevisionListEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          maxItems: 500
+          items: { $ref: "#/components/schemas/ConfigurationRevision" }
+        meta:
+          type: object
+          additionalProperties: false
+          required: [count, next]
+          properties:
+            count: { type: integer, minimum: 0, maximum: 500 }
+            next: { type: [string, "null"] }
+    ConfigurationRevision:
+      type: object
+      additionalProperties: false
+      description: Immutable metadata-only site configuration snapshot. Privacy mask zones remain excluded pending their security-reviewed dual-approval workflow.
+      required: [id, tenant_id, site_id, number, payload, content_hash, created_by, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        site_id: { type: string, format: uuid }
+        number: { type: integer, minimum: 1 }
+        payload: { type: object, additionalProperties: true }
+        content_hash: { type: string, pattern: "^[0-9a-f]{64}$" }
+        created_by: { type: string, minLength: 1, maxLength: 128 }
+        created_at: { type: string, format: date-time }
+    DeviceConfigurationStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [revision, state]
+      properties:
+        revision: { type: integer, minimum: 1 }
+        state: { type: string, enum: [applied, failed] }
+        error_message: { type: string, minLength: 1, maxLength: 512 }
+    DeviceConfigurationStatusEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/DeviceConfigurationStatus" }
+    DeviceConfigurationStatus:
+      type: object
+      additionalProperties: false
+      required: [device_id, tenant_id, site_id, revision, state, reported_at]
+      properties:
+        device_id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        site_id: { type: string, format: uuid }
+        revision: { type: integer, minimum: 1 }
+        state: { type: string, enum: [applied, failed] }
+        error_message: { type: string, maxLength: 512 }
+        reported_at: { type: string, format: date-time }
+        applied_at: { type: string, format: date-time }

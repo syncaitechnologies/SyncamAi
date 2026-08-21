@@ -112,6 +112,14 @@ func (s *Server) recordDeviceHeartbeat(w http.ResponseWriter, r *http.Request) {
 	if result.Replayed {
 		w.Header().Set("Idempotent-Replayed", "true")
 	}
+	// The heartbeat response is an authenticated push hint. Configuration
+	// remains pulled over the dedicated mTLS route, so devices behind customer
+	// NAT never need inbound connectivity.
+	if s.configuration != nil {
+		if desired, desiredErr := s.configuration.DesiredRevision(r.Context(), deviceID); desiredErr == nil {
+			result.Device.DesiredConfigRevision = desired
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": result})
 }
 

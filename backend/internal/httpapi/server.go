@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/alerting"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/authz"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/configdelivery"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/device"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
@@ -45,6 +46,7 @@ type Server struct {
 	deviceStatus   device.StatusRepository
 	deviceVerifier device.DeviceIdentityVerifier
 	zones          zones.Repository
+	configuration  configdelivery.Repository
 	mux            *http.ServeMux
 }
 
@@ -84,7 +86,14 @@ func NewWithDeviceStatus(verifier identity.Verifier, tenants tenant.Repository, 
 
 // NewWithZones wires versioned zone configuration into the local control-plane boundary.
 func NewWithZones(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository, realtimeRepository realtime.Repository, tickets realtime.TicketStore, cameras device.Repository, enrollment device.EnrollmentRepository, deviceStatus device.StatusRepository, deviceVerifier device.DeviceIdentityVerifier, zoneRepository zones.Repository) http.Handler {
-	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, realtime: realtimeRepository, tickets: tickets, cameras: cameras, enrollment: enrollment, deviceStatus: deviceStatus, deviceVerifier: deviceVerifier, zones: zoneRepository, mux: http.NewServeMux()}
+	return NewWithConfiguration(verifier, tenants, events, alerts, realtimeRepository, tickets, cameras, enrollment, deviceStatus, deviceVerifier, zoneRepository, nil)
+}
+
+// NewWithConfiguration wires immutable site configuration delivery into the
+// control plane. Edge routes remain certificate-authenticated, independent of
+// user OIDC and tenant headers.
+func NewWithConfiguration(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository, realtimeRepository realtime.Repository, tickets realtime.TicketStore, cameras device.Repository, enrollment device.EnrollmentRepository, deviceStatus device.StatusRepository, deviceVerifier device.DeviceIdentityVerifier, zoneRepository zones.Repository, configuration configdelivery.Repository) http.Handler {
+	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, realtime: realtimeRepository, tickets: tickets, cameras: cameras, enrollment: enrollment, deviceStatus: deviceStatus, deviceVerifier: deviceVerifier, zones: zoneRepository, configuration: configuration, mux: http.NewServeMux()}
 	server.mux.HandleFunc("GET /healthz", server.health)
 	server.mux.Handle("GET /v1/auth/me", server.authenticate(http.HandlerFunc(server.me)))
 	server.mux.Handle("POST /v1/auth/ws-ticket", server.authenticate(http.HandlerFunc(server.issueRealtimeTicket)))
@@ -99,10 +108,15 @@ func NewWithZones(verifier identity.Verifier, tenants tenant.Repository, events 
 	server.mux.Handle("POST /v1/zones", server.authenticate(http.HandlerFunc(server.createZone)))
 	server.mux.Handle("GET /v1/zones/{id}", server.authenticate(http.HandlerFunc(server.getZone)))
 	server.mux.Handle("PATCH /v1/zones/{id}", server.authenticate(http.HandlerFunc(server.updateZone)))
+	server.mux.Handle("POST /v1/zones/{id}/push", server.authenticate(http.HandlerFunc(server.pushZoneConfiguration)))
+	server.mux.Handle("GET /v1/config/versions", server.authenticate(http.HandlerFunc(server.listConfigurationRevisions)))
+	server.mux.Handle("GET /v1/edge/devices/{id}/config-status", server.authenticate(http.HandlerFunc(server.getDeviceConfigurationStatus)))
 	server.mux.Handle("POST /v1/device-claims", server.authenticate(http.HandlerFunc(server.issueDeviceClaim)))
 	server.mux.HandleFunc("POST /v1/edge/devices/{id}/pair", server.activateDevice)
 	server.mux.Handle("GET /v1/edge/devices", server.authenticate(http.HandlerFunc(server.listEdgeDevices)))
 	server.mux.HandleFunc("POST /v1/edge/devices/{id}/heartbeat", server.recordDeviceHeartbeat)
+	server.mux.HandleFunc("GET /v1/edge/devices/{id}/config", server.pullDeviceConfiguration)
+	server.mux.HandleFunc("POST /v1/edge/devices/{id}/config/status", server.reportDeviceConfiguration)
 	server.mux.Handle("POST /v1/events", server.authenticate(http.HandlerFunc(server.ingestEvent)))
 	server.mux.Handle("GET /v1/alerts", server.authenticate(http.HandlerFunc(server.listAlerts)))
 	server.mux.Handle("POST /v1/alerts/{id}/acknowledge", server.authenticate(http.HandlerFunc(server.acknowledgeAlert)))

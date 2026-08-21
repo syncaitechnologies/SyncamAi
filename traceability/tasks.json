@@ -268,8 +268,17 @@
       "phase": 3,
       "owner": "Platform and Web",
       "dependencies": ["T-0322", "T-0006", "T-0214"],
-      "status": "in_progress",
+      "status": "complete",
       "acceptance": "Tenant/site-scoped GeoJSON intrusion, restricted-zone, loitering, abandoned-object, and tripwire configuration has versioned, idempotent, audited REST persistence under RLS; the responsive console exposes a clearly synthetic rule-builder workspace without claiming live footage, edge push, simulation, or mask-zone dual approval."
+    },
+    {
+      "id": "T-0331",
+      "title": "Deliver versioned zone configuration to edge devices",
+      "phase": 3,
+      "owner": "Edge and Platform",
+      "dependencies": ["T-0330", "T-0156"],
+      "status": "in_progress",
+      "acceptance": "Publishing an authorized zone creates an immutable tenant/site revision under RLS and audit; mTLS edge clients receive heartbeat revision hints, pull only newer snapshots, apply them atomically, retain the last known-good revision after any apply failure, and report applied or failed status without leaking credentials or pixels. Privacy mask zones remain excluded pending their separate security-reviewed dual-approval slice."
     }
   ]
 }
