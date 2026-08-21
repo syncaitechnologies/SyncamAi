@@ -225,3 +225,24 @@ func TestPostgresRepositoryRejectsBadZoneCreateAndUpdateStorage(t *testing.T) {
 	if _, err := NewPostgresRepository(mock).Update(context.Background(), UpdateCommand{TenantID: testTenant, ActorID: "user-1", ZoneID: testZone, ExpectedVersion: 1, Name: &name}); !errors.Is(err, writeFailure) { t.Fatalf("write failure: %v", err) }
 	if err := mock.ExpectationsWereMet(); err != nil { t.Fatal(err) }
 }
+
+func TestPostgresRepositoryRejectsUnreadableZoneRowsAndReplays(t *testing.T) {
+	mock, err := pgxmock.NewPool(); if err != nil { t.Fatal(err) }
+	readFailure := errors.New("row unavailable")
+	expectZoneTransaction(mock, pgx.ReadOnly)
+	mock.ExpectQuery("SELECT id::text").WithArgs(testZone).WillReturnRows(zoneRows(Zone{}).RowError(0, readFailure))
+	mock.ExpectRollback()
+	if _, err := NewPostgresRepository(mock).Get(context.Background(), testTenant, testZone); !errors.Is(err, readFailure) { t.Fatalf("row failure: %v", err) }
+	if err := mock.ExpectationsWereMet(); err != nil { t.Fatal(err) }; mock.Close()
+
+	command := CreateCommand{TenantID: testTenant, ActorID: "user-1", RequestID: testRequest, IdempotencyKey: "zone-bad-replay", SiteID: testSite, Name: "Loading bay", Kind: "intrusion", Geometry: testPolygon, Enabled: true}
+	hash, err := hashCreate(command); if err != nil { t.Fatal(err) }
+	mock, err = pgxmock.NewPool(); if err != nil { t.Fatal(err) }; defer mock.Close()
+	expectZoneTransaction(mock, pgx.ReadWrite)
+	mock.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs(testTenant + ":zone-bad-replay").WillReturnResult(pgxmock.NewResult("SELECT", 1))
+	mock.ExpectExec("DELETE FROM platform.idempotency_keys").WithArgs(testTenant, "zone-bad-replay").WillReturnResult(pgxmock.NewResult("DELETE", 0))
+	mock.ExpectQuery("SELECT request_hash, response_body").WithArgs(testTenant, "zone-bad-replay").WillReturnRows(pgxmock.NewRows([]string{"request_hash", "response_body"}).AddRow(hash, []byte(`{`)))
+	mock.ExpectRollback()
+	if _, err := NewPostgresRepository(mock).Create(context.Background(), command); err == nil { t.Fatal("unreadable replay must fail") }
+	if err := mock.ExpectationsWereMet(); err != nil { t.Fatal(err) }
+}
