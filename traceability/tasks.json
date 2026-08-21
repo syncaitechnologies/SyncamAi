@@ -295,8 +295,17 @@
       "phase": 3,
       "owner": "AI and Edge",
       "dependencies": ["T-0331", "T-0332"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "The local zone-rule runtime accepts only a strictly newer configuration revision already validated by the mTLS/hash/atomic-file edge path, compiles it before activation, rejects stale or malformed candidates, and preserves the last known-good in-memory runtime on failure. It emits no events until a valid rule configuration is active and continues to reject privacy-mask zones."
+    },
+    {
+      "id": "T-0334",
+      "title": "Add bounded camera-local tracker metadata sampling for zone rules",
+      "phase": 3,
+      "owner": "AI and Edge",
+      "dependencies": ["T-0333", "T-0091", "T-0160"],
+      "status": "in_review",
+      "acceptance": "A metadata-only local ingress accepts bounded timestamp-ordered batches of same-camera tracks at configured 5--10 FPS, suppresses excess samples deterministically, only passes sampled tracks to the active zone runtime, and reports safe counters. It carries no frames, pixels, credentials, identities, embeddings, or plates; it does not do detector inference or external event transport; and it fails closed on mixed-scope, duplicate, or out-of-order batches."
     }
   ]
 }
