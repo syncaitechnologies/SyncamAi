@@ -277,8 +277,17 @@
       "phase": 3,
       "owner": "Edge and Platform",
       "dependencies": ["T-0330", "T-0156"],
-      "status": "in_progress",
+      "status": "complete",
       "acceptance": "Publishing an authorized zone creates an immutable tenant/site revision under RLS and audit; mTLS edge clients receive heartbeat revision hints, pull only newer snapshots, apply them atomically, retain the last known-good revision after any apply failure, and report applied or failed status without leaking credentials or pixels. Privacy mask zones remain excluded pending their separate security-reviewed dual-approval slice."
+    },
+    {
+      "id": "T-0332",
+      "title": "Add deterministic camera-local zone-rule runtime foundation",
+      "phase": 3,
+      "owner": "AI and Edge",
+      "dependencies": ["T-0331", "T-0097", "T-0102"],
+      "status": "in_review",
+      "acceptance": "A bounded deterministic runtime evaluates enabled camera-bound intrusion, restricted-zone, loitering, and tripwire GeoJSON rules against timestamp-ordered local tracks; it emits retry-stable canonical human-review events without coordinates, track IDs, pixels, identities, embeddings, plate data, or cross-camera linkage. Malformed geometry and all privacy-mask configuration fail closed. Production release remains gated on tracker/detector integration, privacy validation, and hardware-in-loop testing."
     }
   ]
 }
