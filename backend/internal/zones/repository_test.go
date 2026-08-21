@@ -126,3 +126,32 @@ func TestPostgresRepositoryReplaysNoOpsAndHidesMissingZones(t *testing.T) {
 	if err != nil || unchanged.ConfigVersion != 1 { t.Fatalf("unchanged update: %+v %v", unchanged, err) }
 	if err := mock.ExpectationsWereMet(); err != nil { t.Fatal(err) }
 }
+
+func TestZoneRepositoriesCoverConflictAndValidationPaths(t *testing.T) {
+	memory := NewMemoryRepository([]Zone{{ID: testZone, TenantID: testTenant, SiteID: testSite, Name: "Loading bay", Kind: "intrusion", Geometry: testPolygon, Enabled: true, ConfigVersion: 1}})
+	if got, err := memory.Get(context.Background(), testTenant, testZone); err != nil || got.ID != testZone { t.Fatalf("memory get: %+v %v", got, err) }
+	if _, err := memory.Update(context.Background(), UpdateCommand{TenantID: testTenant, ZoneID: "99999999-9999-4999-8999-999999999999", ExpectedVersion: 1}); !errors.Is(err, ErrNotFound) { t.Fatalf("memory missing update: %v", err) }
+	name := "Loading bay"
+	if unchanged, err := memory.Update(context.Background(), UpdateCommand{TenantID: testTenant, ZoneID: testZone, ExpectedVersion: 1, Name: &name}); err != nil || unchanged.ConfigVersion != 1 { t.Fatalf("memory unchanged update: %+v %v", unchanged, err) }
+	if _, err := hashCreate(CreateCommand{Geometry: json.RawMessage("{")}); err == nil { t.Fatal("invalid geometry must not produce an idempotency hash") }
+
+	mock, err := pgxmock.NewPool(); if err != nil { t.Fatal(err) }; defer mock.Close()
+	zone := Zone{ID: testZone, TenantID: testTenant, SiteID: testSite, Name: "Loading bay", Kind: "intrusion", Geometry: testPolygon, Enabled: true, ConfigVersion: 1}
+	expectZoneTransaction(mock, pgx.ReadOnly)
+	mock.ExpectRollback()
+	if _, err := NewPostgresRepository(mock).List(context.Background(), testTenant, "bad"); err == nil { t.Fatal("invalid verified site must fail") }
+
+	command := CreateCommand{TenantID: testTenant, ActorID: "user-1", RequestID: testRequest, IdempotencyKey: "zone-conflict", SiteID: testSite, Name: "Loading bay", Kind: "intrusion", Geometry: testPolygon, Enabled: true}
+	expectZoneTransaction(mock, pgx.ReadWrite)
+	mock.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs(testTenant + ":zone-conflict").WillReturnResult(pgxmock.NewResult("SELECT", 1))
+	mock.ExpectExec("DELETE FROM platform.idempotency_keys").WithArgs(testTenant, "zone-conflict").WillReturnResult(pgxmock.NewResult("DELETE", 0))
+	mock.ExpectQuery("SELECT request_hash, response_body").WithArgs(testTenant, "zone-conflict").WillReturnRows(pgxmock.NewRows([]string{"request_hash", "response_body"}).AddRow("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", []byte(`{}`)))
+	mock.ExpectRollback()
+	if _, err := NewPostgresRepository(mock).Create(context.Background(), command); !errors.Is(err, ErrIdempotencyConflict) { t.Fatalf("postgres idempotency conflict: %v", err) }
+
+	expectZoneTransaction(mock, pgx.ReadWrite)
+	mock.ExpectQuery("SELECT id::text").WithArgs(testZone).WillReturnRows(zoneRows(zone))
+	mock.ExpectRollback()
+	if _, err := NewPostgresRepository(mock).Update(context.Background(), UpdateCommand{TenantID: testTenant, ZoneID: testZone, ExpectedVersion: 2}); !errors.Is(err, ErrVersionConflict) { t.Fatalf("postgres stale update: %v", err) }
+	if err := mock.ExpectationsWereMet(); err != nil { t.Fatal(err) }
+}
