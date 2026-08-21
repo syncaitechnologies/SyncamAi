@@ -286,8 +286,17 @@
       "phase": 3,
       "owner": "AI and Edge",
       "dependencies": ["T-0331", "T-0097", "T-0102"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A bounded deterministic runtime evaluates enabled camera-bound intrusion, restricted-zone, loitering, and tripwire GeoJSON rules against timestamp-ordered local tracks; it emits retry-stable canonical human-review events without coordinates, track IDs, pixels, identities, embeddings, plate data, or cross-camera linkage. Malformed geometry and all privacy-mask configuration fail closed. Production release remains gated on tracker/detector integration, privacy validation, and hardware-in-loop testing."
+    },
+    {
+      "id": "T-0333",
+      "title": "Atomically activate verified zone configuration in the local rule runtime",
+      "phase": 3,
+      "owner": "AI and Edge",
+      "dependencies": ["T-0331", "T-0332"],
+      "status": "in_review",
+      "acceptance": "The local zone-rule runtime accepts only a strictly newer configuration revision already validated by the mTLS/hash/atomic-file edge path, compiles it before activation, rejects stale or malformed candidates, and preserves the last known-good in-memory runtime on failure. It emits no events until a valid rule configuration is active and continues to reject privacy-mask zones."
     }
   ]
 }
