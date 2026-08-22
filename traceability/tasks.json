@@ -304,8 +304,17 @@
       "phase": 3,
       "owner": "AI and Edge",
       "dependencies": ["T-0333", "T-0091", "T-0160"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A metadata-only local ingress accepts bounded timestamp-ordered batches of same-camera tracks at configured 5--10 FPS, suppresses excess samples deterministically, only passes sampled tracks to the active zone runtime, and reports safe counters. It carries no frames, pixels, credentials, identities, embeddings, or plates; it does not do detector inference or external event transport; and it fails closed on mixed-scope, duplicate, or out-of-order batches."
+    },
+    {
+      "id": "T-0335",
+      "title": "Add local tenant and device admission limits for sampled tracker metadata",
+      "phase": 3,
+      "owner": "AI and Edge",
+      "dependencies": ["T-0334", "T-0091", "T-0160"],
+      "status": "in_review",
+      "acceptance": "Sampled camera-local tracker batches require explicit bounded per-tenant/device frame and per-tenant track limits. The ingress admits or rejects a whole sampled batch deterministically, reports credential- and payload-free remaining-capacity pressure, resets the accounting at the next UTC second, and fails closed on invalid limits or timestamp regressions. No raw frames, detector inference, cloud quota service, network transport, or privacy-mask processing is added."
     }
   ]
 }
