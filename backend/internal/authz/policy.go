@@ -26,6 +26,9 @@ const (
 	CapabilityDataErase      Capability = "data:erase"
 	CapabilityAnalyticsRead  Capability = "analytics:read"
 	CapabilityEventsWrite    Capability = "events:write"
+	// CapabilityPrivacyMaskApprove is reserved for the independently audited
+	// Super Admin privacy-mask workflow. It does not itself authorize masking.
+	CapabilityPrivacyMaskApprove Capability = "privacy_masks:approve"
 )
 
 // ErrDenied intentionally does not reveal which authorization check failed.
@@ -61,6 +64,7 @@ var seedRoles = map[identity.Role]roleGrant{
 			CapabilityEvidenceExport, CapabilityBiometricRead, CapabilityAuditRead,
 			CapabilityAnalyticsRead,
 			CapabilityEventsWrite,
+			CapabilityPrivacyMaskApprove,
 		),
 	},
 	identity.RoleSiteAdmin: {
@@ -94,9 +98,10 @@ var seedRoles = map[identity.Role]roleGrant{
 }
 
 var mfaCapabilities = map[Capability]struct{}{
-	CapabilityEvidenceExport: {},
-	CapabilityBiometricRead:  {},
-	CapabilityDataErase:      {},
+	CapabilityEvidenceExport:     {},
+	CapabilityBiometricRead:      {},
+	CapabilityDataErase:          {},
+	CapabilityPrivacyMaskApprove: {},
 }
 
 var dataClassCapabilities = map[Capability]string{
