@@ -22,9 +22,15 @@ camera/encoder HIL harness. The attestation must confirm that masking preceded
 encoding, that encoder bypass was denied, and that no raw frames were retained.
 It stores hashes and measured booleans only.
 
-Neither verifier accepts frames, pixels, stream credentials, encoder handles,
-model weights, or mask output, and neither activates or delivers a mask. A
+The controlled edge release boundary accepts a privacy-only manifest only when
+its pre-encode candidate hash, device UUID, and signed HIL evidence agree. It
+hands that metadata to an atomic release-slot applier, preserves the prior
+accepted release on failure, and reports only fixed safe status categories.
+Generic zone configuration cannot use this path.
+
+Neither verifier nor the controlled release boundary accepts frames, pixels,
+stream credentials, encoder handles, model weights, or mask output. A
 registered physical harness must still execute and sign the actual release test;
-this code does not manufacture hardware evidence. Controlled release and device
-status reporting remain required before a privacy-mask configuration can reach
-a camera.
+this code does not manufacture hardware evidence. The next platform slice must
+provide a dedicated authenticated manifest transport and durable status store
+before a privacy-mask configuration can reach a camera.
