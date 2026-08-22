@@ -15,22 +15,24 @@ import (
 var zoneKinds = map[string]bool{"intrusion": true, "restricted_zone": true, "loitering": true, "abandoned": true, "tripwire": true}
 
 type createZoneRequest struct {
-	SiteID        string          `json:"site_id"`
-	CameraID      string          `json:"camera_id"`
-	Floor         string          `json:"floor"`
-	Name          string          `json:"name"`
-	Kind          string          `json:"kind"`
-	Geometry      json.RawMessage `json:"geometry"`
-	Enabled       *bool           `json:"enabled"`
-	LoiterSeconds *int            `json:"loiter_seconds"`
+	SiteID         string          `json:"site_id"`
+	CameraID       string          `json:"camera_id"`
+	Floor          string          `json:"floor"`
+	Name           string          `json:"name"`
+	Kind           string          `json:"kind"`
+	Geometry       json.RawMessage `json:"geometry"`
+	Enabled        *bool           `json:"enabled"`
+	LoiterSeconds  *int            `json:"loiter_seconds"`
+	SubjectClasses []string        `json:"subject_classes"`
 }
 type updateZoneRequest struct {
-	ConfigVersion int64            `json:"config_version"`
-	Name          *string          `json:"name"`
-	Floor         *string          `json:"floor"`
-	Geometry      *json.RawMessage `json:"geometry"`
-	Enabled       *bool            `json:"enabled"`
-	LoiterSeconds *int             `json:"loiter_seconds"`
+	ConfigVersion  int64            `json:"config_version"`
+	Name           *string          `json:"name"`
+	Floor          *string          `json:"floor"`
+	Geometry       *json.RawMessage `json:"geometry"`
+	Enabled        *bool            `json:"enabled"`
+	LoiterSeconds  *int             `json:"loiter_seconds"`
+	SubjectClasses *[]string        `json:"subject_classes"`
 }
 
 func (s *Server) listZones(w http.ResponseWriter, r *http.Request) {
@@ -100,7 +102,7 @@ func (s *Server) createZone(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found.")
 		return
 	}
-	result, err := s.zones.Create(r.Context(), zones.CreateCommand{TenantID: tenantID, ActorID: principal.UserID, RequestID: requestID, IdempotencyKey: idempotencyKey, SiteID: strings.TrimSpace(input.SiteID), CameraID: strings.TrimSpace(input.CameraID), Floor: strings.TrimSpace(input.Floor), Name: strings.TrimSpace(input.Name), Kind: strings.TrimSpace(input.Kind), Geometry: input.Geometry, Enabled: *input.Enabled, LoiterSeconds: input.LoiterSeconds})
+	result, err := s.zones.Create(r.Context(), zones.CreateCommand{TenantID: tenantID, ActorID: principal.UserID, RequestID: requestID, IdempotencyKey: idempotencyKey, SiteID: strings.TrimSpace(input.SiteID), CameraID: strings.TrimSpace(input.CameraID), Floor: strings.TrimSpace(input.Floor), Name: strings.TrimSpace(input.Name), Kind: strings.TrimSpace(input.Kind), Geometry: input.Geometry, Enabled: *input.Enabled, LoiterSeconds: input.LoiterSeconds, SubjectClasses: input.SubjectClasses})
 	if errors.Is(err, zones.ErrIdempotencyConflict) {
 		writeError(w, http.StatusConflict, "IDEMPOTENCY_REPLAY", "Idempotency-Key was already used for a different request.")
 		return
@@ -140,7 +142,7 @@ func (s *Server) updateZone(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Zone update fields or GeoJSON geometry are invalid.")
 		return
 	}
-	updated, err := s.zones.Update(r.Context(), zones.UpdateCommand{TenantID: tenantID, ActorID: principal.UserID, RequestID: requestID, ZoneID: zone.ID, ExpectedVersion: input.ConfigVersion, Name: input.Name, Floor: input.Floor, Geometry: input.Geometry, Enabled: input.Enabled, LoiterSeconds: input.LoiterSeconds})
+	updated, err := s.zones.Update(r.Context(), zones.UpdateCommand{TenantID: tenantID, ActorID: principal.UserID, RequestID: requestID, ZoneID: zone.ID, ExpectedVersion: input.ConfigVersion, Name: input.Name, Floor: input.Floor, Geometry: input.Geometry, Enabled: input.Enabled, LoiterSeconds: input.LoiterSeconds, SubjectClasses: input.SubjectClasses})
 	if errors.Is(err, zones.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found.")
 		return
@@ -205,13 +207,13 @@ func validCreateZone(input createZoneRequest) bool {
 	input.CameraID = strings.TrimSpace(input.CameraID)
 	input.Name = strings.TrimSpace(input.Name)
 	input.Kind = strings.TrimSpace(input.Kind)
-	if _, err := uuid.Parse(input.SiteID); err != nil || len(input.Name) == 0 || len(input.Name) > 120 || len(input.Floor) > 120 || !zoneKinds[input.Kind] || (input.CameraID != "" && !validUUID(input.CameraID)) || !validLoiterSeconds(input.Kind, input.LoiterSeconds) {
+	if _, err := uuid.Parse(input.SiteID); err != nil || len(input.Name) == 0 || len(input.Name) > 120 || len(input.Floor) > 120 || !zoneKinds[input.Kind] || (input.CameraID != "" && !validUUID(input.CameraID)) || !validLoiterSeconds(input.Kind, input.LoiterSeconds) || !validSubjectClasses(input.SubjectClasses) {
 		return false
 	}
 	return validGeometry(input.Geometry, input.Kind)
 }
 func validUpdateZone(input *updateZoneRequest, kind string) bool {
-	if input.ConfigVersion < 1 || (input.Name == nil && input.Floor == nil && input.Geometry == nil && input.Enabled == nil && input.LoiterSeconds == nil) {
+	if input.ConfigVersion < 1 || (input.Name == nil && input.Floor == nil && input.Geometry == nil && input.Enabled == nil && input.LoiterSeconds == nil && input.SubjectClasses == nil) {
 		return false
 	}
 	if input.Name != nil {
@@ -226,7 +228,7 @@ func validUpdateZone(input *updateZoneRequest, kind string) bool {
 			return false
 		}
 	}
-	return validLoiterSeconds(kind, input.LoiterSeconds) && (input.Geometry == nil || validGeometry(*input.Geometry, kind))
+	return validLoiterSeconds(kind, input.LoiterSeconds) && (input.SubjectClasses == nil || validSubjectClasses(*input.SubjectClasses)) && (input.Geometry == nil || validGeometry(*input.Geometry, kind))
 }
 func validLoiterSeconds(kind string, value *int) bool {
 	if kind != "loitering" {
@@ -236,6 +238,10 @@ func validLoiterSeconds(kind string, value *int) bool {
 		return true
 	}
 	return *value >= zones.MinimumLoiterSeconds && *value <= zones.MaximumLoiterSeconds
+}
+func validSubjectClasses(values []string) bool {
+	_, err := zones.NormalizeSubjectClasses(values)
+	return err == nil
 }
 func validUUID(value string) bool { _, err := uuid.Parse(value); return err == nil }
 

@@ -73,6 +73,11 @@ func TestApplyMigrationsAppliesOnceAndThenSkips(t *testing.T) {
 	mock.ExpectExec("ALTER TABLE config.zones").WithArgs(pgx.QueryExecModeSimpleProtocol).WillReturnResult(pgxmock.NewResult("ALTER", 0))
 	mock.ExpectExec("INSERT INTO platform.schema_migrations").WithArgs("000011_zone_loiter_duration.sql").WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	mock.ExpectCommit()
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT EXISTS").WithArgs("000012_zone_subject_classes.sql").WillReturnRows(pgxmock.NewRows([]string{"exists"}).AddRow(false))
+	mock.ExpectExec("ALTER TABLE config.zones").WithArgs(pgx.QueryExecModeSimpleProtocol).WillReturnResult(pgxmock.NewResult("ALTER", 0))
+	mock.ExpectExec("INSERT INTO platform.schema_migrations").WithArgs("000012_zone_subject_classes.sql").WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectCommit()
 
 	if err := ApplyMigrations(context.Background(), mock); err != nil {
 		t.Fatal(err)
@@ -115,6 +120,9 @@ func TestApplyMigrationsAppliesOnceAndThenSkips(t *testing.T) {
 	mock.ExpectCommit()
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT EXISTS").WithArgs("000011_zone_loiter_duration.sql").WillReturnRows(pgxmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectCommit()
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT EXISTS").WithArgs("000012_zone_subject_classes.sql").WillReturnRows(pgxmock.NewRows([]string{"exists"}).AddRow(true))
 	mock.ExpectCommit()
 	if err := ApplyMigrations(context.Background(), mock); err != nil {
 		t.Fatalf("second migration pass must be idempotent: %v", err)

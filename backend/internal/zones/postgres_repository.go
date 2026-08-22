@@ -84,6 +84,10 @@ func (r *PostgresRepository) Create(ctx context.Context, command CreateCommand) 
 	if err != nil {
 		return CreateResult{}, err
 	}
+	subjectClasses, err := NormalizeSubjectClasses(command.SubjectClasses)
+	if err != nil {
+		return CreateResult{}, err
+	}
 	lockKey := command.TenantID + ":" + command.IdempotencyKey
 	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", lockKey); err != nil {
 		return CreateResult{}, fmt.Errorf("lock zone idempotency key: %w", err)
@@ -121,8 +125,8 @@ func (r *PostgresRepository) Create(ctx context.Context, command CreateCommand) 
 	if !siteExists {
 		return CreateResult{}, ErrSiteNotFound
 	}
-	zone := Zone{ID: uuid.NewString(), TenantID: command.TenantID, SiteID: command.SiteID, CameraID: command.CameraID, Floor: command.Floor, Name: command.Name, Kind: command.Kind, Geometry: command.Geometry, Enabled: command.Enabled, LoiterSeconds: loiterSeconds, ConfigVersion: 1}
-	if err := tx.QueryRow(ctx, `INSERT INTO config.zones (id, tenant_id, site_id, camera_id, floor, name, kind, geometry, loiter_seconds, enabled, created_by, updated_by) VALUES ($1::uuid, $2::uuid, $3::uuid, NULLIF($4, '')::uuid, NULLIF($5, ''), $6, $7, $8::jsonb, $9, $10, $11, $11) RETURNING created_at, updated_at`, zone.ID, zone.TenantID, zone.SiteID, zone.CameraID, zone.Floor, zone.Name, zone.Kind, zone.Geometry, databaseLoiterSeconds(zone.LoiterSeconds), zone.Enabled, command.ActorID).Scan(&zone.CreatedAt, &zone.UpdatedAt); err != nil {
+	zone := Zone{ID: uuid.NewString(), TenantID: command.TenantID, SiteID: command.SiteID, CameraID: command.CameraID, Floor: command.Floor, Name: command.Name, Kind: command.Kind, Geometry: command.Geometry, Enabled: command.Enabled, LoiterSeconds: loiterSeconds, SubjectClasses: subjectClasses, ConfigVersion: 1}
+	if err := tx.QueryRow(ctx, `INSERT INTO config.zones (id, tenant_id, site_id, camera_id, floor, name, kind, geometry, loiter_seconds, subject_classes, enabled, created_by, updated_by) VALUES ($1::uuid, $2::uuid, $3::uuid, NULLIF($4, '')::uuid, NULLIF($5, ''), $6, $7, $8::jsonb, $9, $10::text[], $11, $12, $12) RETURNING created_at, updated_at`, zone.ID, zone.TenantID, zone.SiteID, zone.CameraID, zone.Floor, zone.Name, zone.Kind, zone.Geometry, databaseLoiterSeconds(zone.LoiterSeconds), databaseSubjectClasses(zone.SubjectClasses), zone.Enabled, command.ActorID).Scan(&zone.CreatedAt, &zone.UpdatedAt); err != nil {
 		return CreateResult{}, fmt.Errorf("write zone: %w", err)
 	}
 	response, err := json.Marshal(zone)
@@ -177,13 +181,20 @@ func (r *PostgresRepository) Update(ctx context.Context, command UpdateCommand) 
 		}
 		next.LoiterSeconds = loiterSeconds
 	}
+	if command.SubjectClasses != nil {
+		subjectClasses, err := NormalizeSubjectClasses(*command.SubjectClasses)
+		if err != nil {
+			return Zone{}, err
+		}
+		next.SubjectClasses = subjectClasses
+	}
 	if same(current, next) {
 		if err := tx.Commit(ctx); err != nil {
 			return Zone{}, fmt.Errorf("commit unchanged zone: %w", err)
 		}
 		return current, nil
 	}
-	if err := tx.QueryRow(ctx, `UPDATE config.zones SET floor = NULLIF($2, ''), name = $3, geometry = $4::jsonb, loiter_seconds = $5, enabled = $6, config_version = config_version + 1, updated_by = $7, updated_at = clock_timestamp() WHERE id = $1::uuid RETURNING config_version, updated_at`, next.ID, next.Floor, next.Name, next.Geometry, databaseLoiterSeconds(next.LoiterSeconds), next.Enabled, command.ActorID).Scan(&next.ConfigVersion, &next.UpdatedAt); err != nil {
+	if err := tx.QueryRow(ctx, `UPDATE config.zones SET floor = NULLIF($2, ''), name = $3, geometry = $4::jsonb, loiter_seconds = $5, subject_classes = $6::text[], enabled = $7, config_version = config_version + 1, updated_by = $8, updated_at = clock_timestamp() WHERE id = $1::uuid RETURNING config_version, updated_at`, next.ID, next.Floor, next.Name, next.Geometry, databaseLoiterSeconds(next.LoiterSeconds), databaseSubjectClasses(next.SubjectClasses), next.Enabled, command.ActorID).Scan(&next.ConfigVersion, &next.UpdatedAt); err != nil {
 		return Zone{}, fmt.Errorf("write zone: %w", err)
 	}
 	if _, err := audit.Append(ctx, tx, audit.Event{TenantID: command.TenantID, ActorID: command.ActorID, Action: "zone.updated", ResourceType: "zone", ResourceID: next.ID, RequestID: command.RequestID, BeforeState: current, AfterState: next, OccurredAt: next.UpdatedAt}); err != nil {
@@ -195,14 +206,14 @@ func (r *PostgresRepository) Update(ctx context.Context, command UpdateCommand) 
 	return next, nil
 }
 
-const zoneSelect = `SELECT id::text, tenant_id::text, site_id::text, COALESCE(camera_id::text, ''), COALESCE(floor, ''), name, kind, geometry, loiter_seconds, enabled, config_version, created_at, updated_at FROM config.zones`
+const zoneSelect = `SELECT id::text, tenant_id::text, site_id::text, COALESCE(camera_id::text, ''), COALESCE(floor, ''), name, kind, geometry, loiter_seconds, COALESCE(subject_classes, ARRAY[]::text[]), enabled, config_version, created_at, updated_at FROM config.zones`
 
 type rowScanner interface{ Scan(...any) error }
 
 func scanZone(row rowScanner) (Zone, error) {
 	var zone Zone
 	var loiterSeconds *int
-	if err := row.Scan(&zone.ID, &zone.TenantID, &zone.SiteID, &zone.CameraID, &zone.Floor, &zone.Name, &zone.Kind, &zone.Geometry, &loiterSeconds, &zone.Enabled, &zone.ConfigVersion, &zone.CreatedAt, &zone.UpdatedAt); err != nil {
+	if err := row.Scan(&zone.ID, &zone.TenantID, &zone.SiteID, &zone.CameraID, &zone.Floor, &zone.Name, &zone.Kind, &zone.Geometry, &loiterSeconds, &zone.SubjectClasses, &zone.Enabled, &zone.ConfigVersion, &zone.CreatedAt, &zone.UpdatedAt); err != nil {
 		return Zone{}, err
 	}
 	zone.LoiterSeconds = loiterSeconds

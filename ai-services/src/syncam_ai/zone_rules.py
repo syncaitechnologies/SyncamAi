@@ -17,6 +17,7 @@ from uuid import UUID, uuid5
 SUPPORTED_KINDS: Final = frozenset(
     {"intrusion", "restricted_zone", "loitering", "tripwire"}
 )
+SUPPORTED_SUBJECT_CLASSES: Final = frozenset({"person", "bicycle", "bus", "car", "motorcycle", "truck", "van"})
 _EVENT_NAMESPACE: Final = UUID("93a83fc9-2f58-4e69-99ea-5c70b112bdf8")
 _MAX_TRACK_ID: Final = (1 << 63) - 1
 _MAX_EVIDENCE_REFS: Final = 32
@@ -39,6 +40,7 @@ class ZoneRule:
     geometry: Mapping[str, object]
     enabled: bool = True
     loiter_seconds: int = DEFAULT_LOITER_SECONDS
+    subject_classes: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +69,7 @@ class _CompiledRule:
     kind: str
     points: tuple[tuple[float, float], ...]
     loiter_seconds: int
+    subject_classes: frozenset[str]
 
 
 @dataclass(slots=True)
@@ -106,6 +109,8 @@ class ZoneRuleEngine:
                 or rule.site_id != canonical.site_id
                 or rule.camera_id != canonical.camera_id
             ):
+                continue
+            if rule.subject_classes and canonical.subject_class not in rule.subject_classes:
                 continue
             key = (rule.id, canonical.track_id)
             state = self._states.get(key)
@@ -158,6 +163,7 @@ def load_zone_rules(payload: Mapping[str, object]) -> list[ZoneRule]:
             loiter_seconds = raw_loiter_seconds
         elif "loiter_seconds" in raw:
             raise ValueError("loiter_seconds is valid only for loitering zones")
+        subject_classes = _subject_classes(raw.get("subject_classes", []))
         result.append(
             ZoneRule(
                 id=_text(raw.get("id"), "id"),
@@ -167,6 +173,7 @@ def load_zone_rules(payload: Mapping[str, object]) -> list[ZoneRule]:
                 kind=kind,
                 geometry=geometry,
                 loiter_seconds=loiter_seconds,
+                subject_classes=subject_classes,
             )
         )
     return result
@@ -198,6 +205,7 @@ def _compile_rule(rule: ZoneRule) -> _CompiledRule:
         kind=rule.kind,
         points=points,
         loiter_seconds=rule.loiter_seconds,
+        subject_classes=rule.subject_classes,
     )
 
 
@@ -360,6 +368,18 @@ def _evidence_refs(values: tuple[str, ...]) -> list[str]:
     for value in values:
         result.append(_text(value, "evidence ref"))
     return result
+
+
+def _subject_classes(value: object) -> frozenset[str]:
+    if not isinstance(value, list) or len(value) > len(SUPPORTED_SUBJECT_CLASSES):
+        raise ValueError("subject_classes must be a bounded list")
+    result: set[str] = set()
+    for raw in value:
+        subject_class = _text(raw, "subject_class").lower()
+        if subject_class not in SUPPORTED_SUBJECT_CLASSES or subject_class in result:
+            raise ValueError("subject_classes must be unique canonical classes")
+        result.add(subject_class)
+    return frozenset(result)
 
 
 def _timestamp(value: datetime) -> str:
