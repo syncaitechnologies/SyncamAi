@@ -18,6 +18,7 @@ import (
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/device"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/privacymasks"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/realtime"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/tenant"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/zones"
@@ -47,6 +48,7 @@ type Server struct {
 	deviceVerifier device.DeviceIdentityVerifier
 	zones          zones.Repository
 	configuration  configdelivery.Repository
+	privacyMasks   privacymasks.Repository
 	mux            *http.ServeMux
 }
 
@@ -93,7 +95,13 @@ func NewWithZones(verifier identity.Verifier, tenants tenant.Repository, events 
 // control plane. Edge routes remain certificate-authenticated, independent of
 // user OIDC and tenant headers.
 func NewWithConfiguration(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository, realtimeRepository realtime.Repository, tickets realtime.TicketStore, cameras device.Repository, enrollment device.EnrollmentRepository, deviceStatus device.StatusRepository, deviceVerifier device.DeviceIdentityVerifier, zoneRepository zones.Repository, configuration configdelivery.Repository) http.Handler {
-	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, realtime: realtimeRepository, tickets: tickets, cameras: cameras, enrollment: enrollment, deviceStatus: deviceStatus, deviceVerifier: deviceVerifier, zones: zoneRepository, configuration: configuration, mux: http.NewServeMux()}
+	return NewWithPrivacyMaskApprovals(verifier, tenants, events, alerts, realtimeRepository, tickets, cameras, enrollment, deviceStatus, deviceVerifier, zoneRepository, configuration, nil)
+}
+
+// NewWithPrivacyMaskApprovals wires the security-governance workflow. The
+// workflow is metadata-only and remains independent from edge delivery.
+func NewWithPrivacyMaskApprovals(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository, realtimeRepository realtime.Repository, tickets realtime.TicketStore, cameras device.Repository, enrollment device.EnrollmentRepository, deviceStatus device.StatusRepository, deviceVerifier device.DeviceIdentityVerifier, zoneRepository zones.Repository, configuration configdelivery.Repository, privacyMasks privacymasks.Repository) http.Handler {
+	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, realtime: realtimeRepository, tickets: tickets, cameras: cameras, enrollment: enrollment, deviceStatus: deviceStatus, deviceVerifier: deviceVerifier, zones: zoneRepository, configuration: configuration, privacyMasks: privacyMasks, mux: http.NewServeMux()}
 	server.mux.HandleFunc("GET /healthz", server.health)
 	server.mux.Handle("GET /v1/auth/me", server.authenticate(http.HandlerFunc(server.me)))
 	server.mux.Handle("POST /v1/auth/ws-ticket", server.authenticate(http.HandlerFunc(server.issueRealtimeTicket)))
@@ -109,6 +117,9 @@ func NewWithConfiguration(verifier identity.Verifier, tenants tenant.Repository,
 	server.mux.Handle("GET /v1/zones/{id}", server.authenticate(http.HandlerFunc(server.getZone)))
 	server.mux.Handle("PATCH /v1/zones/{id}", server.authenticate(http.HandlerFunc(server.updateZone)))
 	server.mux.Handle("POST /v1/zones/{id}/push", server.authenticate(http.HandlerFunc(server.pushZoneConfiguration)))
+	server.mux.Handle("POST /v1/privacy-mask-requests", server.authenticate(http.HandlerFunc(server.createPrivacyMaskRequest)))
+	server.mux.Handle("GET /v1/privacy-mask-requests/{id}", server.authenticate(http.HandlerFunc(server.getPrivacyMaskRequest)))
+	server.mux.Handle("POST /v1/privacy-mask-requests/{id}/approvals", server.authenticate(http.HandlerFunc(server.approvePrivacyMaskRequest)))
 	server.mux.Handle("GET /v1/config/versions", server.authenticate(http.HandlerFunc(server.listConfigurationRevisions)))
 	server.mux.Handle("GET /v1/edge/devices/{id}/config-status", server.authenticate(http.HandlerFunc(server.getDeviceConfigurationStatus)))
 	server.mux.Handle("POST /v1/device-claims", server.authenticate(http.HandlerFunc(server.issueDeviceClaim)))
