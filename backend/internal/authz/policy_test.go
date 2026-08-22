@@ -28,7 +28,9 @@ func TestFiveSeedRolesHaveExpectedLeastPrivilege(t *testing.T) {
 	}{
 		{"super admin manages tenant", principal(identity.RoleSuperAdmin, CapabilityTenantManage), CapabilityTenantManage, true},
 		{"super admin ingests events", principal(identity.RoleSuperAdmin, CapabilityEventsWrite), CapabilityEventsWrite, true},
+		{"super admin may enter privacy-mask approval workflow", principal(identity.RoleSuperAdmin, CapabilityPrivacyMaskApprove), CapabilityPrivacyMaskApprove, true},
 		{"site admin cannot manage tenant", principal(identity.RoleSiteAdmin, CapabilityTenantManage), CapabilityTenantManage, false},
+		{"site admin cannot approve privacy masks", principal(identity.RoleSiteAdmin, CapabilityPrivacyMaskApprove), CapabilityPrivacyMaskApprove, false},
 		{"site admin ingests site events", principal(identity.RoleSiteAdmin, CapabilityEventsWrite), CapabilityEventsWrite, true},
 		{"operator handles alerts", principal(identity.RoleOperator, CapabilityAlertsWrite), CapabilityAlertsWrite, true},
 		{"operator cannot ingest events", principal(identity.RoleOperator, CapabilityEventsWrite), CapabilityEventsWrite, false},
@@ -76,6 +78,11 @@ func TestMFAEnforcement(t *testing.T) {
 	operator.MFALevel = "password"
 	if err := Authorize(operator, Request{Capability: CapabilityEvidenceExport, TenantID: "tenant-a", SiteID: "site-a"}); !errors.Is(err, ErrDenied) {
 		t.Fatalf("sensitive capability should require MFA, got %v", err)
+	}
+	superAdmin := principal(identity.RoleSuperAdmin, CapabilityPrivacyMaskApprove)
+	superAdmin.MFALevel = "password"
+	if err := Authorize(superAdmin, Request{Capability: CapabilityPrivacyMaskApprove, TenantID: "tenant-a", SiteID: "site-a"}); !errors.Is(err, ErrDenied) {
+		t.Fatalf("privacy-mask approval should require MFA, got %v", err)
 	}
 
 	auditor := principal(identity.RoleAuditor, CapabilityAuditRead)

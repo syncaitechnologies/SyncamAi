@@ -349,8 +349,17 @@
       "phase": 3,
       "owner": "AI and Edge",
       "dependencies": ["T-0334", "T-0337", "T-0338"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Before a camera-local zone observation can update state or emit an event, its class must be one of person, bicycle, bus, car, motorcycle, truck, or van. Animal, identity, biometric, plate, embedding, ReID, unknown, and malformed labels fail closed. Empty rule allowlists continue to evaluate every permitted local class; no detector, frame, pixel, or external transport capability is added."
+    },
+    {
+      "id": "T-0340",
+      "title": "Reserve Super Admin privacy-mask approval capability",
+      "phase": 3,
+      "owner": "Security and Platform",
+      "dependencies": ["T-0311", "T-0339"],
+      "status": "in_review",
+      "acceptance": "The privacy_masks:approve capability is granted only to MFA-authenticated Super Admins. It is explicitly separate from ordinary configuration write and does not by itself create, approve, deliver, or activate any privacy mask. The subsequent dedicated workflow must add distinct dual approval, immutable auditing, pre-encode edge verification, and hardware-in-loop release evidence."
     }
   ]
 }
