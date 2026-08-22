@@ -340,8 +340,17 @@
       "phase": 3,
       "owner": "AI and Edge",
       "dependencies": ["T-0333", "T-0334", "T-0337"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "The deterministic camera-local zone runtime caps rule-track state at 10,000 entries, evicts only state older than a 15-minute retention window, and rejects any observation that would exceed capacity before mutating state. The retention window never shortens the maximum 10-minute loiter duration; status exposes only aggregate counts. No frames, pixels, detector inference, identities, biometrics, plates, ReID, cross-camera linkage, or privacy-mask processing is added."
+    },
+    {
+      "id": "T-0339",
+      "title": "Canonicalize local zone observation classes",
+      "phase": 3,
+      "owner": "AI and Edge",
+      "dependencies": ["T-0334", "T-0337", "T-0338"],
+      "status": "in_review",
+      "acceptance": "Before a camera-local zone observation can update state or emit an event, its class must be one of person, bicycle, bus, car, motorcycle, truck, or van. Animal, identity, biometric, plate, embedding, ReID, unknown, and malformed labels fail closed. Empty rule allowlists continue to evaluate every permitted local class; no detector, frame, pixel, or external transport capability is added."
     }
   ]
 }

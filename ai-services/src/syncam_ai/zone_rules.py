@@ -314,6 +314,8 @@ def _canonical_observation(value: TrackObservation) -> TrackObservation:
     subject_class = _text(value.subject_class, "subject_class").lower()
     if len(subject_class) > 64:
         raise ValueError("subject_class must contain at most 64 characters")
+    if subject_class not in SUPPORTED_SUBJECT_CLASSES:
+        raise ValueError("subject_class is not a canonical local zone class")
     model_version = _text(value.model_version, "model_version")
     if len(model_version) > 128:
         raise ValueError("model_version must contain at most 128 characters")
