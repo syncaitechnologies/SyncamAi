@@ -313,7 +313,7 @@
       "phase": 3,
       "owner": "AI and Edge",
       "dependencies": ["T-0334", "T-0091", "T-0160"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Sampled camera-local tracker batches require explicit bounded per-tenant/device frame and per-tenant track limits. The ingress admits or rejects a whole sampled batch deterministically, reports credential- and payload-free remaining-capacity pressure, resets the accounting at the next UTC second, and fails closed on invalid limits or timestamp regressions. No raw frames, detector inference, cloud quota service, network transport, or privacy-mask processing is added."
     },
     {
@@ -322,8 +322,17 @@
       "phase": 3,
       "owner": "Platform and AI",
       "dependencies": ["T-0331", "T-0332", "T-0335"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Tenant/site-scoped loitering zones support an audited, idempotent, optimistic-versioned dwell duration from 30 through 600 seconds. The value is rejected for other zone kinds, persisted under RLS, included in immutable edge configuration snapshots, and validated by the camera-local runtime before activation. No detector, raw-frame, privacy-mask, or autonomous-action capability is added."
+    },
+    {
+      "id": "T-0337",
+      "title": "Deliver bounded subject-class gates for zone rules",
+      "phase": 3,
+      "owner": "Platform and AI",
+      "dependencies": ["T-0331", "T-0332", "T-0336"],
+      "status": "in_review",
+      "acceptance": "Tenant/site-scoped zone configuration supports an optional normalized allowlist of the seven canonical local subject classes. The field is idempotent, audited, optimistic-versioned, RLS-persisted, and delivered in immutable edge snapshots; unconfigured tracker classes do not update rule state or emit events. Unknown, duplicate, identity, biometric, plate, ReID, and animal classes fail closed, and no detector or raw-frame capability is added."
     }
   ]
 }

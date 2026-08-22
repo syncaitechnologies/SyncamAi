@@ -23,26 +23,30 @@ var (
 )
 
 const (
-	DefaultLoiterSeconds = 30
-	MinimumLoiterSeconds = 30
-	MaximumLoiterSeconds = 600
+	DefaultLoiterSeconds  = 30
+	MinimumLoiterSeconds  = 30
+	MaximumLoiterSeconds  = 600
+	MaximumSubjectClasses = 7
 )
+
+var canonicalSubjectClasses = map[string]bool{"person": true, "bicycle": true, "bus": true, "car": true, "motorcycle": true, "truck": true, "van": true}
 
 // Zone contains geometry and rule type metadata only; it never contains video or pixel data.
 type Zone struct {
-	ID            string          `json:"id"`
-	TenantID      string          `json:"tenant_id"`
-	SiteID        string          `json:"site_id"`
-	CameraID      string          `json:"camera_id,omitempty"`
-	Floor         string          `json:"floor,omitempty"`
-	Name          string          `json:"name"`
-	Kind          string          `json:"kind"`
-	Geometry      json.RawMessage `json:"geometry"`
-	Enabled       bool            `json:"enabled"`
-	LoiterSeconds *int            `json:"loiter_seconds,omitempty"`
-	ConfigVersion int64           `json:"config_version"`
-	CreatedAt     time.Time       `json:"created_at"`
-	UpdatedAt     time.Time       `json:"updated_at"`
+	ID             string          `json:"id"`
+	TenantID       string          `json:"tenant_id"`
+	SiteID         string          `json:"site_id"`
+	CameraID       string          `json:"camera_id,omitempty"`
+	Floor          string          `json:"floor,omitempty"`
+	Name           string          `json:"name"`
+	Kind           string          `json:"kind"`
+	Geometry       json.RawMessage `json:"geometry"`
+	Enabled        bool            `json:"enabled"`
+	LoiterSeconds  *int            `json:"loiter_seconds,omitempty"`
+	SubjectClasses []string        `json:"subject_classes,omitempty"`
+	ConfigVersion  int64           `json:"config_version"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
 }
 
 type CreateCommand struct {
@@ -51,6 +55,7 @@ type CreateCommand struct {
 	Geometry                                     json.RawMessage
 	Enabled                                      bool
 	LoiterSeconds                                *int
+	SubjectClasses                               []string
 }
 
 type CreateResult struct {
@@ -65,6 +70,7 @@ type UpdateCommand struct {
 	Geometry                             *json.RawMessage
 	Enabled                              *bool
 	LoiterSeconds                        *int
+	SubjectClasses                       *[]string
 }
 
 type Repository interface {
@@ -135,8 +141,12 @@ func (r *MemoryRepository) Create(_ context.Context, command CreateCommand) (Cre
 	if err != nil {
 		return CreateResult{}, err
 	}
+	subjectClasses, err := NormalizeSubjectClasses(command.SubjectClasses)
+	if err != nil {
+		return CreateResult{}, err
+	}
 	now := r.now()
-	zone := Zone{ID: uuid.NewString(), TenantID: command.TenantID, SiteID: command.SiteID, CameraID: strings.TrimSpace(command.CameraID), Floor: strings.TrimSpace(command.Floor), Name: strings.TrimSpace(command.Name), Kind: strings.TrimSpace(command.Kind), Geometry: append(json.RawMessage(nil), command.Geometry...), Enabled: command.Enabled, LoiterSeconds: loiterSeconds, ConfigVersion: 1, CreatedAt: now, UpdatedAt: now}
+	zone := Zone{ID: uuid.NewString(), TenantID: command.TenantID, SiteID: command.SiteID, CameraID: strings.TrimSpace(command.CameraID), Floor: strings.TrimSpace(command.Floor), Name: strings.TrimSpace(command.Name), Kind: strings.TrimSpace(command.Kind), Geometry: append(json.RawMessage(nil), command.Geometry...), Enabled: command.Enabled, LoiterSeconds: loiterSeconds, SubjectClasses: subjectClasses, ConfigVersion: 1, CreatedAt: now, UpdatedAt: now}
 	r.zones = append(r.zones, zone)
 	r.idempotency[key] = replay{hash: hash, zone: clone(zone)}
 	return CreateResult{Zone: clone(zone)}, nil
@@ -173,6 +183,13 @@ func (r *MemoryRepository) Update(_ context.Context, command UpdateCommand) (Zon
 		}
 		next.LoiterSeconds = loiterSeconds
 	}
+	if command.SubjectClasses != nil {
+		subjectClasses, err := NormalizeSubjectClasses(*command.SubjectClasses)
+		if err != nil {
+			return Zone{}, err
+		}
+		next.SubjectClasses = subjectClasses
+	}
 	if !same(current, next) {
 		next.ConfigVersion++
 		next.UpdatedAt = r.now()
@@ -195,14 +212,19 @@ func clone(zone Zone) Zone {
 		value := *zone.LoiterSeconds
 		zone.LoiterSeconds = &value
 	}
+	zone.SubjectClasses = append([]string(nil), zone.SubjectClasses...)
 	return zone
 }
 func same(a, b Zone) bool {
-	return a.Name == b.Name && a.Floor == b.Floor && a.Enabled == b.Enabled && string(a.Geometry) == string(b.Geometry) && sameLoiterSeconds(a.LoiterSeconds, b.LoiterSeconds)
+	return a.Name == b.Name && a.Floor == b.Floor && a.Enabled == b.Enabled && string(a.Geometry) == string(b.Geometry) && sameLoiterSeconds(a.LoiterSeconds, b.LoiterSeconds) && sameSubjectClasses(a.SubjectClasses, b.SubjectClasses)
 }
 
 func hashCreate(command CreateCommand) (string, error) {
 	loiterSeconds, err := normalizeLoiterSeconds(command.Kind, command.LoiterSeconds)
+	if err != nil {
+		return "", err
+	}
+	subjectClasses, err := NormalizeSubjectClasses(command.SubjectClasses)
 	if err != nil {
 		return "", err
 	}
@@ -211,7 +233,8 @@ func hashCreate(command CreateCommand) (string, error) {
 		Geometry                            json.RawMessage
 		Enabled                             bool
 		LoiterSeconds                       *int
-	}{command.SiteID, strings.TrimSpace(command.CameraID), strings.TrimSpace(command.Floor), strings.TrimSpace(command.Name), strings.TrimSpace(command.Kind), command.Geometry, command.Enabled, loiterSeconds})
+		SubjectClasses                      []string
+	}{command.SiteID, strings.TrimSpace(command.CameraID), strings.TrimSpace(command.Floor), strings.TrimSpace(command.Name), strings.TrimSpace(command.Kind), command.Geometry, command.Enabled, loiterSeconds, subjectClasses})
 	if err != nil {
 		return "", err
 	}
@@ -247,4 +270,42 @@ func databaseLoiterSeconds(value *int) any {
 		return nil
 	}
 	return *value
+}
+
+func NormalizeSubjectClasses(values []string) ([]string, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	if len(values) > MaximumSubjectClasses {
+		return nil, errors.New("too many subject classes")
+	}
+	result := make([]string, 0, len(values))
+	seen := make(map[string]bool, len(values))
+	for _, value := range values {
+		canonical := strings.ToLower(strings.TrimSpace(value))
+		if !canonicalSubjectClasses[canonical] || seen[canonical] {
+			return nil, errors.New("subject classes must be unique canonical zone classes")
+		}
+		seen[canonical] = true
+		result = append(result, canonical)
+	}
+	sort.Strings(result)
+	return result, nil
+}
+func sameSubjectClasses(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+func databaseSubjectClasses(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
 }

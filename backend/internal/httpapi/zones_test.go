@@ -92,3 +92,26 @@ func TestZoneRoutesValidateAndVersionLoiterDuration(t *testing.T) {
 		t.Fatalf("non-loiter duration must fail: %d %s", invalid.Code, invalid.Body.String())
 	}
 }
+
+func TestZoneRoutesValidateAndVersionSubjectClasses(t *testing.T) {
+	principal := cameraPrincipal(identity.RoleSiteAdmin, "config:read", "config:write")
+	repository := zones.NewMemoryRepository(nil)
+	handler := zoneHandler(principal, repository)
+	body := `{"site_id":"` + cameraSite + `","name":"People only","kind":"intrusion","subject_classes":["person"],"geometry":` + polygon() + `}`
+	created := cameraRequest(handler, http.MethodPost, "/v1/zones", body, map[string]string{idempotencyHeader: "class-create"})
+	if created.Code != http.StatusCreated || !strings.Contains(created.Body.String(), `"subject_classes":["person"]`) {
+		t.Fatalf("create class-gated zone: %d %s", created.Code, created.Body.String())
+	}
+	stored, err := repository.List(t.Context(), cameraTenant, cameraSite)
+	if err != nil || len(stored) != 1 {
+		t.Fatalf("read class-gated zone: %v", err)
+	}
+	updated := cameraRequest(handler, http.MethodPatch, "/v1/zones/"+stored[0].ID, `{"config_version":1,"subject_classes":["car","person"]}`, nil)
+	if updated.Code != http.StatusOK || !strings.Contains(updated.Body.String(), `"subject_classes":["car","person"]`) {
+		t.Fatalf("update subject classes: %d %s", updated.Code, updated.Body.String())
+	}
+	invalid := cameraRequest(handler, http.MethodPost, "/v1/zones", `{"site_id":"`+cameraSite+`","name":"Invalid","kind":"intrusion","subject_classes":["animal"],"geometry":`+polygon()+`}`, map[string]string{idempotencyHeader: "class-invalid"})
+	if invalid.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("unknown class must fail: %d %s", invalid.Code, invalid.Body.String())
+	}
+}

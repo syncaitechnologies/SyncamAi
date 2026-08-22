@@ -14,11 +14,11 @@ import (
 
 func TestZonePushCreatesVisibleImmutableConfigurationRevision(t *testing.T) {
 	loiterSeconds := 90
-	zoneRepository := zones.NewMemoryRepository([]zones.Zone{{ID: zoneID, TenantID: cameraTenant, SiteID: cameraSite, Name: "Loading", Kind: "loitering", Geometry: []byte(polygon()), LoiterSeconds: &loiterSeconds, Enabled: true, ConfigVersion: 1}})
+	zoneRepository := zones.NewMemoryRepository([]zones.Zone{{ID: zoneID, TenantID: cameraTenant, SiteID: cameraSite, Name: "Loading", Kind: "loitering", Geometry: []byte(polygon()), LoiterSeconds: &loiterSeconds, SubjectClasses: []string{"person"}, Enabled: true, ConfigVersion: 1}})
 	configuration := configdelivery.NewMemoryRepository(nil)
 	handler := NewWithConfiguration(fakeVerifier{principal: cameraPrincipal(identity.RoleSiteAdmin, "config:read", "config:write")}, nil, nil, nil, nil, nil, nil, nil, nil, nil, zoneRepository, configuration)
 	response := cameraRequest(handler, http.MethodPost, "/v1/zones/"+zoneID+"/push", "", map[string]string{correlationHeader: "55555555-5555-4555-8555-555555555555"})
-	if response.Code != http.StatusCreated || !strings.Contains(response.Body.String(), `"number":1`) || !strings.Contains(response.Body.String(), "Loading") || !strings.Contains(response.Body.String(), `"loiter_seconds":90`) {
+	if response.Code != http.StatusCreated || !strings.Contains(response.Body.String(), `"number":1`) || !strings.Contains(response.Body.String(), "Loading") || !strings.Contains(response.Body.String(), `"loiter_seconds":90`) || !strings.Contains(response.Body.String(), `"subject_classes":["person"]`) {
 		t.Fatalf("publish configuration: %d %s", response.Code, response.Body.String())
 	}
 	listed := cameraRequest(handler, http.MethodGet, "/v1/config/versions?site_id="+cameraSite, "", nil)

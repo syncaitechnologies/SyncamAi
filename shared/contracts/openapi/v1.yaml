@@ -995,6 +995,12 @@ components:
           minimum: 30
           maximum: 600
           description: Optional dwell duration for a loitering zone; defaults to 30 seconds and is rejected for other zone kinds.
+        subject_classes:
+          type: array
+          maxItems: 7
+          uniqueItems: true
+          description: Optional bounded allowlist of locally observed subject classes. An omitted or empty list evaluates all local classes; no identity, plate, or biometric classes are accepted.
+          items: { type: string, enum: [person, bicycle, bus, car, motorcycle, truck, van] }
     UpdateZoneRequest:
       type: object
       additionalProperties: false
@@ -1005,6 +1011,7 @@ components:
         - required: [geometry]
         - required: [enabled]
         - required: [loiter_seconds]
+        - required: [subject_classes]
       properties:
         config_version: { type: integer, minimum: 1 }
         name: { type: string, minLength: 1, maxLength: 120 }
@@ -1019,6 +1026,12 @@ components:
           minimum: 30
           maximum: 600
           description: Mutable dwell duration for a loitering zone only.
+        subject_classes:
+          type: array
+          maxItems: 7
+          uniqueItems: true
+          description: Replaces the local subject-class allowlist; an empty list removes the gate.
+          items: { type: string, enum: [person, bicycle, bus, car, motorcycle, truck, van] }
     Zone:
       type: object
       additionalProperties: false
@@ -1038,6 +1051,11 @@ components:
             - $ref: "#/components/schemas/GeoJSONLineString"
         enabled: { type: boolean }
         loiter_seconds: { type: integer, minimum: 30, maximum: 600 }
+        subject_classes:
+          type: array
+          maxItems: 7
+          uniqueItems: true
+          items: { type: string, enum: [person, bicycle, bus, car, motorcycle, truck, van] }
         config_version: { type: integer, minimum: 1 }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
