@@ -158,11 +158,15 @@ class ZoneRuleEngineTest(unittest.TestCase):
             replace(observation(2, 5, 5), center_x=float("nan")),
             replace(observation(2, 5, 5), confidence=1.1),
             replace(observation(2, 5, 5), subject_class=" "),
+            replace(observation(2, 5, 5), subject_class="animal"),
+            replace(observation(2, 5, 5), subject_class="license_plate"),
+            replace(observation(2, 5, 5), subject_class="face_embedding"),
             replace(observation(2, 5, 5), evidence_refs=(" ",)),
         ):
             with self.subTest(value=invalid):
                 with self.assertRaises(ValueError):
                     engine.observe(invalid)
+        self.assertEqual(engine.track_state_count, 1)
 
     def test_loader_rejects_masks_and_skips_non_camera_or_other_runtime_kinds(self) -> None:
         payload = {"zones": [
