@@ -23,6 +23,8 @@ _MAX_EVIDENCE_REFS: Final = 32
 _MAX_COORDINATE: Final = 1_000_000.0
 _MAX_ZONES: Final = 1_000
 DEFAULT_LOITER_SECONDS: Final = 30
+MIN_LOITER_SECONDS: Final = 30
+MAX_LOITER_SECONDS: Final = 600
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,6 +148,16 @@ def load_zone_rules(payload: Mapping[str, object]) -> list[ZoneRule]:
         geometry = raw.get("geometry")
         if not isinstance(geometry, Mapping):
             raise ValueError("zone geometry must be an object")
+        loiter_seconds = DEFAULT_LOITER_SECONDS
+        if kind == "loitering":
+            raw_loiter_seconds = raw.get("loiter_seconds", DEFAULT_LOITER_SECONDS)
+            if not isinstance(raw_loiter_seconds, int) or isinstance(raw_loiter_seconds, bool):
+                raise ValueError("loiter_seconds must be an integer")
+            if not MIN_LOITER_SECONDS <= raw_loiter_seconds <= MAX_LOITER_SECONDS:
+                raise ValueError("loiter_seconds must be between 30 and 600")
+            loiter_seconds = raw_loiter_seconds
+        elif "loiter_seconds" in raw:
+            raise ValueError("loiter_seconds is valid only for loitering zones")
         result.append(
             ZoneRule(
                 id=_text(raw.get("id"), "id"),
@@ -154,9 +166,7 @@ def load_zone_rules(payload: Mapping[str, object]) -> list[ZoneRule]:
                 camera_id=camera_id,
                 kind=kind,
                 geometry=geometry,
-                # Per-zone threshold editing is a separate rule-config slice.
-                # The current delivered Zone schema has no threshold field.
-                loiter_seconds=DEFAULT_LOITER_SECONDS,
+                loiter_seconds=loiter_seconds,
             )
         )
     return result
@@ -178,8 +188,8 @@ def _compile_rule(rule: ZoneRule) -> _CompiledRule:
         points = _points(raw_coordinates[0], 4)
         if points[0] != points[-1] or _polygon_area(points) == 0:
             raise ValueError("polygon zones must be closed and have area")
-    if rule.kind == "loitering" and not 1 <= rule.loiter_seconds <= 600:
-        raise ValueError("loiter_seconds must be between 1 and 600")
+    if rule.kind == "loitering" and not MIN_LOITER_SECONDS <= rule.loiter_seconds <= MAX_LOITER_SECONDS:
+        raise ValueError("loiter_seconds must be between 30 and 600")
     return _CompiledRule(
         id=_uuid(rule.id, "zone id"),
         tenant_id=_uuid(rule.tenant_id, "tenant_id"),
