@@ -358,8 +358,17 @@
       "phase": 3,
       "owner": "Security and Platform",
       "dependencies": ["T-0311", "T-0339"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "The privacy_masks:approve capability is granted only to MFA-authenticated Super Admins. It is explicitly separate from ordinary configuration write and does not by itself create, approve, deliver, or activate any privacy mask. The subsequent dedicated workflow must add distinct dual approval, immutable auditing, pre-encode edge verification, and hardware-in-loop release evidence."
+    },
+    {
+      "id": "T-0341",
+      "title": "Add privacy-mask dual-approval workflow foundation",
+      "phase": 3,
+      "owner": "Security and Platform",
+      "dependencies": ["T-0340"],
+      "status": "in_review",
+      "acceptance": "MFA-authorized Super Admins can create metadata-only privacy-mask requests. The requester cannot approve; exactly two distinct Super Admin approvals are required before status becomes approved, and duplicates are idempotent. The request remains excluded from zones and edge delivery until the following immutable-audit and pre-encode verification slices."
     }
   ]
 }

@@ -1,11 +1,13 @@
 # Phase 3 privacy-mask governance
 
-Privacy masks remain disabled. This first security prerequisite reserves the
-`privacy_masks:approve` capability for an MFA-authenticated Super Admin only.
-It is not sufficient to create, approve, deliver, or activate a mask.
+Privacy masks remain disabled. The `privacy_masks:approve` capability is
+reserved for an MFA-authenticated Super Admin only. The metadata-only request
+workflow requires two distinct Super Admin approvals and rejects approval by
+the requester. A completed approval record is still not sufficient to deliver
+or activate a mask.
 
-The later dedicated workflow must enforce two distinct Super Admin approvals,
-immutable audit records, a pre-encode edge-side masking verification result,
-and hardware-in-loop release evidence before a privacy-mask configuration can
+The next persistence slice must make every request and approval an immutable
+audited record. Pre-encode edge-side masking verification and hardware-in-loop
+release evidence are still required before a privacy-mask configuration can
 reach a camera. No frames, pixels, stream credentials, model weights, or
-masking execution are added by this authorization-only slice.
+masking execution are added by this workflow slice.

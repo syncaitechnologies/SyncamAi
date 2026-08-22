@@ -348,6 +348,61 @@ paths:
         "404": { description: Tenant or site scope not found }
         "422": { description: Filter validation failed }
         "503": { description: Configuration delivery unavailable }
+  /privacy-mask-requests:
+    post:
+      operationId: createPrivacyMaskRequest
+      summary: Create metadata-only privacy-mask request for the separate dual-approval workflow
+      security:
+        - oidc: [privacy_masks:approve]
+      parameters:
+        - $ref: "#/components/parameters/TenantHeader"
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePrivacyMaskRequest" }
+      responses:
+        "201": { description: Pending request created; no mask is activated, content: { application/json: { schema: { $ref: "#/components/schemas/PrivacyMaskRequestEnvelope" } } } }
+        "401": { description: Authentication required }
+        "403": { description: MFA-authenticated Super Admin capability required }
+        "422": { description: Request validation failed }
+  /privacy-mask-requests/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - $ref: "#/components/parameters/TenantHeader"
+    get:
+      operationId: getPrivacyMaskRequest
+      summary: Read one tenant-scoped metadata-only privacy-mask request
+      security:
+        - oidc: [privacy_masks:approve]
+      responses:
+        "200": { description: Approval state only, content: { application/json: { schema: { $ref: "#/components/schemas/PrivacyMaskRequestEnvelope" } } } }
+        "401": { description: Authentication required }
+        "403": { description: MFA-authenticated Super Admin capability required }
+        "404": { description: Request not found }
+  /privacy-mask-requests/{id}/approvals:
+    post:
+      operationId: approvePrivacyMaskRequest
+      summary: Record one distinct Super Admin approval; approval does not activate a mask
+      security:
+        - oidc: [privacy_masks:approve]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/TenantHeader"
+        - $ref: "#/components/parameters/CorrelationId"
+      responses:
+        "200": { description: Updated approval metadata, content: { application/json: { schema: { $ref: "#/components/schemas/PrivacyMaskRequestEnvelope" } } } }
+        "401": { description: Authentication required }
+        "403": { description: MFA-authenticated Super Admin capability required }
+        "404": { description: Request not found }
+        "409": { description: Requester, duplicate-final, or surplus approval conflict }
   /device-claims:
     post:
       operationId: issueDeviceClaim
@@ -940,6 +995,44 @@ components:
       required: [data]
       properties:
         data: { $ref: "#/components/schemas/Zone" }
+    CreatePrivacyMaskRequest:
+      type: object
+      additionalProperties: false
+      required: [site_id, camera_id, name, geometry]
+      properties:
+        site_id: { type: string, format: uuid }
+        camera_id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        geometry: { $ref: "#/components/schemas/GeoJSONPolygon" }
+    PrivacyMaskApproval:
+      type: object
+      required: [approver_id, approved_at]
+      properties:
+        approver_id: { type: string, maxLength: 128 }
+        approved_at: { type: string, format: date-time }
+    PrivacyMaskRequest:
+      type: object
+      description: Metadata-only governance record; it is not an active or edge-delivered mask.
+      required: [id, tenant_id, site_id, camera_id, name, geometry, status, requested_by, requested_at, approvals]
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        site_id: { type: string, format: uuid }
+        camera_id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        geometry: { $ref: "#/components/schemas/GeoJSONPolygon" }
+        status: { type: string, enum: [pending, approved] }
+        requested_by: { type: string, maxLength: 128 }
+        requested_at: { type: string, format: date-time }
+        approvals:
+          type: array
+          maxItems: 2
+          items: { $ref: "#/components/schemas/PrivacyMaskApproval" }
+    PrivacyMaskRequestEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/PrivacyMaskRequest" }
     GeoJSONPolygon:
       type: object
       additionalProperties: false
