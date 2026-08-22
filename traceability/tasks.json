@@ -394,8 +394,17 @@
       "phase": 3,
       "owner": "Security and Edge",
       "dependencies": ["T-0343"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A bounded camera-local verifier accepts only metadata for a UUID-scoped request with exactly two distinct non-requester approvers, normalized closed Polygon geometry, and the strict decode-mask-encode pipeline order. It emits deterministic metadata-only verification evidence and fails closed on any mismatch. It neither receives pixels nor activates or delivers masks; hardware-in-loop proof of actual pre-encode enforcement remains required."
+    },
+    {
+      "id": "T-0345",
+      "title": "Verify signed physical HIL evidence for privacy-mask release",
+      "phase": 3,
+      "owner": "Security and Edge",
+      "dependencies": ["T-0344"],
+      "status": "in_review",
+      "acceptance": "A release-evidence boundary accepts only a signed attestation from an allowlisted physical camera/encoder HIL harness for a verified pre-encode candidate hash. It requires masking-before-encoding, denied encoder bypass, no raw-frame retention, UUID-scoped device/test identities, and opaque SHA-256 build/probe hashes; it rejects simulation, malformed, tampered, or untrusted evidence. This code does not fabricate physical test results, activate masks, or deliver them to edge devices."
     }
   ]
 }

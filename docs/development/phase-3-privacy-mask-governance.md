@@ -14,10 +14,17 @@ transaction as the governed state change; a failed audit insert rolls the state
 change back. Duplicate approval replays do not create a second state change or
 audit event.
 
-The edge verifier now accepts only bounded metadata for an already-approved
-request and the closed local ordering `decode -> mask -> encode`; it produces a
-deterministic candidate hash for later evidence collection. It does not accept
-frames, pixels, stream credentials, encoder handles, model weights, or mask
-output, and it does not activate or deliver a mask. Hardware-in-loop release
-evidence must still prove that a real encoder cannot bypass masking before a
-privacy-mask configuration can reach a camera.
+The edge verifier accepts only bounded metadata for an already-approved request
+and the closed local ordering `decode -> mask -> encode`; it produces a
+deterministic candidate hash for later evidence collection. A second local
+boundary verifies a signed attestation from an allowlisted physical
+camera/encoder HIL harness. The attestation must confirm that masking preceded
+encoding, that encoder bypass was denied, and that no raw frames were retained.
+It stores hashes and measured booleans only.
+
+Neither verifier accepts frames, pixels, stream credentials, encoder handles,
+model weights, or mask output, and neither activates or delivers a mask. A
+registered physical harness must still execute and sign the actual release test;
+this code does not manufacture hardware evidence. Controlled release and device
+status reporting remain required before a privacy-mask configuration can reach
+a camera.
