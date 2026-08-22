@@ -82,6 +82,39 @@ class ZoneRuleEngineTest(unittest.TestCase):
         events = engine.observe(observation(3, 5, 5, subject_class="person"))
         self.assertEqual(len(events), 1)
 
+    def test_track_state_is_bounded_and_stale_entries_are_evicted(self) -> None:
+        atomic_engine = ZoneRuleEngine(
+            [rule(), replace(rule(), id="55555555-5555-4555-8555-555555555555")],
+            max_track_states=1,
+        )
+        with self.assertRaisesRegex(ValueError, "capacity"):
+            atomic_engine.observe(observation(0, -1, 5, track_id=1))
+        self.assertEqual(atomic_engine.track_state_count, 0)
+
+        engine = ZoneRuleEngine([rule()], max_track_states=1, state_ttl_seconds=600)
+        self.assertEqual(engine.observe(observation(0, -1, 5, track_id=1)), [])
+        self.assertEqual(engine.track_state_count, 1)
+        with self.assertRaisesRegex(ValueError, "capacity"):
+            engine.observe(observation(1, -1, 5, track_id=2))
+        self.assertEqual(engine.track_state_count, 1)
+        self.assertEqual(engine.observe(observation(601, -1, 5, track_id=2)), [])
+        self.assertEqual(engine.track_state_count, 1)
+
+    def test_state_bounds_preserve_maximum_loiter_duration(self) -> None:
+        engine = ZoneRuleEngine([rule("loitering", loiter_seconds=600)], state_ttl_seconds=600)
+        self.assertEqual(engine.observe(observation(0, -1, 5)), [])
+        self.assertEqual(engine.observe(observation(1, 5, 5)), [])
+        self.assertEqual(len(engine.observe(observation(601, 5, 5))), 1)
+
+        for kwargs in (
+            {"max_track_states": 0},
+            {"state_ttl_seconds": 599},
+            {"state_ttl_seconds": 901},
+        ):
+            with self.subTest(kwargs=kwargs):
+                with self.assertRaises(ValueError):
+                    ZoneRuleEngine([rule()], **kwargs)
+
     def test_loitering_uses_dwell_and_emits_once(self) -> None:
         engine = ZoneRuleEngine([rule("loitering")])
         self.assertEqual(engine.observe(observation(0, -1, 5)), [])

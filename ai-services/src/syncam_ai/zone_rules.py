@@ -23,6 +23,8 @@ _MAX_TRACK_ID: Final = (1 << 63) - 1
 _MAX_EVIDENCE_REFS: Final = 32
 _MAX_COORDINATE: Final = 1_000_000.0
 _MAX_ZONES: Final = 1_000
+_MAX_TRACK_STATES: Final = 10_000
+_STATE_TTL_SECONDS: Final = 900
 DEFAULT_LOITER_SECONDS: Final = 30
 MIN_LOITER_SECONDS: Final = 30
 MAX_LOITER_SECONDS: Final = 600
@@ -88,30 +90,45 @@ class ZoneRuleEngine:
     IDs and coordinates, which are solely local matching inputs.
     """
 
-    def __init__(self, rules: Sequence[ZoneRule]) -> None:
+    def __init__(
+        self,
+        rules: Sequence[ZoneRule],
+        *,
+        max_track_states: int = _MAX_TRACK_STATES,
+        state_ttl_seconds: int = _STATE_TTL_SECONDS,
+    ) -> None:
         if len(rules) > _MAX_ZONES:
             raise ValueError("zone rule count exceeds the runtime bound")
+        if not isinstance(max_track_states, int) or isinstance(max_track_states, bool) or not 1 <= max_track_states <= _MAX_TRACK_STATES:
+            raise ValueError("max_track_states must be between 1 and the runtime bound")
+        if not isinstance(state_ttl_seconds, int) or isinstance(state_ttl_seconds, bool) or not MAX_LOITER_SECONDS <= state_ttl_seconds <= _STATE_TTL_SECONDS:
+            raise ValueError("state_ttl_seconds must retain the maximum loiter duration")
         compiled = tuple(_compile_rule(rule) for rule in rules if rule.enabled)
         identifiers = [rule.id for rule in compiled]
         if len(identifiers) != len(set(identifiers)):
             raise ValueError("zone rule IDs must be unique")
         self._rules = compiled
+        self._max_track_states = max_track_states
+        self._state_ttl_seconds = state_ttl_seconds
         self._states: dict[tuple[str, int], _TrackState] = {}
 
     def observe(self, observation: TrackObservation) -> list[dict[str, object]]:
         """Return new canonical events for this local track point only."""
 
         canonical = _canonical_observation(observation)
+        self._evict_stale_states(canonical.observed_at)
+        applicable = tuple(
+            rule for rule in self._rules
+            if rule.tenant_id == canonical.tenant_id
+            and rule.site_id == canonical.site_id
+            and rule.camera_id == canonical.camera_id
+            and (not rule.subject_classes or canonical.subject_class in rule.subject_classes)
+        )
+        new_keys = {(rule.id, canonical.track_id) for rule in applicable} - self._states.keys()
+        if len(self._states) + len(new_keys) > self._max_track_states:
+            raise ValueError("local track state capacity exceeded")
         events: list[dict[str, object]] = []
-        for rule in self._rules:
-            if (
-                rule.tenant_id != canonical.tenant_id
-                or rule.site_id != canonical.site_id
-                or rule.camera_id != canonical.camera_id
-            ):
-                continue
-            if rule.subject_classes and canonical.subject_class not in rule.subject_classes:
-                continue
+        for rule in applicable:
             key = (rule.id, canonical.track_id)
             state = self._states.get(key)
             if rule.kind == "tripwire":
@@ -122,6 +139,18 @@ class ZoneRuleEngine:
             if event is not None:
                 events.append(event)
         return events
+
+    @property
+    def track_state_count(self) -> int:
+        """Return only aggregate local runtime state, never track identifiers."""
+
+        return len(self._states)
+
+    def _evict_stale_states(self, observed_at: datetime) -> None:
+        cutoff = observed_at.timestamp() - self._state_ttl_seconds
+        stale = [key for key, state in self._states.items() if state.observed_at.timestamp() < cutoff]
+        for key in stale:
+            del self._states[key]
 
 
 def load_zone_rules(payload: Mapping[str, object]) -> list[ZoneRule]:

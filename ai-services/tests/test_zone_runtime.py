@@ -58,9 +58,11 @@ class ZoneRuntimeTest(unittest.TestCase):
     def test_activates_verified_configuration_and_evaluates_its_rules(self) -> None:
         runtime = ZoneRuntime()
         self.assertEqual(runtime.observe(observation(0, 5, 5)), [])
+        self.assertEqual(runtime.track_state_count, 0)
         self.assertTrue(runtime.activate_verified_configuration(1, payload()))
         self.assertEqual(runtime.applied_revision, 1)
         self.assertEqual(runtime.observe(observation(0, -1, 5)), [])
+        self.assertEqual(runtime.track_state_count, 1)
         events = runtime.observe(observation(1, 5, 5))
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["event_type"], "intrusion")
