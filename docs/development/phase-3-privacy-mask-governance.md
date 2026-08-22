@@ -14,7 +14,10 @@ transaction as the governed state change; a failed audit insert rolls the state
 change back. Duplicate approval replays do not create a second state change or
 audit event.
 
-Pre-encode edge-side masking verification and hardware-in-loop release evidence
-are still required before a privacy-mask configuration can reach a camera. No
-frames, pixels, stream credentials, model weights, or masking execution are
-added by this workflow or ledger slice.
+The edge verifier now accepts only bounded metadata for an already-approved
+request and the closed local ordering `decode -> mask -> encode`; it produces a
+deterministic candidate hash for later evidence collection. It does not accept
+frames, pixels, stream credentials, encoder handles, model weights, or mask
+output, and it does not activate or deliver a mask. Hardware-in-loop release
+evidence must still prove that a real encoder cannot bypass masking before a
+privacy-mask configuration can reach a camera.
