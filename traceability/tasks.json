@@ -367,8 +367,17 @@
       "phase": 3,
       "owner": "Security and Platform",
       "dependencies": ["T-0340"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "MFA-authorized Super Admins can create metadata-only privacy-mask requests. The requester cannot approve; exactly two distinct Super Admin approvals are required before status becomes approved, and duplicates are idempotent. The request remains excluded from zones and edge delivery until the following immutable-audit and pre-encode verification slices."
+    },
+    {
+      "id": "T-0342",
+      "title": "Add immutable privacy-mask approval ledger schema",
+      "phase": 3,
+      "owner": "Security and Platform",
+      "dependencies": ["T-0313", "T-0341"],
+      "status": "in_review",
+      "acceptance": "Postgres stores tenant-RLS privacy-mask request metadata and immutable approval rows. Approval rows cannot be modified or deleted by the application role; only insert/select is granted. Generic zones and edge delivery continue to exclude privacy masks. The next repository slice must atomically append hash-chained audit events."
     }
   ]
 }
