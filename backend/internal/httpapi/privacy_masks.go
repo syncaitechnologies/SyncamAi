@@ -23,7 +23,8 @@ func (s *Server) createPrivacyMaskRequest(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	if _, ok := correlationHeaderOnly(w, r); !ok {
+	requestID, ok := correlationHeaderOnly(w, r)
+	if !ok {
 		return
 	}
 	var input createPrivacyMaskRequest
@@ -34,7 +35,7 @@ func (s *Server) createPrivacyMaskRequest(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Privacy mask request fields or geometry are invalid.")
 		return
 	}
-	request, err := s.privacyMasks.Create(r.Context(), privacymasks.CreateCommand{TenantID: tenantID, SiteID: strings.TrimSpace(input.SiteID), CameraID: strings.TrimSpace(input.CameraID), ActorID: principal.UserID, Name: strings.TrimSpace(input.Name), Geometry: input.Geometry})
+	request, err := s.privacyMasks.Create(r.Context(), privacymasks.CreateCommand{TenantID: tenantID, SiteID: strings.TrimSpace(input.SiteID), CameraID: strings.TrimSpace(input.CameraID), ActorID: principal.UserID, RequestID: requestID, Name: strings.TrimSpace(input.Name), Geometry: input.Geometry})
 	if err != nil {
 		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Privacy mask request is invalid.")
 		return
@@ -64,10 +65,11 @@ func (s *Server) approvePrivacyMaskRequest(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if _, ok := correlationHeaderOnly(w, r); !ok {
+	requestID, ok := correlationHeaderOnly(w, r)
+	if !ok {
 		return
 	}
-	request, err := s.privacyMasks.Approve(r.Context(), privacymasks.ApproveCommand{TenantID: tenantID, RequestID: r.PathValue("id"), ActorID: principal.UserID})
+	request, err := s.privacyMasks.Approve(r.Context(), privacymasks.ApproveCommand{TenantID: tenantID, RequestID: r.PathValue("id"), ActorID: principal.UserID, AuditRequestID: requestID})
 	if errors.Is(err, privacymasks.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found.")
 		return

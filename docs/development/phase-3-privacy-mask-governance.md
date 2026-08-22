@@ -6,11 +6,13 @@ workflow requires two distinct Super Admin approvals and rejects approval by
 the requester. A completed approval record is still not sufficient to deliver
 or activate a mask.
 
-Privacy-mask request metadata and approval rows now have tenant-isolated
-Postgres storage. Approval rows are database-immutable, while the application
-role may only select or insert them. The next repository slice must transact
-request creation and approval state changes with append-only, hash-chained
-audit events.
+Privacy-mask request metadata and approval rows have tenant-isolated Postgres
+storage. Approval rows are database-immutable, while the application role may
+only select or insert them. The production repository records every request and
+distinct approval in the append-only, tenant-day hash chain in the same short
+transaction as the governed state change; a failed audit insert rolls the state
+change back. Duplicate approval replays do not create a second state change or
+audit event.
 
 Pre-encode edge-side masking verification and hardware-in-loop release evidence
 are still required before a privacy-mask configuration can reach a camera. No
