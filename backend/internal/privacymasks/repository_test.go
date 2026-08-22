@@ -3,6 +3,7 @@ package privacymasks
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -47,6 +48,7 @@ func TestCreateFailsClosedOnInvalidMetadata(t *testing.T) {
 	for _, invalid := range []CreateCommand{
 		{TenantID: tenantID, SiteID: siteID, CameraID: cameraID, ActorID: "requester", Name: "Mask", Geometry: []byte(`{"type":"LineString"}`)},
 		{TenantID: tenantID, SiteID: siteID, CameraID: "invalid", ActorID: "requester", Name: "Mask", Geometry: []byte(`{"type":"Polygon"}`)},
+		{TenantID: tenantID, SiteID: siteID, CameraID: cameraID, ActorID: strings.Repeat("a", 129), Name: "Mask", Geometry: command("requester").Geometry},
 	} {
 		if _, err := repository.Create(context.Background(), invalid); err == nil {
 			t.Fatal("invalid privacy-mask metadata must fail closed")

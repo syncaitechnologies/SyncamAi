@@ -47,12 +47,12 @@ type Request struct {
 }
 
 type CreateCommand struct {
-	TenantID, SiteID, CameraID, ActorID string
-	Name                                string
-	Geometry                            json.RawMessage
+	TenantID, SiteID, CameraID, ActorID, RequestID string
+	Name                                           string
+	Geometry                                       json.RawMessage
 }
 
-type ApproveCommand struct{ TenantID, RequestID, ActorID string }
+type ApproveCommand struct{ TenantID, RequestID, ActorID, AuditRequestID string }
 
 type Repository interface {
 	Create(context.Context, CreateCommand) (Request, error)
@@ -61,7 +61,7 @@ type Repository interface {
 }
 
 // MemoryRepository makes the approval semantics executable in local and HTTP
-// tests. Durable immutable persistence is added in the next security slice.
+// tests. Production wiring uses PostgresRepository.
 type MemoryRepository struct {
 	mu       sync.Mutex
 	requests []Request
@@ -138,7 +138,7 @@ func validateCreate(command CreateCommand) error {
 			return errors.New("privacy mask identifiers must be UUIDs")
 		}
 	}
-	if strings.TrimSpace(command.ActorID) == "" || len(strings.TrimSpace(command.Name)) == 0 || len(strings.TrimSpace(command.Name)) > 120 {
+	if strings.TrimSpace(command.ActorID) == "" || len(strings.TrimSpace(command.ActorID)) > 128 || len(strings.TrimSpace(command.Name)) == 0 || len(strings.TrimSpace(command.Name)) > 120 {
 		return errors.New("privacy mask requester and name are required")
 	}
 	if len(command.Geometry) == 0 || !json.Valid(command.Geometry) {

@@ -20,6 +20,7 @@ import (
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/httpapi"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/privacymasks"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/realtime"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/tenant"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/zones"
@@ -78,10 +79,11 @@ func main() {
 	deviceStatusRepository := device.NewPostgresStatusRepository(pool)
 	zoneRepository := zones.NewPostgresRepository(pool)
 	configurationRepository := configdelivery.NewPostgresRepository(pool)
+	privacyMaskRepository := privacymasks.NewPostgresRepository(pool)
 	tickets := realtime.NewMemoryTicketStore()
 	server := &http.Server{
 		Addr:              envOrDefault("SYNCAM_HTTP_ADDR", ":8080"),
-		Handler:           httpapi.NewWithConfiguration(verifier, repository, eventRepository, alertRepository, realtimeRepository, tickets, cameraRepository, enrollmentRepository, deviceStatusRepository, device.MTLSDeviceVerifier{}, zoneRepository, configurationRepository),
+		Handler:           httpapi.NewWithPrivacyMaskApprovals(verifier, repository, eventRepository, alertRepository, realtimeRepository, tickets, cameraRepository, enrollmentRepository, deviceStatusRepository, device.MTLSDeviceVerifier{}, zoneRepository, configurationRepository, privacyMaskRepository),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,
