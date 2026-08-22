@@ -403,8 +403,17 @@
       "phase": 3,
       "owner": "Security and Edge",
       "dependencies": ["T-0344"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A release-evidence boundary accepts only a signed attestation from an allowlisted physical camera/encoder HIL harness for a verified pre-encode candidate hash. It requires masking-before-encoding, denied encoder bypass, no raw-frame retention, UUID-scoped device/test identities, and opaque SHA-256 build/probe hashes; it rejects simulation, malformed, tampered, or untrusted evidence. This code does not fabricate physical test results, activate masks, or deliver them to edge devices."
+    },
+    {
+      "id": "T-0346",
+      "title": "Gate controlled privacy-mask release at the edge",
+      "phase": 3,
+      "owner": "Security and Edge",
+      "dependencies": ["T-0345"],
+      "status": "in_review",
+      "acceptance": "A separate privacy-only edge controller accepts a strictly newer release manifest only when UUID-scoped device metadata, strict pre-encode verification, and signed allowlisted physical HIL evidence agree on the same candidate hash. It invokes a metadata-only atomic release-slot applier, preserves the prior accepted release after stale, verification, or apply failure, and reports only safe accepted/failed status. Generic zone delivery, frames, pixels, encoder execution, and a platform transport are excluded."
     }
   ]
 }
