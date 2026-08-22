@@ -27,6 +27,13 @@ class ZoneRuntime:
         with self._lock:
             return self._revision
 
+    @property
+    def track_state_count(self) -> int:
+        """Return aggregate active-rule state without exposing track identifiers."""
+
+        with self._lock:
+            return 0 if self._engine is None else self._engine.track_state_count
+
     def activate_verified_configuration(
         self, revision: int, payload: Mapping[str, object]
     ) -> bool:
