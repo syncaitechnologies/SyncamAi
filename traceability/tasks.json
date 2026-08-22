@@ -385,8 +385,17 @@
       "phase": 3,
       "owner": "Security and Platform",
       "dependencies": ["T-0342"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Production privacy-mask request creation and each distinct approval use tenant-scoped Postgres transactions that write the governed state and an append-only hash-chained audit event together. Requesters cannot approve, exactly two distinct Super Admin approvals are required, duplicate approvals remain idempotent, and all failures roll back. Privacy masks remain excluded from generic zones and edge delivery pending pre-encode verification and hardware-in-loop release evidence."
+    },
+    {
+      "id": "T-0344",
+      "title": "Verify privacy-mask plans before edge encoding",
+      "phase": 3,
+      "owner": "Security and Edge",
+      "dependencies": ["T-0343"],
+      "status": "in_review",
+      "acceptance": "A bounded camera-local verifier accepts only metadata for a UUID-scoped request with exactly two distinct non-requester approvers, normalized closed Polygon geometry, and the strict decode-mask-encode pipeline order. It emits deterministic metadata-only verification evidence and fails closed on any mismatch. It neither receives pixels nor activates or delivers masks; hardware-in-loop proof of actual pre-encode enforcement remains required."
     }
   ]
 }
