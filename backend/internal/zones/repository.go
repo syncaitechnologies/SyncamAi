@@ -22,6 +22,12 @@ var (
 	ErrIdempotencyConflict = errors.New("idempotency key reused with a different request")
 )
 
+const (
+	DefaultLoiterSeconds = 30
+	MinimumLoiterSeconds = 30
+	MaximumLoiterSeconds = 600
+)
+
 // Zone contains geometry and rule type metadata only; it never contains video or pixel data.
 type Zone struct {
 	ID            string          `json:"id"`
@@ -33,6 +39,7 @@ type Zone struct {
 	Kind          string          `json:"kind"`
 	Geometry      json.RawMessage `json:"geometry"`
 	Enabled       bool            `json:"enabled"`
+	LoiterSeconds *int            `json:"loiter_seconds,omitempty"`
 	ConfigVersion int64           `json:"config_version"`
 	CreatedAt     time.Time       `json:"created_at"`
 	UpdatedAt     time.Time       `json:"updated_at"`
@@ -41,11 +48,15 @@ type Zone struct {
 type CreateCommand struct {
 	TenantID, ActorID, RequestID, IdempotencyKey string
 	SiteID, CameraID, Floor, Name, Kind          string
-	Geometry                                      json.RawMessage
-	Enabled                                       bool
+	Geometry                                     json.RawMessage
+	Enabled                                      bool
+	LoiterSeconds                                *int
 }
 
-type CreateResult struct { Zone Zone; Replayed bool }
+type CreateResult struct {
+	Zone     Zone
+	Replayed bool
+}
 
 type UpdateCommand struct {
 	TenantID, ActorID, RequestID, ZoneID string
@@ -53,6 +64,7 @@ type UpdateCommand struct {
 	Name, Floor                          *string
 	Geometry                             *json.RawMessage
 	Enabled                              *bool
+	LoiterSeconds                        *int
 }
 
 type Repository interface {
@@ -62,68 +74,177 @@ type Repository interface {
 	Update(context.Context, UpdateCommand) (Zone, error)
 }
 
-type replay struct { hash string; zone Zone }
+type replay struct {
+	hash string
+	zone Zone
+}
 
 // MemoryRepository is deterministic and used by unit and HTTP boundary tests.
 type MemoryRepository struct {
-	mu sync.Mutex
-	zones []Zone
+	mu          sync.Mutex
+	zones       []Zone
 	idempotency map[string]replay
-	now func() time.Time
+	now         func() time.Time
 }
 
 func NewMemoryRepository(seed []Zone) *MemoryRepository {
 	copySeed := make([]Zone, len(seed))
-	for i := range seed { copySeed[i] = clone(seed[i]) }
+	for i := range seed {
+		copySeed[i] = clone(seed[i])
+	}
 	return &MemoryRepository{zones: copySeed, idempotency: make(map[string]replay), now: func() time.Time { return time.Now().UTC() }}
 }
 
 func (r *MemoryRepository) List(_ context.Context, tenantID, siteID string) ([]Zone, error) {
-	r.mu.Lock(); defer r.mu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	result := make([]Zone, 0)
-	for _, zone := range r.zones { if zone.TenantID == tenantID && (siteID == "" || zone.SiteID == siteID) { result = append(result, clone(zone)) } }
+	for _, zone := range r.zones {
+		if zone.TenantID == tenantID && (siteID == "" || zone.SiteID == siteID) {
+			result = append(result, clone(zone))
+		}
+	}
 	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
 	return result, nil
 }
 
 func (r *MemoryRepository) Get(_ context.Context, tenantID, zoneID string) (Zone, error) {
-	r.mu.Lock(); defer r.mu.Unlock()
-	if index := r.find(tenantID, zoneID); index >= 0 { return clone(r.zones[index]), nil }
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if index := r.find(tenantID, zoneID); index >= 0 {
+		return clone(r.zones[index]), nil
+	}
 	return Zone{}, ErrNotFound
 }
 
 func (r *MemoryRepository) Create(_ context.Context, command CreateCommand) (CreateResult, error) {
-	r.mu.Lock(); defer r.mu.Unlock()
-	hash, err := hashCreate(command); if err != nil { return CreateResult{}, err }
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	hash, err := hashCreate(command)
+	if err != nil {
+		return CreateResult{}, err
+	}
 	key := command.TenantID + ":" + command.IdempotencyKey
-	if stored, ok := r.idempotency[key]; ok { if stored.hash != hash { return CreateResult{}, ErrIdempotencyConflict }; return CreateResult{Zone: clone(stored.zone), Replayed: true}, nil }
+	if stored, ok := r.idempotency[key]; ok {
+		if stored.hash != hash {
+			return CreateResult{}, ErrIdempotencyConflict
+		}
+		return CreateResult{Zone: clone(stored.zone), Replayed: true}, nil
+	}
+	loiterSeconds, err := normalizeLoiterSeconds(command.Kind, command.LoiterSeconds)
+	if err != nil {
+		return CreateResult{}, err
+	}
 	now := r.now()
-	zone := Zone{ID: uuid.NewString(), TenantID: command.TenantID, SiteID: command.SiteID, CameraID: strings.TrimSpace(command.CameraID), Floor: strings.TrimSpace(command.Floor), Name: strings.TrimSpace(command.Name), Kind: strings.TrimSpace(command.Kind), Geometry: append(json.RawMessage(nil), command.Geometry...), Enabled: command.Enabled, ConfigVersion: 1, CreatedAt: now, UpdatedAt: now}
+	zone := Zone{ID: uuid.NewString(), TenantID: command.TenantID, SiteID: command.SiteID, CameraID: strings.TrimSpace(command.CameraID), Floor: strings.TrimSpace(command.Floor), Name: strings.TrimSpace(command.Name), Kind: strings.TrimSpace(command.Kind), Geometry: append(json.RawMessage(nil), command.Geometry...), Enabled: command.Enabled, LoiterSeconds: loiterSeconds, ConfigVersion: 1, CreatedAt: now, UpdatedAt: now}
 	r.zones = append(r.zones, zone)
 	r.idempotency[key] = replay{hash: hash, zone: clone(zone)}
 	return CreateResult{Zone: clone(zone)}, nil
 }
 
 func (r *MemoryRepository) Update(_ context.Context, command UpdateCommand) (Zone, error) {
-	r.mu.Lock(); defer r.mu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	index := r.find(command.TenantID, command.ZoneID)
-	if index < 0 { return Zone{}, ErrNotFound }
+	if index < 0 {
+		return Zone{}, ErrNotFound
+	}
 	current := r.zones[index]
-	if current.ConfigVersion != command.ExpectedVersion { return Zone{}, ErrVersionConflict }
+	if current.ConfigVersion != command.ExpectedVersion {
+		return Zone{}, ErrVersionConflict
+	}
 	next := clone(current)
-	if command.Name != nil { next.Name = strings.TrimSpace(*command.Name) }
-	if command.Floor != nil { next.Floor = strings.TrimSpace(*command.Floor) }
-	if command.Geometry != nil { next.Geometry = append(json.RawMessage(nil), (*command.Geometry)...)}
-	if command.Enabled != nil { next.Enabled = *command.Enabled }
-	if !same(current, next) { next.ConfigVersion++; next.UpdatedAt = r.now(); r.zones[index] = next }
+	if command.Name != nil {
+		next.Name = strings.TrimSpace(*command.Name)
+	}
+	if command.Floor != nil {
+		next.Floor = strings.TrimSpace(*command.Floor)
+	}
+	if command.Geometry != nil {
+		next.Geometry = append(json.RawMessage(nil), (*command.Geometry)...)
+	}
+	if command.Enabled != nil {
+		next.Enabled = *command.Enabled
+	}
+	if command.LoiterSeconds != nil {
+		loiterSeconds, err := normalizeLoiterSeconds(current.Kind, command.LoiterSeconds)
+		if err != nil {
+			return Zone{}, err
+		}
+		next.LoiterSeconds = loiterSeconds
+	}
+	if !same(current, next) {
+		next.ConfigVersion++
+		next.UpdatedAt = r.now()
+		r.zones[index] = next
+	}
 	return clone(next), nil
 }
 
-func (r *MemoryRepository) find(tenantID, zoneID string) int { for i, zone := range r.zones { if zone.TenantID == tenantID && zone.ID == zoneID { return i } }; return -1 }
-func clone(zone Zone) Zone { zone.Geometry = append(json.RawMessage(nil), zone.Geometry...); return zone }
-func same(a, b Zone) bool { return a.Name == b.Name && a.Floor == b.Floor && a.Enabled == b.Enabled && string(a.Geometry) == string(b.Geometry) }
+func (r *MemoryRepository) find(tenantID, zoneID string) int {
+	for i, zone := range r.zones {
+		if zone.TenantID == tenantID && zone.ID == zoneID {
+			return i
+		}
+	}
+	return -1
+}
+func clone(zone Zone) Zone {
+	zone.Geometry = append(json.RawMessage(nil), zone.Geometry...)
+	if zone.LoiterSeconds != nil {
+		value := *zone.LoiterSeconds
+		zone.LoiterSeconds = &value
+	}
+	return zone
+}
+func same(a, b Zone) bool {
+	return a.Name == b.Name && a.Floor == b.Floor && a.Enabled == b.Enabled && string(a.Geometry) == string(b.Geometry) && sameLoiterSeconds(a.LoiterSeconds, b.LoiterSeconds)
+}
 
 func hashCreate(command CreateCommand) (string, error) {
-	payload, err := json.Marshal(struct { SiteID, CameraID, Floor, Name, Kind string; Geometry json.RawMessage; Enabled bool }{command.SiteID, strings.TrimSpace(command.CameraID), strings.TrimSpace(command.Floor), strings.TrimSpace(command.Name), strings.TrimSpace(command.Kind), command.Geometry, command.Enabled})
-	if err != nil { return "", err }; sum := sha256.Sum256(payload); return hex.EncodeToString(sum[:]), nil
+	loiterSeconds, err := normalizeLoiterSeconds(command.Kind, command.LoiterSeconds)
+	if err != nil {
+		return "", err
+	}
+	payload, err := json.Marshal(struct {
+		SiteID, CameraID, Floor, Name, Kind string
+		Geometry                            json.RawMessage
+		Enabled                             bool
+		LoiterSeconds                       *int
+	}{command.SiteID, strings.TrimSpace(command.CameraID), strings.TrimSpace(command.Floor), strings.TrimSpace(command.Name), strings.TrimSpace(command.Kind), command.Geometry, command.Enabled, loiterSeconds})
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(payload)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+func normalizeLoiterSeconds(kind string, value *int) (*int, error) {
+	if strings.TrimSpace(kind) != "loitering" {
+		if value != nil {
+			return nil, errors.New("loiter duration is valid only for loitering zones")
+		}
+		return nil, nil
+	}
+	seconds := DefaultLoiterSeconds
+	if value != nil {
+		seconds = *value
+	}
+	if seconds < MinimumLoiterSeconds || seconds > MaximumLoiterSeconds {
+		return nil, errors.New("loiter duration is outside the supported range")
+	}
+	return &seconds, nil
+}
+
+func sameLoiterSeconds(left, right *int) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return *left == *right
+}
+func databaseLoiterSeconds(value *int) any {
+	if value == nil {
+		return nil
+	}
+	return *value
 }

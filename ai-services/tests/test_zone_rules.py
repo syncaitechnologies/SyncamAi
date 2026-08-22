@@ -125,13 +125,13 @@ class ZoneRuleEngineTest(unittest.TestCase):
 
     def test_loader_rejects_masks_and_skips_non_camera_or_other_runtime_kinds(self) -> None:
         payload = {"zones": [
-            {"id": ZONE, "tenant_id": TENANT, "site_id": SITE, "camera_id": CAMERA, "kind": "loitering", "enabled": True, "geometry": polygon()},
+            {"id": ZONE, "tenant_id": TENANT, "site_id": SITE, "camera_id": CAMERA, "kind": "loitering", "loiter_seconds": 90, "enabled": True, "geometry": polygon()},
             {"id": "55555555-5555-4555-8555-555555555555", "tenant_id": TENANT, "site_id": SITE, "camera_id": "", "kind": "intrusion", "enabled": True, "geometry": polygon()},
             {"id": "66666666-6666-4666-8666-666666666666", "tenant_id": TENANT, "site_id": SITE, "camera_id": CAMERA, "kind": "abandoned", "enabled": True, "geometry": polygon()},
         ]}
         loaded = load_zone_rules(payload)
         self.assertEqual(len(loaded), 1)
-        self.assertEqual(loaded[0].loiter_seconds, 30)
+        self.assertEqual(loaded[0].loiter_seconds, 90)
         payload["zones"].append({"id": "77777777-7777-4777-8777-777777777777", "tenant_id": TENANT, "site_id": SITE, "camera_id": CAMERA, "kind": "mask", "enabled": True, "geometry": polygon()})
         with self.assertRaises(ValueError):
             load_zone_rules(payload)
@@ -147,6 +147,9 @@ class ZoneRuleEngineTest(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
                     ZoneRuleEngine([value])
+        payload = {"zones": [{"id": ZONE, "tenant_id": TENANT, "site_id": SITE, "camera_id": CAMERA, "kind": "loitering", "loiter_seconds": 29, "enabled": True, "geometry": polygon()}]}
+        with self.assertRaises(ValueError):
+            load_zone_rules(payload)
 
 
 if __name__ == "__main__":

@@ -990,6 +990,11 @@ components:
             - $ref: "#/components/schemas/GeoJSONPolygon"
             - $ref: "#/components/schemas/GeoJSONLineString"
         enabled: { type: boolean, default: true }
+        loiter_seconds:
+          type: integer
+          minimum: 30
+          maximum: 600
+          description: Optional dwell duration for a loitering zone; defaults to 30 seconds and is rejected for other zone kinds.
     UpdateZoneRequest:
       type: object
       additionalProperties: false
@@ -999,6 +1004,7 @@ components:
         - required: [floor]
         - required: [geometry]
         - required: [enabled]
+        - required: [loiter_seconds]
       properties:
         config_version: { type: integer, minimum: 1 }
         name: { type: string, minLength: 1, maxLength: 120 }
@@ -1008,6 +1014,11 @@ components:
             - $ref: "#/components/schemas/GeoJSONPolygon"
             - $ref: "#/components/schemas/GeoJSONLineString"
         enabled: { type: boolean }
+        loiter_seconds:
+          type: integer
+          minimum: 30
+          maximum: 600
+          description: Mutable dwell duration for a loitering zone only.
     Zone:
       type: object
       additionalProperties: false
@@ -1026,6 +1037,7 @@ components:
             - $ref: "#/components/schemas/GeoJSONPolygon"
             - $ref: "#/components/schemas/GeoJSONLineString"
         enabled: { type: boolean }
+        loiter_seconds: { type: integer, minimum: 30, maximum: 600 }
         config_version: { type: integer, minimum: 1 }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
