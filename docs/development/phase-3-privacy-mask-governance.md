@@ -35,8 +35,12 @@ records.
 Neither verifier nor the controlled release boundary accepts frames, pixels,
 stream credentials, encoder handles, model weights, or mask output. A
 registered physical harness must still execute and sign the actual release test;
-this code does not manufacture hardware evidence. The following repository and
-transport slice must authorize manifest creation against an approved request and
-verified HIL evidence, atomically append its audit event, authenticate the
-specified device, and persist only safe status reporting before a privacy-mask
-configuration can reach a camera.
+this code does not manufacture hardware evidence. The platform release
+repository now recomputes the bounded pre-encode candidate and verifies the
+signed physical-HIL metadata against an injected trusted-harness allowlist. In
+one tenant-scoped transaction it requires the immutable approved request, both
+recorded approvals, and an active mTLS-ready device at the same site before
+inserting the manifest and its audit-chain event. It is not an HTTP/device
+transport, does not register trust keys, and does not perform a physical test.
+The following transport slice must authenticate the specified device and expose
+only its approved manifest plus safe status reporting.
