@@ -421,8 +421,17 @@
       "phase": 3,
       "owner": "Security and Platform",
       "dependencies": ["T-0313", "T-0346"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Postgres stores tenant-RLS privacy-only release manifests and the latest safe per-device release status. Release manifests are immutable and versioned per tenant/device; the application role cannot delete release or status records. Generic zone/configuration delivery continues to exclude masks. The following repository/transport must authorize releases against an approved request plus verified HIL evidence and append audit events atomically."
+    },
+    {
+      "id": "T-0348",
+      "title": "Authorize and audit privacy-mask release manifests",
+      "phase": 3,
+      "owner": "Security and Platform",
+      "dependencies": ["T-0347"],
+      "status": "in_review",
+      "acceptance": "A tenant-scoped Postgres repository recomputes strict pre-encode metadata, verifies signed physical-HIL evidence against an injected trusted-harness allowlist, and requires the approved request, its two recorded approvals, and an active mTLS-ready same-site device before atomically inserting a privacy-only manifest and hash-chained audit event. It fails closed and does not register keys, expose HTTP, deliver to a device, process media, or execute masking."
     }
   ]
 }
