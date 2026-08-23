@@ -26,11 +26,17 @@ The controlled edge release boundary accepts a privacy-only manifest only when
 its pre-encode candidate hash, device UUID, and signed HIL evidence agree. It
 hands that metadata to an atomic release-slot applier, preserves the prior
 accepted release on failure, and reports only fixed safe status categories.
-Generic zone configuration cannot use this path.
+Generic zone configuration cannot use this path. Durable Postgres tables now
+store tenant-isolated manifest metadata and the latest safe release status for
+each device. A manifest is immutable in the database and versions are unique
+per tenant/device; the application role cannot delete either manifest or status
+records.
 
 Neither verifier nor the controlled release boundary accepts frames, pixels,
 stream credentials, encoder handles, model weights, or mask output. A
 registered physical harness must still execute and sign the actual release test;
-this code does not manufacture hardware evidence. The next platform slice must
-provide a dedicated authenticated manifest transport and durable status store
-before a privacy-mask configuration can reach a camera.
+this code does not manufacture hardware evidence. The following repository and
+transport slice must authorize manifest creation against an approved request and
+verified HIL evidence, atomically append its audit event, authenticate the
+specified device, and persist only safe status reporting before a privacy-mask
+configuration can reach a camera.

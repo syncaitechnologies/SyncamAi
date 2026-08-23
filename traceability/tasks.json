@@ -412,8 +412,17 @@
       "phase": 3,
       "owner": "Security and Edge",
       "dependencies": ["T-0345"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A separate privacy-only edge controller accepts a strictly newer release manifest only when UUID-scoped device metadata, strict pre-encode verification, and signed allowlisted physical HIL evidence agree on the same candidate hash. It invokes a metadata-only atomic release-slot applier, preserves the prior accepted release after stale, verification, or apply failure, and reports only safe accepted/failed status. Generic zone delivery, frames, pixels, encoder execution, and a platform transport are excluded."
+    },
+    {
+      "id": "T-0347",
+      "title": "Add durable privacy-mask release delivery schema",
+      "phase": 3,
+      "owner": "Security and Platform",
+      "dependencies": ["T-0313", "T-0346"],
+      "status": "in_review",
+      "acceptance": "Postgres stores tenant-RLS privacy-only release manifests and the latest safe per-device release status. Release manifests are immutable and versioned per tenant/device; the application role cannot delete release or status records. Generic zone/configuration delivery continues to exclude masks. The following repository/transport must authorize releases against an approved request plus verified HIL evidence and append audit events atomically."
     }
   ]
 }
