@@ -430,8 +430,17 @@
       "phase": 3,
       "owner": "Security and Platform",
       "dependencies": ["T-0347"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A tenant-scoped Postgres repository recomputes strict pre-encode metadata, verifies signed physical-HIL evidence against an injected trusted-harness allowlist, and requires the approved request, its two recorded approvals, and an active mTLS-ready same-site device before atomically inserting a privacy-only manifest and hash-chained audit event. It fails closed and does not register keys, expose HTTP, deliver to a device, process media, or execute masking."
+    },
+    {
+      "id": "T-0349",
+      "title": "Add device-scoped privacy-mask transport procedures",
+      "phase": 3,
+      "owner": "Security and Platform",
+      "dependencies": ["T-0348"],
+      "status": "in_review",
+      "acceptance": "Dedicated Postgres procedures allow only an active certificate-authorized device to pull its own privacy-only manifest or report a fixed safe status for its exact release/version. Cross-device, unavailable, invalid, and stale outcomes fail closed. No HTTP route, key registration, generic configuration path, media, or masking execution is added."
     }
   ]
 }

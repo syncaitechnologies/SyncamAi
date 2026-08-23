@@ -43,4 +43,8 @@ recorded approvals, and an active mTLS-ready device at the same site before
 inserting the manifest and its audit-chain event. It is not an HTTP/device
 transport, does not register trust keys, and does not perform a physical test.
 The following transport slice must authenticate the specified device and expose
-only its approved manifest plus safe status reporting.
+only its approved manifest plus safe status reporting. Dedicated database
+procedures now restrict privacy-mask manifest pull and status reporting to an
+active, certificate-authorized device, reject cross-device or stale outcomes,
+and accept only the fixed `verification_failed`, `stale_release`, and
+`apply_failed` failure categories. HTTP route wiring remains separate.
