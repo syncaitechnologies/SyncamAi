@@ -439,8 +439,17 @@
       "phase": 3,
       "owner": "Security and Platform",
       "dependencies": ["T-0348"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Dedicated Postgres procedures allow only an active certificate-authorized device to pull its own privacy-only manifest or report a fixed safe status for its exact release/version. Cross-device, unavailable, invalid, and stale outcomes fail closed. No HTTP route, key registration, generic configuration path, media, or masking execution is added."
+    },
+    {
+      "id": "T-0350",
+      "title": "Synchronize controlled privacy releases at the edge",
+      "phase": 3,
+      "owner": "Security and Edge",
+      "dependencies": ["T-0349"],
+      "status": "in_review",
+      "acceptance": "The edge agent uses only its dedicated mTLS privacy-release client to pull one newer manifest and hand it to the controlled local verifier/applier. It reports only the gate's fixed safe state, preserves the prior accepted release on failure, and remains excluded from generic configuration synchronization, media processing, and masking execution."
     }
   ]
 }

@@ -47,4 +47,7 @@ only its approved manifest plus safe status reporting. Dedicated database
 procedures now restrict privacy-mask manifest pull and status reporting to an
 active, certificate-authorized device, reject cross-device or stale outcomes,
 and accept only the fixed `verification_failed`, `stale_release`, and
-`apply_failed` failure categories. HTTP route wiring remains separate.
+`apply_failed` failure categories. The edge agent now uses only this dedicated
+mTLS route: it pulls one newer manifest, invokes the controlled local gate, and
+reports the gate's safe status. It does not reuse generic configuration
+synchronization, create releases, process media, or execute masking.
