@@ -64,3 +64,13 @@ hardware result. Implementation requires selection of the physical
 camera/encoder profile and a registered hardware-in-loop harness. A simulated
 test may validate the adapter contract, but cannot satisfy the existing
 production evidence gate; a signed physical HIL result remains required.
+
+The T-0351 adapter boundary now binds a release to one configured profile, its
+device UUID, and its HIL harness ID before it can call a hardware-specific
+executor. It passes only release metadata, the opaque candidate hash, and the
+strict pipeline declaration. It refuses a mismatched device or harness,
+simulated evidence, raw-frame retention, encoder bypass, invalid pipeline, or
+failed executor call, preserving the previously active metadata release.
+This is a fail-closed integration contract, not a claim that any physical
+camera or encoder is now controlled; the configured profile and signed physical
+HIL result remain mandatory production gates.
