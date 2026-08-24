@@ -450,6 +450,15 @@
       "dependencies": ["T-0349"],
       "status": "in_review",
       "acceptance": "The edge agent uses only its dedicated mTLS privacy-release client to pull one newer manifest and hand it to the controlled local verifier/applier. It reports only the gate's fixed safe state, preserves the prior accepted release on failure, and remains excluded from generic configuration synchronization, media processing, and masking execution."
+    },
+    {
+      "id": "T-0351",
+      "title": "Implement a hardware-bound pre-encode privacy-mask enforcement adapter",
+      "phase": 3,
+      "owner": "Security, Edge, and Hardware",
+      "dependencies": ["T-0350"],
+      "status": "planned",
+      "acceptance": "For one owner-approved, allowlisted physical camera/encoder profile, a dedicated edge adapter accepts only an already-gated privacy release and enforces the documented decode-to-mask-to-encode order with no encoder-bypass path. It preserves the prior safe release on any activation failure, emits only bounded safe status categories, never persists raw frames or stream credentials, and requires a signed physical hardware-in-loop result before a release is treated as production-valid. Simulation may exercise the adapter contract but cannot satisfy the production hardware evidence gate."
     }
   ]
 }
