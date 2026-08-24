@@ -36,20 +36,21 @@ type principalContextKey struct{}
 
 // Server owns the first tenant-safe control-plane routes.
 type Server struct {
-	verifier       identity.Verifier
-	tenants        tenant.Repository
-	events         eventing.Repository
-	alerts         alerting.Repository
-	realtime       realtime.Repository
-	tickets        realtime.TicketStore
-	cameras        device.Repository
-	enrollment     device.EnrollmentRepository
-	deviceStatus   device.StatusRepository
-	deviceVerifier device.DeviceIdentityVerifier
-	zones          zones.Repository
-	configuration  configdelivery.Repository
-	privacyMasks   privacymasks.Repository
-	mux            *http.ServeMux
+	verifier                identity.Verifier
+	tenants                 tenant.Repository
+	events                  eventing.Repository
+	alerts                  alerting.Repository
+	realtime                realtime.Repository
+	tickets                 realtime.TicketStore
+	cameras                 device.Repository
+	enrollment              device.EnrollmentRepository
+	deviceStatus            device.StatusRepository
+	deviceVerifier          device.DeviceIdentityVerifier
+	zones                   zones.Repository
+	configuration           configdelivery.Repository
+	privacyMasks            privacymasks.Repository
+	privacyReleaseTransport privacymasks.ReleaseTransportRepository
+	mux                     *http.ServeMux
 }
 
 // New builds a fail-closed HTTP handler around explicit dependencies.
@@ -101,7 +102,11 @@ func NewWithConfiguration(verifier identity.Verifier, tenants tenant.Repository,
 // NewWithPrivacyMaskApprovals wires the security-governance workflow. The
 // workflow is metadata-only and remains independent from edge delivery.
 func NewWithPrivacyMaskApprovals(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository, realtimeRepository realtime.Repository, tickets realtime.TicketStore, cameras device.Repository, enrollment device.EnrollmentRepository, deviceStatus device.StatusRepository, deviceVerifier device.DeviceIdentityVerifier, zoneRepository zones.Repository, configuration configdelivery.Repository, privacyMasks privacymasks.Repository) http.Handler {
-	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, realtime: realtimeRepository, tickets: tickets, cameras: cameras, enrollment: enrollment, deviceStatus: deviceStatus, deviceVerifier: deviceVerifier, zones: zoneRepository, configuration: configuration, privacyMasks: privacyMasks, mux: http.NewServeMux()}
+	return NewWithPrivacyMaskReleaseTransport(verifier, tenants, events, alerts, realtimeRepository, tickets, cameras, enrollment, deviceStatus, deviceVerifier, zoneRepository, configuration, privacyMasks, nil)
+}
+
+func NewWithPrivacyMaskReleaseTransport(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository, realtimeRepository realtime.Repository, tickets realtime.TicketStore, cameras device.Repository, enrollment device.EnrollmentRepository, deviceStatus device.StatusRepository, deviceVerifier device.DeviceIdentityVerifier, zoneRepository zones.Repository, configuration configdelivery.Repository, privacyMasks privacymasks.Repository, privacyReleaseTransport privacymasks.ReleaseTransportRepository) http.Handler {
+	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, realtime: realtimeRepository, tickets: tickets, cameras: cameras, enrollment: enrollment, deviceStatus: deviceStatus, deviceVerifier: deviceVerifier, zones: zoneRepository, configuration: configuration, privacyMasks: privacyMasks, privacyReleaseTransport: privacyReleaseTransport, mux: http.NewServeMux()}
 	server.mux.HandleFunc("GET /healthz", server.health)
 	server.mux.Handle("GET /v1/auth/me", server.authenticate(http.HandlerFunc(server.me)))
 	server.mux.Handle("POST /v1/auth/ws-ticket", server.authenticate(http.HandlerFunc(server.issueRealtimeTicket)))
@@ -128,6 +133,8 @@ func NewWithPrivacyMaskApprovals(verifier identity.Verifier, tenants tenant.Repo
 	server.mux.HandleFunc("POST /v1/edge/devices/{id}/heartbeat", server.recordDeviceHeartbeat)
 	server.mux.HandleFunc("GET /v1/edge/devices/{id}/config", server.pullDeviceConfiguration)
 	server.mux.HandleFunc("POST /v1/edge/devices/{id}/config/status", server.reportDeviceConfiguration)
+	server.mux.HandleFunc("GET /v1/edge/devices/{id}/privacy-mask-release", server.pullPrivacyMaskRelease)
+	server.mux.HandleFunc("POST /v1/edge/devices/{id}/privacy-mask-release/status", server.reportPrivacyMaskRelease)
 	server.mux.Handle("POST /v1/events", server.authenticate(http.HandlerFunc(server.ingestEvent)))
 	server.mux.Handle("GET /v1/alerts", server.authenticate(http.HandlerFunc(server.listAlerts)))
 	server.mux.Handle("POST /v1/alerts/{id}/acknowledge", server.authenticate(http.HandlerFunc(server.acknowledgeAlert)))
