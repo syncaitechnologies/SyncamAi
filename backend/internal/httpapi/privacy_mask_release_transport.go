@@ -69,7 +69,12 @@ func (s *Server) reportPrivacyMaskRelease(w http.ResponseWriter, r *http.Request
 		return
 	}
 	input.ReleaseID, input.State, input.ErrorCode = strings.TrimSpace(input.ReleaseID), strings.TrimSpace(input.State), strings.TrimSpace(input.ErrorCode)
-	status, err := s.privacyReleaseTransport.Report(r.Context(), privacymasks.ReportReleaseCommand{DeviceID: deviceID, ReleaseID: input.ReleaseID, Version: input.Version, State: input.State, ErrorCode: input.ErrorCode})
+	command := privacymasks.ReportReleaseCommand{DeviceID: deviceID, ReleaseID: input.ReleaseID, Version: input.Version, State: input.State, ErrorCode: input.ErrorCode}
+	if err := privacymasks.ValidateReleaseReport(command); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Privacy release status fields are invalid.")
+		return
+	}
+	status, err := s.privacyReleaseTransport.Report(r.Context(), command)
 	if errors.Is(err, privacymasks.ErrReleaseDeviceNotFound) {
 		writeError(w, http.StatusUnauthorized, "DEVICE_AUTH_REQUIRED", "Verified device authentication required.")
 		return

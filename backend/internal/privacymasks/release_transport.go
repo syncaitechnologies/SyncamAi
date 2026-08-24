@@ -2,6 +2,7 @@ package privacymasks
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -15,18 +16,30 @@ var (
 )
 
 type DeviceReleaseManifest struct {
-	ReleaseID, TenantID, SiteID, CameraID, RequestID, DeviceID string
-	Version                                                    int64
-	Candidate, Pipeline, HILEvidence                           []byte
-	CandidateHash, EvidenceHash                                string
-	CreatedAt                                                  time.Time
+	ReleaseID     string          `json:"release_id"`
+	TenantID      string          `json:"tenant_id"`
+	SiteID        string          `json:"site_id"`
+	CameraID      string          `json:"camera_id"`
+	RequestID     string          `json:"request_id"`
+	DeviceID      string          `json:"device_id"`
+	Version       int64           `json:"version"`
+	Candidate     json.RawMessage `json:"candidate"`
+	Pipeline      json.RawMessage `json:"pipeline"`
+	HILEvidence   json.RawMessage `json:"hil_evidence"`
+	CandidateHash string          `json:"candidate_hash"`
+	EvidenceHash  string          `json:"evidence_hash"`
+	CreatedAt     time.Time       `json:"created_at"`
 }
 
 type DeviceReleaseStatus struct {
-	TenantID, DeviceID, ReleaseID, State, ErrorCode string
-	Version                                         int64
-	ReportedAt                                      time.Time
-	AcceptedAt                                      *time.Time
+	TenantID   string     `json:"tenant_id"`
+	DeviceID   string     `json:"device_id"`
+	ReleaseID  string     `json:"release_id"`
+	Version    int64      `json:"version"`
+	State      string     `json:"state"`
+	ErrorCode  string     `json:"error_code,omitempty"`
+	ReportedAt time.Time  `json:"reported_at"`
+	AcceptedAt *time.Time `json:"accepted_at,omitempty"`
 }
 
 type PullReleaseResult struct{ Manifest *DeviceReleaseManifest }
@@ -53,3 +66,7 @@ func validateReleaseReport(command ReportReleaseCommand) error {
 	}
 	return ErrInvalidReleaseStatus
 }
+
+// ValidateReleaseReport exposes the fixed, metadata-only status contract to
+// the dedicated mTLS HTTP boundary before it invokes storage.
+func ValidateReleaseReport(command ReportReleaseCommand) error { return validateReleaseReport(command) }
