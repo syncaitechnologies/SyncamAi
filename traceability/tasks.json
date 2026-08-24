@@ -457,7 +457,7 @@
       "phase": 3,
       "owner": "Security, Edge, and Hardware",
       "dependencies": ["T-0350"],
-      "status": "planned",
+      "status": "in_review",
       "acceptance": "For one owner-approved, allowlisted physical camera/encoder profile, a dedicated edge adapter accepts only an already-gated privacy release and enforces the documented decode-to-mask-to-encode order with no encoder-bypass path. It preserves the prior safe release on any activation failure, emits only bounded safe status categories, never persists raw frames or stream credentials, and requires a signed physical hardware-in-loop result before a release is treated as production-valid. Simulation may exercise the adapter contract but cannot satisfy the production hardware evidence gate."
     }
   ]
