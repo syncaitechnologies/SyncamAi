@@ -51,3 +51,16 @@ and accept only the fixed `verification_failed`, `stale_release`, and
 mTLS route: it pulls one newer manifest, invokes the controlled local gate, and
 reports the gate's safe status. It does not reuse generic configuration
 synchronization, create releases, process media, or execute masking.
+
+## Proposed next slice: T-0351
+
+T-0351 is planned to add a hardware-bound adapter that can enforce a release
+only for an owner-approved, allowlisted physical camera/encoder profile. It is
+intentionally separate from generic configuration delivery and will preserve
+the required `decode -> mask -> encode` order without an encoder-bypass path.
+
+This planning entry is not authorization to activate a mask or to claim a
+hardware result. Implementation requires selection of the physical
+camera/encoder profile and a registered hardware-in-loop harness. A simulated
+test may validate the adapter contract, but cannot satisfy the existing
+production evidence gate; a signed physical HIL result remains required.
