@@ -83,7 +83,7 @@ func main() {
 	tickets := realtime.NewMemoryTicketStore()
 	server := &http.Server{
 		Addr:              envOrDefault("SYNCAM_HTTP_ADDR", ":8080"),
-		Handler:           httpapi.NewWithPrivacyMaskApprovals(verifier, repository, eventRepository, alertRepository, realtimeRepository, tickets, cameraRepository, enrollmentRepository, deviceStatusRepository, device.MTLSDeviceVerifier{}, zoneRepository, configurationRepository, privacyMaskRepository),
+		Handler:           httpapi.NewWithPrivacyMaskReleaseTransport(verifier, repository, eventRepository, alertRepository, realtimeRepository, tickets, cameraRepository, enrollmentRepository, deviceStatusRepository, device.MTLSDeviceVerifier{}, zoneRepository, configurationRepository, privacyMaskRepository, privacymasks.NewPostgresReleaseTransportRepository(pool)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,
