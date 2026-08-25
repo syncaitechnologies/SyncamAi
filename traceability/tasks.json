@@ -448,7 +448,7 @@
       "phase": 3,
       "owner": "Security and Edge",
       "dependencies": ["T-0349"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "The edge agent uses only its dedicated mTLS privacy-release client to pull one newer manifest and hand it to the controlled local verifier/applier. It reports only the gate's fixed safe state, preserves the prior accepted release on failure, and remains excluded from generic configuration synchronization, media processing, and masking execution."
     },
     {
@@ -457,8 +457,17 @@
       "phase": 3,
       "owner": "Security, Edge, and Hardware",
       "dependencies": ["T-0350"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "For one owner-approved, allowlisted physical camera/encoder profile, a dedicated edge adapter accepts only an already-gated privacy release and enforces the documented decode-to-mask-to-encode order with no encoder-bypass path. It preserves the prior safe release on any activation failure, emits only bounded safe status categories, never persists raw frames or stream credentials, and requires a signed physical hardware-in-loop result before a release is treated as production-valid. Simulation may exercise the adapter contract but cannot satisfy the production hardware evidence gate."
+    },
+    {
+      "id": "T-0352",
+      "title": "Reconcile exact hardware-bound privacy releases after edge reconnect",
+      "phase": 3,
+      "owner": "Security and Edge",
+      "dependencies": ["T-0351"],
+      "status": "in_review",
+      "acceptance": "The hardware-bound adapter treats only an exact replay of its already-active independently verified release as a no-op, preventing duplicate hardware activation during reconnect reconciliation. Older releases and same-version releases that differ in release, profile, device, candidate hash, or pipeline fail closed and preserve the active release. This slice neither persists nor claims recovery of physical hardware state, stores no frames or credentials, and still requires signed physical HIL evidence for production validity."
     }
   ]
 }
