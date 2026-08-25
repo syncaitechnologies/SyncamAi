@@ -484,11 +484,21 @@
       "phase": 3,
       "owner": "Security and Edge",
       "dependencies": ["T-0353"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A cancellable supervisor restarts only the dedicated privacy-release worker after failure using an explicit positive exponential retry policy bounded by a configured maximum delay. Cancellation terminates promptly, and successful worker completion ends supervision. No generic configuration fallback, release interpretation, frames, pixels, stream credentials, encoder handles, privacy-mask geometry, physical-hardware recovery, or production-validity claim is added."
+    },
+    {
+      "id": "T-0355",
+      "title": "Establish the Phase 4 AI module registry foundation",
+      "phase": 4,
+      "owner": "AI and Platform",
+      "dependencies": [],
+      "status": "in_review",
+      "acceptance": "Immutable metadata records the resolved 23 AI modules plus the Camera Health bonus, with stable identifier, functional owner, recommended model or logic family, hardware tier, and canonical evaluation reference for every capability. All evaluations remain explicitly planned; no model artifact, inference, benchmark, evaluation-card publication, promotion, or production enablement is claimed."
     }
   ]
 }
+
 
 
 
