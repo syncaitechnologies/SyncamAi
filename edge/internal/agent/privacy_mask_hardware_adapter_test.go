@@ -128,6 +128,7 @@ func TestHardwareBoundPrivacyMaskAdapterReconcilesOnlyExactReleaseReplay(t *test
 	}
 
 	conflicting := signedReleaseManifest(t, privateKey)
+	conflicting.ReleaseID = "44444444-4444-4444-8444-444444444444"
 	conflicting.Version = manifest.Version
 	if err := adapter.ApplyVerifiedRelease(context.Background(), conflicting); !errors.Is(err, ErrInvalidPrivacyMaskHardwareAdapter) {
 		t.Fatalf("different release at active version must fail closed: %v", err)
