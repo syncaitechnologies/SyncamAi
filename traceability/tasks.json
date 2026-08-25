@@ -466,9 +466,19 @@
       "phase": 3,
       "owner": "Security and Edge",
       "dependencies": ["T-0351"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "The hardware-bound adapter treats only an exact replay of its already-active independently verified release as a no-op, preventing duplicate hardware activation during reconnect reconciliation. Older releases and same-version releases that differ in release, profile, device, candidate hash, or pipeline fail closed and preserve the active release. This slice neither persists nor claims recovery of physical hardware state, stores no frames or credentials, and still requires signed physical HIL evidence for production validity."
+    },
+    {
+      "id": "T-0353",
+      "title": "Run dedicated privacy-release synchronization under supervision",
+      "phase": 3,
+      "owner": "Security and Edge",
+      "dependencies": ["T-0352"],
+      "status": "in_review",
+      "acceptance": "A cancellable edge worker invokes only the dedicated privacy-release synchronizer once immediately and then serially at a caller-configured positive interval. It returns any synchronization failure to its supervisor and never falls back to generic configuration delivery. The worker carries no frames, pixels, stream credentials, encoder handles, or privacy-mask geometry, and does not claim physical-hardware recovery or production validity without the existing signed HIL evidence gate."
     }
   ]
 }
+
 
