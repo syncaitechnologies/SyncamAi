@@ -76,3 +76,13 @@ across a power loss. Any durable hardware recovery design needs a vendor-backed
 atomic activation and rollback contract, plus a newly signed physical HIL test;
 neither raw frames nor credentials are stored by this reconciliation boundary.
 
+## Next slice: T-0353
+
+T-0353 adds a supervised, cancellable worker for the dedicated privacy-release
+synchronizer. It performs one initial reconciliation and then serializes later
+cycles at a caller-configured positive interval. A transport or gate failure is
+returned to its supervisor rather than being redirected to generic
+configuration delivery. The worker accepts no media, frames, stream
+credentials, encoder handles, or privacy-mask geometry.
+
+
