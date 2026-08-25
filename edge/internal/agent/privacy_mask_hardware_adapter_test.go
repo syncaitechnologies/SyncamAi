@@ -106,6 +106,38 @@ func TestHardwareBoundPrivacyMaskAdapterFailsClosedAndPreservesPriorRelease(t *t
 	}
 }
 
+func TestHardwareBoundPrivacyMaskAdapterReconcilesOnlyExactReleaseReplay(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	executor := &recordingPrivacyMaskHardwareExecutor{}
+	adapter, err := NewHardwareBoundPrivacyMaskAdapter(hardwarePrivacyMaskProfile(), publicKey, executor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := signedReleaseManifest(t, privateKey)
+	if err := adapter.ApplyVerifiedRelease(context.Background(), manifest); err != nil {
+		t.Fatal(err)
+	}
+	if err := adapter.ApplyVerifiedRelease(context.Background(), manifest); err != nil {
+		t.Fatalf("exact verified replay must be a safe no-op: %v", err)
+	}
+	if len(executor.activations) != 1 {
+		t.Fatalf("exact replay must not activate hardware again, got %d calls", len(executor.activations))
+	}
+
+	conflicting := signedReleaseManifest(t, privateKey)
+	conflicting.ReleaseID = "44444444-4444-4444-8444-444444444444"
+	conflicting.Version = manifest.Version
+	if err := adapter.ApplyVerifiedRelease(context.Background(), conflicting); !errors.Is(err, ErrInvalidPrivacyMaskHardwareAdapter) {
+		t.Fatalf("different release at active version must fail closed: %v", err)
+	}
+	if len(executor.activations) != 1 || adapter.ActiveRelease().ReleaseID != manifest.ReleaseID {
+		t.Fatal("conflicting replay changed the active hardware release")
+	}
+}
+
 func TestHardwareBoundPrivacyMaskAdapterRejectsInvalidProfiles(t *testing.T) {
 	executor := &recordingPrivacyMaskHardwareExecutor{}
 	trustedKey := make(ed25519.PublicKey, ed25519.PublicKeySize)
@@ -126,3 +158,4 @@ func TestHardwareBoundPrivacyMaskAdapterRejectsInvalidProfiles(t *testing.T) {
 		t.Fatalf("missing executor must fail closed: %v", err)
 	}
 }
+

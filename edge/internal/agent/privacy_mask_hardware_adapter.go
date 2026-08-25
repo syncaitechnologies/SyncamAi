@@ -69,6 +69,11 @@ func NewHardwareBoundPrivacyMaskAdapter(profile PrivacyMaskHardwareProfile, trus
 // preserves the strict decode -> mask -> encode ordering. The controlled
 // release gate verifies the attestation signature before it invokes this
 // method. The adapter repeats that verification so direct callers fail closed.
+//
+// An exact replay of the active verified release is a no-op. This supports a
+// safe reconnect reconciliation without invoking the hardware executor a
+// second time. A different release at the same version, or any older version,
+// is rejected.
 func (a *HardwareBoundPrivacyMaskAdapter) ApplyVerifiedRelease(ctx context.Context, manifest PrivacyMaskReleaseManifest) error {
 	if a == nil || a.executor == nil {
 		return ErrInvalidPrivacyMaskHardwareAdapter
@@ -79,8 +84,16 @@ func (a *HardwareBoundPrivacyMaskAdapter) ApplyVerifiedRelease(ctx context.Conte
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.active != nil && activation.Version <= a.active.Version {
-		return ErrInvalidPrivacyMaskHardwareAdapter
+	if a.active != nil {
+		if activation.Version < a.active.Version {
+			return ErrInvalidPrivacyMaskHardwareAdapter
+		}
+		if activation.Version == a.active.Version {
+			if equalHardwarePrivacyMaskActivation(activation, *a.active) {
+				return nil
+			}
+			return ErrInvalidPrivacyMaskHardwareAdapter
+		}
 	}
 	if err := a.executor.ActivatePreEncodePrivacyMask(ctx, activation); err != nil {
 		return err
@@ -154,3 +167,16 @@ func cloneHardwarePrivacyMaskActivationPointer(value *HardwarePrivacyMaskActivat
 	}
 	return cloneHardwarePrivacyMaskActivation(*value)
 }
+
+func equalHardwarePrivacyMaskActivation(left, right HardwarePrivacyMaskActivation) bool {
+	if left.ProfileID != right.ProfileID || left.ReleaseID != right.ReleaseID || left.DeviceID != right.DeviceID || left.Version != right.Version || left.CandidateHash != right.CandidateHash || len(left.Pipeline) != len(right.Pipeline) {
+		return false
+	}
+	for index := range left.Pipeline {
+		if left.Pipeline[index] != right.Pipeline[index] {
+			return false
+		}
+	}
+	return true
+}
+
