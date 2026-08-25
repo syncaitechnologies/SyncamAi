@@ -85,4 +85,13 @@ returned to its supervisor rather than being redirected to generic
 configuration delivery. The worker accepts no media, frames, stream
 credentials, encoder handles, or privacy-mask geometry.
 
+## Next slice: T-0354
+
+T-0354 adds a cancellable supervisor around the dedicated privacy-release
+worker. After a worker failure it retries only that worker with an explicit
+exponential delay bounded by a configured maximum. The worker's supervisor
+never interprets or stores releases and does not fall back to generic
+configuration delivery. Cancellation always terminates the loop.
+
+
 

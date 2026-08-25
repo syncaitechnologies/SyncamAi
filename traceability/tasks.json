@@ -475,10 +475,20 @@
       "phase": 3,
       "owner": "Security and Edge",
       "dependencies": ["T-0352"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A cancellable edge worker invokes only the dedicated privacy-release synchronizer once immediately and then serially at a caller-configured positive interval. It returns any synchronization failure to its supervisor and never falls back to generic configuration delivery. The worker carries no frames, pixels, stream credentials, encoder handles, or privacy-mask geometry, and does not claim physical-hardware recovery or production validity without the existing signed HIL evidence gate."
+    },
+    {
+      "id": "T-0354",
+      "title": "Supervise dedicated privacy-release synchronization retries",
+      "phase": 3,
+      "owner": "Security and Edge",
+      "dependencies": ["T-0353"],
+      "status": "in_review",
+      "acceptance": "A cancellable supervisor restarts only the dedicated privacy-release worker after failure using an explicit positive exponential retry policy bounded by a configured maximum delay. Cancellation terminates promptly, and successful worker completion ends supervision. No generic configuration fallback, release interpretation, frames, pixels, stream credentials, encoder handles, privacy-mask geometry, physical-hardware recovery, or production-validity claim is added."
     }
   ]
 }
+
 
 
