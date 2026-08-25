@@ -75,3 +75,4 @@ This does not persist, restore, or claim control of physical hardware state
 across a power loss. Any durable hardware recovery design needs a vendor-backed
 atomic activation and rollback contract, plus a newly signed physical HIL test;
 neither raw frames nor credentials are stored by this reconciliation boundary.
+
