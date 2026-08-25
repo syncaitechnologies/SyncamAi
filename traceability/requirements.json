@@ -24,3 +24,4 @@
     {"id":"MVP-ABANDONED-OBJECT","title":"Abandoned-object logic engine","owner":"AI","phase":8,"tasks":["T-0308"],"contracts":["shared/contracts/avro/detection-event-v1.avsc"],"tests":["ai-services/tests/test_abandoned_object.py","docs/development/phase-8-abandoned-object.md"],"release_gate":"AI promotion, per-zone held-out evaluation, and human-oversight gates"}
   ]
 }
+
