@@ -545,8 +545,19 @@
         "T-0358",
         "T-0359"
       ],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A versioned immutable in-memory catalog projects every canonical Phase 4 capability into an explicitly synthetic read-only schema, preserving complete planning metadata, planned evaluation status, and the blocked external-model-promotion boundary. It fails closed on live-mode, incomplete, duplicate, evaluated, or releasable data and adds no API, model artifact, dataset, evidence, inference, evaluation result, activation, release, promotion, or production-enablement control."
+    },
+    {
+      "id": "T-0361",
+      "title": "Harden the frontend Phase 4 synthetic catalog boundary",
+      "phase": 4,
+      "owner": "Web, AI, and Platform",
+      "dependencies": [
+        "T-0360"
+      ],
+      "status": "in_review",
+      "acceptance": "The Model Registry workspace consumes a validated versioned local catalog whose only permitted mode is synthetic_read_only. It displays the catalog version, preserves all 24 blocked planned capabilities, and fails closed on live mode, unsupported schema, incomplete or duplicate entries, or any non-blocked capability. It makes no live API request and adds no model artifact, dataset, evidence, evaluation result, inference, activation, release, promotion, or production-enablement control."
     }
   ]
 }
