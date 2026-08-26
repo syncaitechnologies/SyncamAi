@@ -80,7 +80,7 @@ def build_model_registry_catalog(
 
 
 def validate_model_registry_catalog(
-    catalog: ModelRegistryCatalog = None,
+    catalog: ModelRegistryCatalog | None = None,
 ) -> None:
     """Reject catalog data that could be represented as live or releasable."""
 
@@ -97,7 +97,9 @@ def validate_model_registry_catalog(
     if len(set(identifiers)) != len(identifiers):
         raise ValueError("catalog capability identifiers must be unique")
     for entry in catalog.capabilities:
-        if not all((entry.identifier, entry.name, entry.family, entry.owner, entry.hardware_tier)):
+        if not all(
+            (entry.identifier, entry.name, entry.family, entry.owner, entry.hardware_tier)
+        ):
             raise ValueError("catalog entries require complete planning metadata")
         if entry.evaluation_status != PLANNED_EVALUATION_STATUS:
             raise ValueError("catalog cannot claim an evaluation result")
