@@ -558,6 +558,18 @@
       ],
       "status": "complete",
       "acceptance": "The Model Registry workspace consumes a validated versioned local catalog whose only permitted mode is synthetic_read_only. It displays the catalog version, preserves all 24 blocked planned capabilities, and fails closed on live mode, unsupported schema, incomplete or duplicate entries, or any non-blocked capability. It makes no live API request and adds no model artifact, dataset, evidence, evaluation result, inference, activation, release, promotion, or production-enablement control."
+    },
+    {
+      "id": "T-0362",
+      "title": "Define planned Phase 4 evaluation-dataset provenance boundaries",
+      "phase": 4,
+      "owner": "AI, Platform, Security, and Legal",
+      "dependencies": [
+        "T-0356",
+        "T-0357"
+      ],
+      "status": "in_review",
+      "acceptance": "Immutable planned-only metadata maps one-to-one to all 23 canonical AI modules plus Camera Health and requires future held-out evaluation datasets to record source, license, capture-date range, tenant-consent class, DVC commit, checksum manifest, and sampled labeling QA of at least 5%. It preserves documented opt-in for customer footage and prohibits production customer data in dev/test. It contains no dataset, DVC pointer or remote, checksum, footage, labels, consent record, evaluation result, model artifact, promotion, or production-enablement claim."
     }
   ]
 }
