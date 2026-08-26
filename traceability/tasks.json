@@ -522,7 +522,20 @@
       "dependencies": ["T-0357"],
       "status": "complete",
       "acceptance": "A read-only synthetic frontend workspace shows the resolved 23 AI modules plus Camera Health, permits local metadata search, and visibly states that external-model promotion is blocked pending ADR-001 Legal approval. It exposes no model artifacts, evidence, evaluation result, activation, release, promotion, or production-enablement control and invents no live API response."
-    }
+    },
+    {
+      "id": "T-0359",
+      "title": "Compose a fail-closed planned-only Phase 4 registry projection",
+      "phase": 4,
+      "owner": "AI and Platform",
+      "dependencies": [
+            "T-0355",
+            "T-0356",
+            "T-0357"
+      ],
+      "status": "in_review",
+      "acceptance": "A pure in-memory immutable projection maps the canonical 23 AI modules plus Camera Health one-to-one to their planned evaluation and ADR-001 release-boundary metadata. It fails closed unless every entry remains planned, preserves the licensed held-out evaluation, safety-review, human-oversight, Apache-2.0, provenance, and Legal gates, and keeps external-model promotion blocked. It adds no API, model artifact, dataset, evidence, inference, evaluation result, activation, release, promotion, or production-enablement control."
+}
   ]
 }
 
