@@ -7,7 +7,7 @@
     "build": "tsc -b && vite build",
     "check": "tsc -b --pretty false && pnpm test",
     "dev": "vite",
-    "test": "node --experimental-strip-types --test src/alert-contracts.test.ts src/camera-contracts.test.ts src/dashboard-model.test.ts src/camera-wall-model.test.ts"
+    "test": "node --experimental-strip-types --test src/alert-contracts.test.ts src/camera-contracts.test.ts src/dashboard-model.test.ts src/camera-wall-model.test.ts src/model-registry-model.test.ts"
   },
   "dependencies": {
     "react": "18.3.1",

@@ -3,12 +3,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { AlertItem, AlertStatus, Severity } from "./alert-contracts";
 import { CameraWall } from "./CameraWall";
 import { Icon } from "./icon";
+import { ModelRegistryWorkspace } from "./ModelRegistryWorkspace";
 import { OperationsDashboard } from "./OperationsDashboard";
 import { useAlertFeed } from "./use-alert-feed";
 import { ZoneBuilder } from "./ZoneBuilder";
 
 type Filter = "all" | "critical" | "unacknowledged" | "acknowledged";
-type View = "dashboard" | "alerts" | "cameras" | "zones";
+type View = "dashboard" | "alerts" | "cameras" | "zones" | "models";
 
 const seedAlerts: AlertItem[] = [
   {
@@ -450,6 +451,15 @@ export function App() {
             <Icon name="settings" />
             Configuration
           </button>
+          <button
+            className={activeView === "models" ? "nav-item active" : "nav-item"}
+            type="button"
+            onClick={() => setActiveView("models")}
+            aria-current={activeView === "models" ? "page" : undefined}
+          >
+            <Icon name="chart" />
+            <span>Model registry</span>
+          </button>
         </nav>
         <div className="sidebar-bottom">
           <div className="security-card">
@@ -481,6 +491,8 @@ export function App() {
                   ? "Camera Wall"
                   : activeView === "zones"
                     ? "Zones & rules"
+                    : activeView === "models"
+                      ? "Model registry"
                   : "Alert Center"}
             </strong>
           </div>
@@ -536,6 +548,8 @@ export function App() {
           />
         ) : activeView === "zones" ? (
           <ZoneBuilder dataMode={dataMode} onNotify={setToast} />
+        ) : activeView === "models" ? (
+          <ModelRegistryWorkspace dataMode={dataMode} />
         ) : (
           <>
         <section className="page-heading">
