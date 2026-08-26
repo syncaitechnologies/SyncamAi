@@ -511,8 +511,17 @@
       "phase": 4,
       "owner": "AI, Platform, and Legal",
       "dependencies": ["T-0356"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Immutable metadata maps one-to-one to every Phase 4 registry capability, references ADR-001, requires only the Apache-2.0 allowlist plus license, weight provenance, model card, signature, rollback metadata, and Legal approval, and blocks external-model promotion pending that approval. It accepts no evidence and adds no model artifact, dataset, signing, distribution, inference, evaluation, staging, promotion, or production-enablement claim."
+    },
+    {
+      "id": "T-0358",
+      "title": "Add a read-only Phase 4 model-registry workspace",
+      "phase": 4,
+      "owner": "Web, AI, and Platform",
+      "dependencies": ["T-0357"],
+      "status": "in_review",
+      "acceptance": "A read-only synthetic frontend workspace shows the resolved 23 AI modules plus Camera Health, permits local metadata search, and visibly states that external-model promotion is blocked pending ADR-001 Legal approval. It exposes no model artifacts, evidence, evaluation result, activation, release, promotion, or production-enablement control and invents no live API response."
     }
   ]
 }
