@@ -502,8 +502,17 @@
       "phase": 4,
       "owner": "AI and Platform",
       "dependencies": ["T-0355"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Immutable planned-only evaluation metadata maps one-to-one to all 23 canonical AI modules plus Camera Health, records evaluation categories and the canonical architecture reference, and preserves the licensed held-out evaluation, safety-review, and human-oversight release gates. It contains no dataset, metric, benchmark result, evaluation-card publication, model artifact, inference, promotion decision, or production-enablement claim."
+    },
+    {
+      "id": "T-0357",
+      "title": "Define planned-only model release provenance boundaries",
+      "phase": 4,
+      "owner": "AI, Platform, and Legal",
+      "dependencies": ["T-0356"],
+      "status": "in_review",
+      "acceptance": "Immutable metadata maps one-to-one to every Phase 4 registry capability, references ADR-001, requires only the Apache-2.0 allowlist plus license, weight provenance, model card, signature, rollback metadata, and Legal approval, and blocks external-model promotion pending that approval. It accepts no evidence and adds no model artifact, dataset, signing, distribution, inference, evaluation, staging, promotion, or production-enablement claim."
     }
   ]
 }
