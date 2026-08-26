@@ -579,7 +579,7 @@
       "dependencies": [
         "T-0362"
       ],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A pure in-memory validator accepts only a caller-supplied manifest record for one canonical Phase 4 capability with all planned T-0362 provenance metadata, labeling QA sampled at least 5%, documented opt-in for declared customer footage, and no declared production customer data in development/test. It fails closed on unknown capabilities, blank required metadata, invalid QA rates, missing or blank customer-footage opt-in references, or prohibited development/test data. It does not load a manifest or DVC remote, resolve or verify sources, licenses, checksums, consent, or approval, or create or claim any dataset, footage, label, model artifact, evaluation result, promotion, or production-enablement control."
     }
   ]
