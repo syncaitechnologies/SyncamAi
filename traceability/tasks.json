@@ -556,7 +556,7 @@
       "dependencies": [
         "T-0360"
       ],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "The Model Registry workspace consumes a validated versioned local catalog whose only permitted mode is synthetic_read_only. It displays the catalog version, preserves all 24 blocked planned capabilities, and fails closed on live mode, unsupported schema, incomplete or duplicate entries, or any non-blocked capability. It makes no live API request and adds no model artifact, dataset, evidence, evaluation result, inference, activation, release, promotion, or production-enablement control."
     }
   ]
