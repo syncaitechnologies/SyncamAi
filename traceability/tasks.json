@@ -529,13 +529,25 @@
       "phase": 4,
       "owner": "AI and Platform",
       "dependencies": [
-            "T-0355",
-            "T-0356",
-            "T-0357"
+        "T-0355",
+        "T-0356",
+        "T-0357"
+      ],
+      "status": "complete",
+      "acceptance": "A pure in-memory immutable projection maps the canonical 23 AI modules plus Camera Health one-to-one to their planned evaluation and ADR-001 release-boundary metadata. It fails closed unless every entry remains planned, preserves the licensed held-out evaluation, safety-review, human-oversight, Apache-2.0, provenance, and Legal gates, and keeps external-model promotion blocked. It adds no API, model artifact, dataset, evidence, inference, evaluation result, activation, release, promotion, or production-enablement control."
+    },
+    {
+      "id": "T-0360",
+      "title": "Publish a versioned synthetic Phase 4 registry catalog",
+      "phase": 4,
+      "owner": "AI, Platform, and Web",
+      "dependencies": [
+        "T-0358",
+        "T-0359"
       ],
       "status": "in_review",
-      "acceptance": "A pure in-memory immutable projection maps the canonical 23 AI modules plus Camera Health one-to-one to their planned evaluation and ADR-001 release-boundary metadata. It fails closed unless every entry remains planned, preserves the licensed held-out evaluation, safety-review, human-oversight, Apache-2.0, provenance, and Legal gates, and keeps external-model promotion blocked. It adds no API, model artifact, dataset, evidence, inference, evaluation result, activation, release, promotion, or production-enablement control."
-}
+      "acceptance": "A versioned immutable in-memory catalog projects every canonical Phase 4 capability into an explicitly synthetic read-only schema, preserving complete planning metadata, planned evaluation status, and the blocked external-model-promotion boundary. It fails closed on live-mode, incomplete, duplicate, evaluated, or releasable data and adds no API, model artifact, dataset, evidence, inference, evaluation result, activation, release, promotion, or production-enablement control."
+    }
   ]
 }
 
