@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 
 import { Icon } from "./icon";
 import {
+  modelRegistryCatalog,
   filterRegistryCapabilities,
   registryCapabilities,
 } from "./model-registry-model";
@@ -16,6 +17,10 @@ export function ModelRegistryWorkspace({
     () => filterRegistryCapabilities(registryCapabilities, query),
     [query],
   );
+  const catalogLabel =
+    dataMode === "live"
+      ? `Live contract unavailable · Synthetic catalog v${modelRegistryCatalog.schemaVersion}`
+      : `Synthetic catalog v${modelRegistryCatalog.schemaVersion}`;
 
   return (
     <section className="model-registry-page" aria-labelledby="model-registry-title">
@@ -56,7 +61,7 @@ export function ModelRegistryWorkspace({
             placeholder="Name, family, or owner"
           />
         </div>
-        <span>{dataMode === "live" ? "Live contract unavailable" : "Synthetic catalog"}</span>
+        <span>{catalogLabel}</span>
       </div>
 
       {capabilities.length ? (
