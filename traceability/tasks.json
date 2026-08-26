@@ -493,8 +493,17 @@
       "phase": 4,
       "owner": "AI and Platform",
       "dependencies": [],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Immutable metadata records the resolved 23 AI modules plus the Camera Health bonus, with stable identifier, functional owner, recommended model or logic family, hardware tier, and canonical evaluation reference for every capability. All evaluations remain explicitly planned; no model artifact, inference, benchmark, evaluation-card publication, promotion, or production enablement is claimed."
+    },
+    {
+      "id": "T-0356",
+      "title": "Define planned-only evaluation gates for the Phase 4 AI registry",
+      "phase": 4,
+      "owner": "AI and Platform",
+      "dependencies": ["T-0355"],
+      "status": "in_review",
+      "acceptance": "Immutable planned-only evaluation metadata maps one-to-one to all 23 canonical AI modules plus Camera Health, records evaluation categories and the canonical architecture reference, and preserves the licensed held-out evaluation, safety-review, and human-oversight release gates. It contains no dataset, metric, benchmark result, evaluation-card publication, model artifact, inference, promotion decision, or production-enablement claim."
     }
   ]
 }
