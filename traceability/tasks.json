@@ -581,6 +581,24 @@
       ],
       "status": "complete",
       "acceptance": "A pure in-memory validator accepts only a caller-supplied manifest record for one canonical Phase 4 capability with all planned T-0362 provenance metadata, labeling QA sampled at least 5%, documented opt-in for declared customer footage, and no declared production customer data in development/test. It fails closed on unknown capabilities, blank required metadata, invalid QA rates, missing or blank customer-footage opt-in references, or prohibited development/test data. It does not load a manifest or DVC remote, resolve or verify sources, licenses, checksums, consent, or approval, or create or claim any dataset, footage, label, model artifact, evaluation result, promotion, or production-enablement control."
+    },
+    {
+      "id": "T-0364",
+      "title": "Adopt Supabase and Cloudflare as the temporary MVP backend boundary",
+      "phase": 1,
+      "owner": "Architecture, Security, and Platform",
+      "dependencies": ["T-0310", "T-0311", "T-0313", "T-0315"],
+      "status": "in_review",
+      "acceptance": "ADR-009 records Supabase Auth/Postgres/RLS, Cloudflare queue-worker boundary, Go mutation boundary, Vercel deployment boundary, and a portable later AWS migration path. It explicitly defers datasets/DVC, R2, AI models, streaming, footage, and production evidence storage."
+    },
+    {
+      "id": "T-0365",
+      "title": "Add Supabase local development and tenant-safe Postgres/RLS migrations",
+      "phase": 1,
+      "owner": "Security and Platform",
+      "dependencies": ["T-0310", "T-0311", "T-0313", "T-0315", "T-0364"],
+      "status": "in_review",
+      "acceptance": "Pinned Supabase CLI migrations own schema history, preserve legacy provenance, reserve only syncam_realtime for application realtime data, use auth.users-backed memberships and trusted app_metadata.syncam claims, and fail closed for anonymous, unprovisioned, cross-tenant, cross-site, browser-write, audit/outbox, and missing transaction-tenant access."
     }
   ]
 }

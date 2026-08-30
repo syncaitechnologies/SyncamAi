@@ -78,17 +78,17 @@ func Append(ctx context.Context, tx pgx.Tx, event Event) (int64, error) {
 	}
 	var sequence int64
 	err = tx.QueryRow(ctx, `
-		INSERT INTO realtime.site_sequences (tenant_id, site_id, last_sequence)
+		INSERT INTO syncam_realtime.site_sequences (tenant_id, site_id, last_sequence)
 		VALUES ($1::uuid, $2::uuid, 1)
 		ON CONFLICT (tenant_id, site_id) DO UPDATE
-		SET last_sequence = realtime.site_sequences.last_sequence + 1,
+		SET last_sequence = syncam_realtime.site_sequences.last_sequence + 1,
 			updated_at = clock_timestamp()
 		RETURNING last_sequence`, event.TenantID, event.SiteID).Scan(&sequence)
 	if err != nil {
 		return 0, fmt.Errorf("allocate realtime sequence: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO realtime.messages (tenant_id, site_id, sequence, topic, payload)
+		INSERT INTO syncam_realtime.messages (tenant_id, site_id, sequence, topic, payload)
 		VALUES ($1::uuid, $2::uuid, $3, $4, $5::jsonb)`,
 		event.TenantID, event.SiteID, sequence, event.Topic, payload,
 	); err != nil {
@@ -106,7 +106,7 @@ func (r *PostgresRepository) Current(ctx context.Context, tenantID, siteID strin
 	var sequence int64
 	err = tx.QueryRow(ctx, `
 		SELECT last_sequence
-		FROM realtime.site_sequences
+		FROM syncam_realtime.site_sequences
 		WHERE tenant_id = $1::uuid AND site_id = $2::uuid`, tenantID, siteID).Scan(&sequence)
 	if err == pgx.ErrNoRows {
 		sequence = 0
@@ -131,7 +131,7 @@ func (r *PostgresRepository) Replay(ctx context.Context, tenantID, siteID string
 	result := Replay{Messages: make([]Message, 0)}
 	err = tx.QueryRow(ctx, `
 		SELECT last_sequence
-		FROM realtime.site_sequences
+		FROM syncam_realtime.site_sequences
 		WHERE tenant_id = $1::uuid AND site_id = $2::uuid`, tenantID, siteID).Scan(&result.CurrentSequence)
 	if err == pgx.ErrNoRows {
 		result.CurrentSequence = 0
@@ -144,7 +144,7 @@ func (r *PostgresRepository) Replay(ctx context.Context, tenantID, siteID string
 	var oldest int64
 	err = tx.QueryRow(ctx, `
 		SELECT COALESCE(min(sequence), 0)
-		FROM realtime.messages
+		FROM syncam_realtime.messages
 		WHERE tenant_id = $1::uuid AND site_id = $2::uuid
 			AND expires_at > clock_timestamp()`, tenantID, siteID).Scan(&oldest)
 	if err != nil {
@@ -158,7 +158,7 @@ func (r *PostgresRepository) Replay(ctx context.Context, tenantID, siteID string
 	if !result.Gap {
 		rows, err := tx.Query(ctx, `
 			SELECT tenant_id::text, site_id::text, sequence, topic, payload, created_at
-			FROM realtime.messages
+			FROM syncam_realtime.messages
 			WHERE tenant_id = $1::uuid AND site_id = $2::uuid
 				AND sequence > $3 AND expires_at > clock_timestamp()
 			ORDER BY sequence

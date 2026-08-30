@@ -2,30 +2,39 @@
 
 The merged identity slice implements the provider-neutral security boundary for T-0310 through T-0312. The persistence slices add T-0313 through T-0318: tenant/site and event/outbox Postgres migrations, transaction-local RLS, idempotent mutations, leased outbox dispatch, an idempotent alert projection, and append-only hash-chained audit records. Data erasure remains denied until its dual-approval workflow is implemented.
 
+> **Temporary MVP overlay (ADR-009, T-0364/T-0365):** Supabase is the
+> development Auth/Postgres/RLS platform. Its CLI migrations in
+> `backend/supabase` are authoritative, `auth.users.id` is the user key, and
+> authorization is issued only from `app_metadata.syncam`. Go remains the
+> business-mutation and transactional outbox boundary. Cloudflare queues,
+> Vercel deployment changes, AWS migration, datasets/DVC, models, streaming,
+> footage, R2, and production evidence storage are all deferred.
+
 ## Local prerequisites
 
 1. Install Go 1.25.12 or a newer supported patch release. Earlier toolchains fail the current vulnerability gate.
-2. Install Docker Desktop with Linux containers for the local Postgres stack and Testcontainers integration tests.
+2. Install Docker Desktop with Linux containers for the Supabase local stack and Testcontainers integration tests.
 3. Copy `.env.example` to an untracked `.env` and replace every `replace-*` placeholder locally. Use distinct administrative and application database passwords.
-4. Start Postgres with `docker compose up -d postgres`.
-5. Apply the schema with `go run ./backend/cmd/migrate` from the repository root. The migration connection uses `syncam_admin`; the control plane uses the non-superuser `syncam_app` role.
-6. Seed a local tenant through the administrative connection until the onboarding API is implemented. Use a UUID that exactly matches the OIDC `tenant_id` claim; do not seed production data through this path.
-7. Configure an OIDC provider with an exact issuer and a public application audience. Cognito is canonical for cloud; Keycloak is the local-only alternative.
-8. Configure the token customization hook to emit the canonical claims: `sub`, `email`, `tenant_id`, `site_ids`, `data_class`, `mfa_level`, `token_use=access`, `exp`, `iat`, and `jti`. Generic providers may emit `scopes` and `roles`; Cognito access tokens use `scope`, `cognito:groups`, and `client_id`, which are normalized to the same principal. Missing or non-access `token_use`, unknown roles, missing scopes/data classes/MFA state, or missing sites for a site-scoped role are rejected.
+4. Start Supabase with `pnpm exec supabase start --workdir backend`.
+5. Apply its disposable local schema with `pnpm exec supabase db reset --workdir backend`. The old Go migration command is retired.
+6. Seed only local development membership records. A user's active tenant must match `identity.user_tenant_memberships`; do not seed production data through this path.
+7. Configure Supabase with `SYNCAM_OIDC_PROFILE=supabase`, an exact Auth issuer and audience `authenticated`.
+8. Enable `identity.syncam_custom_access_token` as the Supabase custom access-token hook. It is an invoker-rights hook callable only by `supabase_auth_admin`, and writes the trusted tenant, sites, roles, scopes and data classes under `app_metadata.syncam`. Never authorize from `user_metadata`.
 9. Never place a client secret in the React application. The browser application is a public client and uses Authorization Code with PKCE.
 
-Docker Compose reads the root `.env` automatically. Export the same `SYNCAM_*` values into the terminal session before running Go commands; the application deliberately does not parse `.env` files itself.
+Supabase CLI reads `backend/supabase/config.toml`; keep secrets only in the untracked root `.env` or terminal session. Export the same `SYNCAM_*` values before running Go commands; the application deliberately does not parse `.env` files itself.
 
 The control-plane process reads:
 
 - `SYNCAM_OIDC_ISSUER`
 - `SYNCAM_OIDC_AUDIENCE`
+- `SYNCAM_OIDC_PROFILE` (`supabase` for this temporary MVP)
 - `SYNCAM_DATABASE_URL` (non-superuser `syncam_app` connection)
 - `SYNCAM_HTTP_ADDR` (defaults to `:8080`)
 
-The migration command separately requires `SYNCAM_MIGRATION_DATABASE_URL`. Never run the HTTP service with the migration/superuser connection.
+Never run the HTTP service with an administrative connection. The `syncam_app` password is activated only by the documented local bootstrap step and is never placed in browser configuration.
 
-For Cognito, `SYNCAM_OIDC_ISSUER` is `https://cognito-idp.ap-south-1.amazonaws.com/<user-pool-id>` and `SYNCAM_OIDC_AUDIENCE` is the public app client ID. Access tokens are accepted only when their exact `client_id` matches; generic OIDC access tokens may instead carry that exact value in `aud`.
+For Supabase, `SYNCAM_OIDC_ISSUER` is `https://<project-ref>.supabase.co/auth/v1` and `SYNCAM_OIDC_AUDIENCE` is `authenticated`. Tokens must carry `role=authenticated`; `aal1` remains non-MFA and `aal2` satisfies the existing MFA boundary. The generic/Cognito-compatible profile remains available for later migration.
 
 Every repository operation opens a transaction and derives `app.tenant_id` from the verified token claim. The application database role is `NOSUPERUSER NOBYPASSRLS`; queries without that transaction setting return no tenant rows. `POST /v1/sites` requires `tenant:manage`, `Idempotency-Key`, and an optional UUIDv4 `X-Correlation-Id`. The site, exact replay response, and audit event commit in one transaction.
 

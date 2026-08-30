@@ -12,5 +12,6 @@ Architecture decisions are immutable records: supersede an accepted ADR with a n
 | [ADR-006](ADR-006-retention.md) | Retention range and presets | Accepted |
 | [ADR-007](ADR-007-seed-roles.md) | Five seed roles | Accepted |
 | [ADR-008](ADR-008-composite-deployment.md) | Composite MVP deployables | Accepted |
+| [ADR-009](ADR-009-supabase-cloudflare-mvp-backend.md) | Temporary Supabase + Cloudflare MVP backend | Accepted |
 
 Every ADR must state its operational and security consequences. ADR-001 remains a release blocker until legal approval is recorded.

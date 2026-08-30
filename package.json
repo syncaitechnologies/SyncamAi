@@ -4,6 +4,11 @@
   "packageManager": "pnpm@11.16.0",
   "scripts": {
     "build": "pnpm --recursive build",
-    "check": "pnpm --recursive check"
+    "check": "pnpm --recursive check",
+    "supabase:status": "supabase status --workdir backend",
+    "supabase:reset": "supabase db reset --workdir backend"
+  },
+  "devDependencies": {
+    "supabase": "2.116.0"
   }
 }

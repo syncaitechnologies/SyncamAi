@@ -49,8 +49,8 @@ func TestProjectorCreatesOneAlertAndReceipt(t *testing.T) {
 		"alert", pgxmock.AnyArg(), messageID, pgxmock.AnyArg(), pgxmock.AnyArg(),
 		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 	).WillReturnResult(pgxmock.NewResult("INSERT", 1))
-	mock.ExpectQuery("INSERT INTO realtime.site_sequences").WithArgs(tenantID, siteID).WillReturnRows(pgxmock.NewRows([]string{"last_sequence"}).AddRow(int64(1)))
-	mock.ExpectExec("INSERT INTO realtime.messages").WithArgs(tenantID, siteID, int64(1), "alerts.created", pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectQuery("INSERT INTO syncam_realtime.site_sequences").WithArgs(tenantID, siteID).WillReturnRows(pgxmock.NewRows([]string{"last_sequence"}).AddRow(int64(1)))
+	mock.ExpectExec("INSERT INTO syncam_realtime.messages").WithArgs(tenantID, siteID, int64(1), "alerts.created", pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	mock.ExpectCommit()
 	if err := NewProjector(mock).Publish(context.Background(), message); err != nil {
 		t.Fatal(err)
