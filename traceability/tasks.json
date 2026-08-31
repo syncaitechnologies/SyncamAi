@@ -588,7 +588,7 @@
       "phase": 1,
       "owner": "Architecture, Security, and Platform",
       "dependencies": ["T-0310", "T-0311", "T-0313", "T-0315"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "ADR-009 records Supabase Auth/Postgres/RLS, Cloudflare queue-worker boundary, Go mutation boundary, Vercel deployment boundary, and a portable later AWS migration path. It explicitly defers datasets/DVC, R2, AI models, streaming, footage, and production evidence storage."
     },
     {
@@ -597,7 +597,7 @@
       "phase": 1,
       "owner": "Security and Platform",
       "dependencies": ["T-0310", "T-0311", "T-0313", "T-0315", "T-0364"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Pinned Supabase CLI migrations own schema history, preserve legacy provenance, reserve only syncam_realtime for application realtime data, use auth.users-backed memberships and trusted app_metadata.syncam claims, and fail closed for anonymous, unprovisioned, cross-tenant, cross-site, browser-write, audit/outbox, and missing transaction-tenant access."
     }
   ]
