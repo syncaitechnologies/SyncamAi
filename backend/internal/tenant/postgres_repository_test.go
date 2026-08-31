@@ -393,7 +393,7 @@ func TestPostgresRepositoryEnforcesRLSIdempotencyAndAudit(t *testing.T) {
 	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM alerts.alert_actions WHERE tenant_id = $1::uuid", tenantA).Scan(&actionCount); err != nil {
 		t.Fatal(err)
 	}
-	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM realtime.messages WHERE tenant_id = $1::uuid", tenantA).Scan(&realtimeCount); err != nil {
+	if err := auditTx.QueryRow(ctx, "SELECT count(*) FROM syncam_realtime.messages WHERE tenant_id = $1::uuid", tenantA).Scan(&realtimeCount); err != nil {
 		t.Fatal(err)
 	}
 	if eventCount != 1 || outboxCount != 1 || publishedCount != 1 || alertCount != 1 || receiptCount != 1 || eventAuditCount != 1 || alertAuditCount != 1 || acknowledgmentAuditCount != 1 || cameraAuditCount != 3 || actionCount != 1 || realtimeCount != 2 {

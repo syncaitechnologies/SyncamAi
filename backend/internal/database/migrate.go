@@ -1,4 +1,5 @@
-// Package database owns the deterministic Postgres schema migration boundary.
+// Package database retains the historical embedded migration helper for old
+// deterministic repository tests. Supabase CLI migrations are authoritative.
 package database
 
 import (
@@ -20,7 +21,9 @@ type migrationPool interface {
 	Begin(context.Context) (pgx.Tx, error)
 }
 
-// ApplyMigrations applies each embedded migration exactly once.
+// ApplyMigrations applies the pre-Supabase historical schema only for legacy
+// test compatibility. Production and development schema operations use the
+// Supabase CLI migration history in backend/supabase/migrations.
 func ApplyMigrations(ctx context.Context, pool migrationPool) error {
 	if pool == nil {
 		return fmt.Errorf("database pool is required")

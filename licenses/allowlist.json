@@ -9,6 +9,7 @@
     "@vitejs/plugin-react",
     "react",
     "react-dom",
+    "supabase",
     "typescript",
     "vite"
   ],
@@ -21,5 +22,5 @@
     "github.com/testcontainers/testcontainers-go",
     "github.com/testcontainers/testcontainers-go/modules/postgres"
   ],
-  "notes": "Transitive licenses are checked by dependency review/SBOM tooling. Any new direct dependency requires explicit review."
+  "notes": "Transitive licenses are checked by dependency review/SBOM tooling. Any new direct dependency requires explicit review. The pinned supabase CLI 2.116.0 is MIT-licensed and is approved solely for local development, migration and CI verification."
 }

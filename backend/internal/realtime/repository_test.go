@@ -26,8 +26,8 @@ func TestAppendAllocatesSiteSequenceAndStoresEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mock.ExpectQuery("INSERT INTO realtime.site_sequences").WithArgs(testTenantID, testSiteID).WillReturnRows(pgxmock.NewRows([]string{"last_sequence"}).AddRow(int64(7)))
-	mock.ExpectExec("INSERT INTO realtime.messages").WithArgs(testTenantID, testSiteID, int64(7), TopicAlertState, pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectQuery("INSERT INTO syncam_realtime.site_sequences").WithArgs(testTenantID, testSiteID).WillReturnRows(pgxmock.NewRows([]string{"last_sequence"}).AddRow(int64(7)))
+	mock.ExpectExec("INSERT INTO syncam_realtime.messages").WithArgs(testTenantID, testSiteID, int64(7), TopicAlertState, pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	sequence, err := Append(context.Background(), tx, Event{TenantID: testTenantID, SiteID: testSiteID, Topic: TopicAlertState, Payload: map[string]any{"status": "acknowledged"}})
 	if err != nil || sequence != 7 {
 		t.Fatalf("unexpected append: sequence=%d err=%v", sequence, err)

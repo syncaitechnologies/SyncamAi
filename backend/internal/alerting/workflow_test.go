@@ -46,8 +46,8 @@ func TestPostgresRepositoryAcknowledgesAtomically(t *testing.T) {
 		pgxmock.AnyArg(), tenantID, pgxmock.AnyArg(), pgxmock.AnyArg(), command.ActorID, "alert.acknowledged",
 		"alert", alertID, command.RequestID, pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 	).WillReturnResult(pgxmock.NewResult("INSERT", 1))
-	mock.ExpectQuery("INSERT INTO realtime.site_sequences").WithArgs(tenantID, siteID).WillReturnRows(pgxmock.NewRows([]string{"last_sequence"}).AddRow(int64(2)))
-	mock.ExpectExec("INSERT INTO realtime.messages").WithArgs(tenantID, siteID, int64(2), "alerts.state", pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectQuery("INSERT INTO syncam_realtime.site_sequences").WithArgs(tenantID, siteID).WillReturnRows(pgxmock.NewRows([]string{"last_sequence"}).AddRow(int64(2)))
+	mock.ExpectExec("INSERT INTO syncam_realtime.messages").WithArgs(tenantID, siteID, int64(2), "alerts.state", pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	mock.ExpectExec("INSERT INTO platform.idempotency_keys").WithArgs(tenantID, command.IdempotencyKey, acknowledgeHash(alertID), alertID, pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	mock.ExpectCommit()
 	result, err := NewPostgresRepository(mock).Acknowledge(context.Background(), command)

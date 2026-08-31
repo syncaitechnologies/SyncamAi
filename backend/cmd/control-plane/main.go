@@ -29,6 +29,7 @@ import (
 func main() {
 	issuer := strings.TrimSpace(os.Getenv("SYNCAM_OIDC_ISSUER"))
 	audience := strings.TrimSpace(os.Getenv("SYNCAM_OIDC_AUDIENCE"))
+	profile := identity.OIDCProfile(strings.TrimSpace(os.Getenv("SYNCAM_OIDC_PROFILE")))
 	if issuer == "" || audience == "" {
 		log.Fatal("SYNCAM_OIDC_ISSUER and SYNCAM_OIDC_AUDIENCE are required")
 	}
@@ -42,7 +43,7 @@ func main() {
 	}
 
 	discoveryContext, cancelDiscovery := context.WithTimeout(context.Background(), 10*time.Second)
-	verifier, err := identity.NewOIDCVerifier(discoveryContext, issuer, audience)
+	verifier, err := identity.NewOIDCVerifierForProfile(discoveryContext, profile, issuer, audience)
 	cancelDiscovery()
 	if err != nil {
 		log.Fatalf("configure OIDC verifier: %v", err)

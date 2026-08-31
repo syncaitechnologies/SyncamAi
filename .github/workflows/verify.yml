@@ -38,6 +38,32 @@ jobs:
           SYNCAM_RUN_INTEGRATION: "1"
         run: make verify
 
+  supabase:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install pinned Supabase CLI
+        run: pnpm install --frozen-lockfile
+      - name: Start disposable local Supabase stack
+        run: pnpm exec supabase start --workdir backend
+      - name: Reset and verify Supabase schema
+        run: |
+          pnpm exec supabase db reset --workdir backend
+          pnpm exec supabase test db --workdir backend --local backend/supabase/tests
+          pnpm exec supabase db advisors --workdir backend --local --type security --fail-on error
+      - name: Stop local Supabase stack
+        if: always()
+        run: pnpm exec supabase stop --workdir backend
+
   secrets:
     runs-on: ubuntu-latest
     steps:
@@ -69,6 +95,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
       - name: Audit production dependencies
         run: pnpm audit --prod --audit-level high
