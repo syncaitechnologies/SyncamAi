@@ -7,17 +7,17 @@ database password, service-role key, or populated environment file.
 ## Local workflow
 
 1. Install dependencies with `pnpm install --frozen-lockfile`.
-2. Start Docker Desktop, then run `pnpm supabase start -- --workdir backend`.
+2. Start Docker Desktop, then run `pnpm exec supabase start --workdir backend`.
 3. Copy the root `.env.example` to an untracked `.env` and provide local-only
    values. Set `SYNCAM_OIDC_PROFILE=supabase`, the local/remote Auth issuer, and
    `SYNCAM_OIDC_AUDIENCE=authenticated`.
-4. Reset a disposable local stack with `pnpm supabase:reset`.
-5. Run database tests with `pnpm supabase test db -- --workdir backend --local
-   supabase/tests` and database advisors with `pnpm supabase db advisors --
-   --workdir backend --local --type security --fail-on warn`.
+4. Reset a disposable local stack with `pnpm exec supabase db reset --workdir backend`.
+5. Run database tests with `pnpm exec supabase test db --workdir backend --local
+   tests` and database advisors with `pnpm exec supabase db advisors --workdir
+   backend --local --type security --fail-on warn`.
 
-Create new migrations only with `pnpm supabase migration new <descriptive-name>
--- --workdir backend`; never invent timestamps by hand. The `legacy_00000x`
+Create new migrations only with `pnpm exec supabase migration new <descriptive-name>
+--workdir backend`; never invent timestamps by hand. The `legacy_00000x`
 migration names record the source migration that was transferred.
 
 ## Application database role

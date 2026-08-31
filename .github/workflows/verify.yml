@@ -58,7 +58,7 @@ jobs:
       - name: Reset and verify Supabase schema
         run: |
           pnpm exec supabase db reset --workdir backend
-          pnpm exec supabase test db --workdir backend --local supabase/tests
+          pnpm exec supabase test db --workdir backend --local tests
           pnpm exec supabase db advisors --workdir backend --local --type security --fail-on error
       - name: Stop local Supabase stack
         if: always()
@@ -95,6 +95,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
       - name: Audit production dependencies
         run: pnpm audit --prod --audit-level high
