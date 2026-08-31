@@ -58,7 +58,7 @@ jobs:
       - name: Reset and verify Supabase schema
         run: |
           pnpm exec supabase db reset --workdir backend
-          pnpm exec supabase test db --workdir backend --local tests
+          pnpm exec supabase test db --workdir backend --local backend/supabase/tests
           pnpm exec supabase db advisors --workdir backend --local --type security --fail-on error
       - name: Stop local Supabase stack
         if: always()
