@@ -194,8 +194,12 @@ BEGIN
 END;
 $$;
 
+GRANT USAGE, CREATE ON SCHEMA identity TO syncam_bootstrap_executor;
+
 ALTER FUNCTION identity.bootstrap_initial_super_admin(uuid, uuid, uuid, text)
     OWNER TO syncam_bootstrap_executor;
+
+REVOKE CREATE ON SCHEMA identity FROM syncam_bootstrap_executor;
 
 DO $$
 BEGIN
