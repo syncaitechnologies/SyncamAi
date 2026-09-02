@@ -14,7 +14,7 @@ func TestPostgresAdapterQueuesInvitationIntentAndAudit(t *testing.T) {
 	defer pool.Close()
 	pool.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadWrite})
 	pool.ExpectExec("SELECT set_config").WithArgs(userTenant).WillReturnResult(pgxmock.NewResult("SELECT", 1))
-	pool.ExpectExec("INSERT INTO identity.lifecycle_delivery_requests").WithArgs(pgxmock.AnyArg(), userTenant, userRequest, pgxmock.AnyArg(), "actor-1").WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	pool.ExpectQuery("INSERT INTO identity.lifecycle_delivery_requests").WithArgs(pgxmock.AnyArg(), userTenant, userRequest, pgxmock.AnyArg(), "actor-1").WillReturnRows(pgxmock.NewRows([]string{"id", "payload", "created"}).AddRow("99999999-9999-4999-8999-999999999999", []byte(`{"email":"new.user@example.test"}`), true))
 	pool.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs(pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("SELECT", 1))
 	pool.ExpectQuery("SELECT record_hash").WithArgs(userTenant, pgxmock.AnyArg()).WillReturnError(pgx.ErrNoRows)
 	pool.ExpectExec("INSERT INTO audit.events").WithArgs(pgxmock.AnyArg(), userTenant, pgxmock.AnyArg(), pgxmock.AnyArg(), "actor-1", "identity.invitation.queued", "lifecycle_delivery_request", pgxmock.AnyArg(), userRequest, pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
