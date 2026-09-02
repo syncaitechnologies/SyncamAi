@@ -11,6 +11,7 @@ import (
 	"net/mail"
 	"net/url"
 	"strings"
+	"time"
 )
 
 var ErrSupabaseInvitationProviderConfiguration = errors.New("supabase invitation provider configuration is invalid")
@@ -34,7 +35,12 @@ func NewSupabaseInvitationProvider(projectURL, secretKey string, client httpDoer
 		return nil, ErrSupabaseInvitationProviderConfiguration
 	}
 	if client == nil {
-		client = http.DefaultClient
+		client = &http.Client{
+			Timeout: 10 * time.Second,
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
 	}
 	inviteURL := base.ResolveReference(&url.URL{Path: "/auth/v1/invite"})
 	return &SupabaseInvitationProvider{inviteURL: inviteURL, secretKey: secretKey, client: client}, nil
