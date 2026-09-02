@@ -52,6 +52,8 @@ them as live.
   partially committed browser operation.
 - The local transaction remains the authoritative audit point; provider
   response metadata is minimised and never contains bearer credentials.
-- The server-only invitation provider calls no browser route and is not wired
-  into a deployed worker in this repository. Its runtime secret is never
-  represented in source, checked-in configuration, or frontend environment.
+- The server-only invitation provider calls no browser route. The
+  `lifecycle-delivery-worker` binary is separately deployable from the HTTP
+  service and receives its runtime secret only through its process environment.
+  This repository contains no deployment configuration, secret value,
+  checked-in secret configuration, or frontend environment for that worker.

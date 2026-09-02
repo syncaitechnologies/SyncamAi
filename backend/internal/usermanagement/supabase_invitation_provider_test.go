@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 type httpDoerFunc func(*http.Request) (*http.Response, error)
@@ -51,6 +52,10 @@ func TestSupabaseInvitationProviderFailsClosedOnInvalidOrAmbiguousDelivery(t *te
 	}
 	if provider, err := NewSupabaseInvitationProvider("https://example.supabase.co", "secret", nil); err != nil || provider.client == nil {
 		t.Fatalf("default client = %#v, %v", provider, err)
+	} else if client, ok := provider.client.(*http.Client); !ok || client.Timeout != 10*time.Second || client.CheckRedirect == nil {
+		t.Fatalf("unsafe default invitation client = %#v", provider.client)
+	} else if err := client.CheckRedirect(nil, nil); !errors.Is(err, http.ErrUseLastResponse) {
+		t.Fatalf("default invitation client follows redirects: %v", err)
 	}
 	provider, err := NewSupabaseInvitationProvider("https://example.supabase.co", "secret", httpDoerFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(strings.NewReader("provider details"))}, nil
