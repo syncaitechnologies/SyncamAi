@@ -27,9 +27,11 @@ func TestFiveSeedRolesHaveExpectedLeastPrivilege(t *testing.T) {
 		allowed    bool
 	}{
 		{"super admin manages tenant", principal(identity.RoleSuperAdmin, CapabilityTenantManage), CapabilityTenantManage, true},
+		{"super admin manages users", principal(identity.RoleSuperAdmin, CapabilityUsersManage), CapabilityUsersManage, true},
 		{"super admin ingests events", principal(identity.RoleSuperAdmin, CapabilityEventsWrite), CapabilityEventsWrite, true},
 		{"super admin may enter privacy-mask approval workflow", principal(identity.RoleSuperAdmin, CapabilityPrivacyMaskApprove), CapabilityPrivacyMaskApprove, true},
 		{"site admin cannot manage tenant", principal(identity.RoleSiteAdmin, CapabilityTenantManage), CapabilityTenantManage, false},
+		{"site admin cannot manage users", principal(identity.RoleSiteAdmin, CapabilityUsersManage), CapabilityUsersManage, false},
 		{"site admin cannot approve privacy masks", principal(identity.RoleSiteAdmin, CapabilityPrivacyMaskApprove), CapabilityPrivacyMaskApprove, false},
 		{"site admin ingests site events", principal(identity.RoleSiteAdmin, CapabilityEventsWrite), CapabilityEventsWrite, true},
 		{"operator handles alerts", principal(identity.RoleOperator, CapabilityAlertsWrite), CapabilityAlertsWrite, true},
