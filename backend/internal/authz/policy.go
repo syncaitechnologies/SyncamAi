@@ -14,6 +14,9 @@ const (
 	CapabilityAuthRead       Capability = "auth:read"
 	CapabilitySitesRead      Capability = "sites:read"
 	CapabilityTenantManage   Capability = "tenant:manage"
+	// CapabilityUsersManage gates tenant-wide membership lifecycle operations.
+	// It is intentionally unavailable to site-scoped roles.
+	CapabilityUsersManage    Capability = "users:manage"
 	CapabilitySiteManage     Capability = "site:manage"
 	CapabilityConfigRead     Capability = "config:read"
 	CapabilityConfigWrite    Capability = "config:write"
@@ -59,6 +62,7 @@ var seedRoles = map[identity.Role]roleGrant{
 		tenantWide: true,
 		capabilities: grants(
 			CapabilityAuthRead, CapabilitySitesRead, CapabilityTenantManage,
+			CapabilityUsersManage,
 			CapabilitySiteManage, CapabilityConfigRead, CapabilityConfigWrite,
 			CapabilityRawVideoRead, CapabilityAlertsRead, CapabilityAlertsWrite,
 			CapabilityEvidenceExport, CapabilityBiometricRead, CapabilityAuditRead,
