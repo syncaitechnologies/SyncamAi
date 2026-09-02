@@ -1,5 +1,5 @@
 begin;
-select plan(30);
+select plan(34);
 
 select has_table('identity', 'user_tenant_memberships', 'tenant memberships exist');
 select has_table('identity', 'user_site_memberships', 'site memberships exist');
@@ -101,6 +101,22 @@ select ok(
 select ok(
   has_table_privilege('syncam_app', 'identity.lifecycle_delivery_requests', 'SELECT,INSERT,UPDATE'),
   'application role has only the lifecycle delivery privileges needed by a future worker'
+);
+select ok(
+  has_table_privilege('syncam_app', 'identity.user_tenant_memberships', 'SELECT,UPDATE'),
+  'application role can suspend tenant memberships through the server boundary'
+);
+select ok(
+  has_table_privilege('syncam_app', 'identity.user_site_memberships', 'SELECT,UPDATE'),
+  'application role can suspend site memberships through the server boundary'
+);
+select ok(
+  not has_table_privilege('authenticated', 'identity.user_tenant_memberships', 'UPDATE'),
+  'browser users cannot suspend tenant memberships'
+);
+select ok(
+  not has_table_privilege('authenticated', 'identity.user_site_memberships', 'UPDATE'),
+  'browser users cannot suspend site memberships'
 );
 select has_column(
   'identity', 'lifecycle_delivery_requests', 'lease_owner',
