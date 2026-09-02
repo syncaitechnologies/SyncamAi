@@ -1,5 +1,5 @@
 begin;
-select plan(12);
+select plan(22);
 
 select has_table('identity', 'user_tenant_memberships', 'tenant memberships exist');
 select has_table('identity', 'user_site_memberships', 'site memberships exist');
@@ -33,6 +33,62 @@ select ok(
 select ok(
   exists (select 1 from pg_proc where oid = 'config.reject_privacy_mask_release_manifest_mutation()'::regprocedure and proconfig @> ARRAY['search_path=""']::text[]),
   'privacy-mask release immutability trigger has a fixed empty search path'
+);
+select has_function(
+  'identity',
+  'bootstrap_initial_super_admin',
+  ARRAY['uuid', 'uuid', 'uuid', 'text'],
+  'one-time Super Admin bootstrap function exists'
+);
+select ok(
+  exists (
+    select 1 from pg_proc
+    where oid = 'identity.bootstrap_initial_super_admin(uuid, uuid, uuid, text)'::regprocedure
+      and prosecdef
+      and proconfig @> ARRAY['search_path=""']::text[]
+  ),
+  'bootstrap function is private security definer with an empty search path'
+);
+select function_privs_are(
+  'identity', 'bootstrap_initial_super_admin', ARRAY['uuid', 'uuid', 'uuid', 'text'],
+  'anon', ARRAY[]::text[], 'anon cannot invoke initial Super Admin bootstrap'
+);
+select function_privs_are(
+  'identity', 'bootstrap_initial_super_admin', ARRAY['uuid', 'uuid', 'uuid', 'text'],
+  'authenticated', ARRAY[]::text[], 'browser users cannot invoke initial Super Admin bootstrap'
+);
+select function_privs_are(
+  'identity', 'bootstrap_initial_super_admin', ARRAY['uuid', 'uuid', 'uuid', 'text'],
+  'syncam_app', ARRAY[]::text[], 'application role cannot invoke initial Super Admin bootstrap'
+);
+select function_privs_are(
+  'identity', 'bootstrap_initial_super_admin', ARRAY['uuid', 'uuid', 'uuid', 'text'],
+  'service_role', ARRAY[]::text[], 'service role cannot invoke initial Super Admin bootstrap'
+);
+select ok(
+  not has_table_privilege('syncam_app', 'identity.user_tenant_memberships', 'INSERT'),
+  'application role cannot insert tenant memberships directly'
+);
+select ok(
+  exists (
+    select 1 from pg_roles
+    where rolname = 'syncam_bootstrap_executor'
+      and not rolcanlogin
+      and not rolbypassrls
+  ),
+  'bootstrap executor cannot log in or bypass row-level security'
+);
+select has_column(
+  'audit', 'events', 'canonical_payload_bytes',
+  'bootstrap audit source bytes are retained for hash verification'
+);
+select ok(
+  position(
+    'set_config(''app.tenant_id''' in pg_get_functiondef(
+      'identity.bootstrap_initial_super_admin(uuid, uuid, uuid, text)'::regprocedure
+    )
+  ) > 0,
+  'bootstrap function sets the transaction tenant context'
 );
 
 select * from finish();

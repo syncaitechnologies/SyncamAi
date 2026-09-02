@@ -5,6 +5,7 @@
   "scripts": {
     "build": "pnpm --recursive build",
     "check": "pnpm --recursive check",
+    "supabase:migration:new": "supabase migration new --workdir backend",
     "supabase:status": "supabase status --workdir backend",
     "supabase:reset": "supabase db reset --workdir backend"
   },

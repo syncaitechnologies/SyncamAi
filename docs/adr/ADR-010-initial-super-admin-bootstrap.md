@@ -43,6 +43,9 @@ Admin token without an MFA level. After the transaction commits, the operator
 must verify that the custom access-token hook issues `app_metadata.syncam`
 claims for the selected user and must retain the audit/change reference.
 
+The restricted operator procedure is documented in
+[`docs/operations/initial-super-admin-bootstrap.md`](../operations/initial-super-admin-bootstrap.md).
+
 ## Consequences
 
 - There is no automatic first-user promotion, self-service tenant claim, or
@@ -50,9 +53,10 @@ claims for the selected user and must retain the audit/change reference.
 - `syncam_app` remains non-superuser and does not gain membership-write access
   through this decision.
 - Browser-side writes to membership tables remain denied by RLS and grants.
-- A runnable administrative procedure requires a subsequent reviewed slice;
-  it must preserve atomic membership, audit, and outbox semantics and include
-  a recovery procedure for a failed identity-provider delivery.
+- The reviewed database procedure is private to the database owner, preserves
+  atomic membership and audit semantics, and has no identity-provider delivery
+  to recover: the selected existing Auth user receives claims only when the
+  custom access-token hook issues their next token.
 - After bootstrap, future invite, disable, and reassignment operations must
   enter through the server-side user-management boundary and may not use the
   manual procedure as a general lifecycle path.
