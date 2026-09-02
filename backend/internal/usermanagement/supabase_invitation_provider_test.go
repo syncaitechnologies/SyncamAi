@@ -49,6 +49,9 @@ func TestSupabaseInvitationProviderFailsClosedOnInvalidOrAmbiguousDelivery(t *te
 	if _, err := NewSupabaseInvitationProvider("https://example.supabase.co", "", http.DefaultClient); !errors.Is(err, ErrSupabaseInvitationProviderConfiguration) {
 		t.Fatalf("blank secret error = %v", err)
 	}
+	if provider, err := NewSupabaseInvitationProvider("https://example.supabase.co", "secret", nil); err != nil || provider.client == nil {
+		t.Fatalf("default client = %#v, %v", provider, err)
+	}
 	provider, err := NewSupabaseInvitationProvider("https://example.supabase.co", "secret", httpDoerFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(strings.NewReader("provider details"))}, nil
 	}))
@@ -65,5 +68,15 @@ func TestSupabaseInvitationProviderFailsClosedOnInvalidOrAmbiguousDelivery(t *te
 	}
 	if err := provider.DeliverInvitation(context.Background(), DeliveryRequest{Action: invitationDeliveryAction, Payload: []byte(`{"email":"invalid"}`)}); err == nil {
 		t.Fatal("invalid delivery email must fail")
+	}
+	if err := provider.DeliverInvitation(context.Background(), DeliveryRequest{Action: "disable", Payload: []byte(`{"email":"invitee@example.test"}`)}); err == nil {
+		t.Fatal("unsupported delivery action must fail")
+	}
+	if err := provider.DeliverInvitation(context.Background(), DeliveryRequest{Action: invitationDeliveryAction, Payload: []byte(`not-json`)}); err == nil {
+		t.Fatal("invalid delivery payload must fail")
+	}
+	var unavailable *SupabaseInvitationProvider
+	if err := unavailable.DeliverInvitation(context.Background(), DeliveryRequest{}); !errors.Is(err, ErrSupabaseInvitationProviderConfiguration) {
+		t.Fatalf("nil provider error = %v", err)
 	}
 }
