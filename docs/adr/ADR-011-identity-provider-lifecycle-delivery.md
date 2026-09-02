@@ -22,7 +22,9 @@ requested state transition, persist the local lifecycle state, append the
 audit event, and add one durable provider-delivery outbox message before it
 commits. The HTTP request never calls Supabase Admin directly.
 
-A separately deployed backend worker consumes only those messages. Its
+A separately deployed backend worker consumes only those messages. It first
+acquires a short database lease, assigns the stable local operation identifier
+to the delivery attempt, and can reclaim an expired lease after a crash. Its
 Supabase Admin credential is supplied at runtime through an untracked secret
 store, never browser configuration, source control, logs, audit payloads, or
 outbox payloads. The worker records a stable delivery operation identifier,

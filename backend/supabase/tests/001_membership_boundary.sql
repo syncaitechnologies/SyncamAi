@@ -1,5 +1,5 @@
 begin;
-select plan(27);
+select plan(30);
 
 select has_table('identity', 'user_tenant_memberships', 'tenant memberships exist');
 select has_table('identity', 'user_site_memberships', 'site memberships exist');
@@ -101,6 +101,18 @@ select ok(
 select ok(
   has_table_privilege('syncam_app', 'identity.lifecycle_delivery_requests', 'SELECT,INSERT,UPDATE'),
   'application role has only the lifecycle delivery privileges needed by a future worker'
+);
+select has_column(
+  'identity', 'lifecycle_delivery_requests', 'lease_owner',
+  'lifecycle delivery requests retain a worker lease owner'
+);
+select has_column(
+  'identity', 'lifecycle_delivery_requests', 'lease_expires_at',
+  'lifecycle delivery requests retain a recoverable lease expiry'
+);
+select has_column(
+  'identity', 'lifecycle_delivery_requests', 'delivery_attempts',
+  'lifecycle delivery requests count retry attempts'
 );
 select ok(
   position(
