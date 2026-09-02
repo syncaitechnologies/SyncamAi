@@ -164,7 +164,21 @@ function formatAge(timestamp: string) {
     : `${Math.floor(minutes / 60)}h ${minutes % 60}m ago`;
 }
 
-export function App() {
+type AppProps = {
+  userEmail?: string;
+  onSignOut?: () => void;
+};
+
+function initials(value: string) {
+  return value
+    .split(/[^a-z0-9]+/i)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+export function App({ userEmail, onSignOut }: AppProps = {}) {
   const {
     alerts,
     setAlerts,
@@ -469,13 +483,19 @@ export function App() {
               <small>All actions are logged</small>
             </span>
           </div>
-          <button className="profile-button" type="button">
-            <span className="user-avatar">RS</span>
+          <button
+            className="profile-button"
+            type="button"
+            onClick={onSignOut}
+            disabled={!onSignOut}
+            aria-label={onSignOut ? "Sign out" : undefined}
+          >
+            <span className="user-avatar">{userEmail ? initials(userEmail) : "DE"}</span>
             <span>
-              <strong>Rajan Shah</strong>
-              <small>SOC operator</small>
+              <strong>{userEmail ?? "Local demo"}</strong>
+              <small>{onSignOut ? "Signed in · click to sign out" : "Synthetic workspace"}</small>
             </span>
-            <Icon name="more" />
+            <Icon name={onSignOut ? "close" : "more"} />
           </button>
         </div>
       </aside>
