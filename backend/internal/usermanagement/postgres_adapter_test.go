@@ -20,6 +20,6 @@ func TestPostgresAdapterQueuesInvitationIntentAndAudit(t *testing.T) {
 	pool.ExpectExec("INSERT INTO audit.events").WithArgs(pgxmock.AnyArg(), userTenant, pgxmock.AnyArg(), pgxmock.AnyArg(), "actor-1", "identity.invitation.queued", "lifecycle_delivery_request", pgxmock.AnyArg(), userRequest, pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	pool.ExpectCommit()
 	invite, err := NewPostgresAdapter(pool).Invite(context.Background(), InviteRequest{InviteCommand: inviteCommand(), ActorID: "actor-1"})
-	if err != nil || invite.ID == "" || invite.Email != "new.user@example.test" { t.Fatalf("queue invitation: %#v %v", invite, err) }
+	if err != nil || invite.ID == "" || invite.Email != "new.user@example.test" || !invite.Queued { t.Fatalf("queue invitation: %#v %v", invite, err) }
 	if err := pool.ExpectationsWereMet(); err != nil { t.Fatal(err) }
 }

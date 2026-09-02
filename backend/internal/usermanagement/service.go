@@ -53,10 +53,12 @@ type InviteRequest struct {
 	ActorID string
 }
 
-// Invitation contains no bearer token, password, or provider credential.
+// Invitation describes a durable request only. Queued is true when delivery
+// has not yet been attempted by the separate provider worker.
 type Invitation struct {
-	ID    string
-	Email string
+	ID     string
+	Email  string
+	Queued bool
 }
 
 type DisableCommand struct {
