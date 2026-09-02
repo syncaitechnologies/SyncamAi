@@ -4,12 +4,13 @@ import type { AlertItem, AlertStatus, Severity } from "./alert-contracts";
 import { CameraWall } from "./CameraWall";
 import { Icon } from "./icon";
 import { ModelRegistryWorkspace } from "./ModelRegistryWorkspace";
+import { OrganizationOnboarding } from "./OrganizationOnboarding";
 import { OperationsDashboard } from "./OperationsDashboard";
 import { useAlertFeed } from "./use-alert-feed";
 import { ZoneBuilder } from "./ZoneBuilder";
 
 type Filter = "all" | "critical" | "unacknowledged" | "acknowledged";
-type View = "dashboard" | "alerts" | "cameras" | "zones" | "models";
+type View = "dashboard" | "alerts" | "cameras" | "zones" | "models" | "onboarding";
 
 const seedAlerts: AlertItem[] = [
   {
@@ -466,6 +467,15 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
             Configuration
           </button>
           <button
+            className={activeView === "onboarding" ? "nav-item active" : "nav-item"}
+            type="button"
+            onClick={() => setActiveView("onboarding")}
+            aria-current={activeView === "onboarding" ? "page" : undefined}
+          >
+            <Icon name="users" />
+            <span>Organization setup</span>
+          </button>
+          <button
             className={activeView === "models" ? "nav-item active" : "nav-item"}
             type="button"
             onClick={() => setActiveView("models")}
@@ -513,6 +523,8 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
                     ? "Zones & rules"
                     : activeView === "models"
                       ? "Model registry"
+                      : activeView === "onboarding"
+                        ? "Organization setup"
                   : "Alert Center"}
             </strong>
           </div>
@@ -570,6 +582,8 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
           <ZoneBuilder dataMode={dataMode} onNotify={setToast} />
         ) : activeView === "models" ? (
           <ModelRegistryWorkspace dataMode={dataMode} />
+        ) : activeView === "onboarding" ? (
+          <OrganizationOnboarding dataMode={dataMode} />
         ) : (
           <>
         <section className="page-heading">
