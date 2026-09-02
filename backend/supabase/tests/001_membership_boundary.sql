@@ -1,5 +1,5 @@
 begin;
-select plan(22);
+select plan(23);
 
 select has_table('identity', 'user_tenant_memberships', 'tenant memberships exist');
 select has_table('identity', 'user_site_memberships', 'site memberships exist');
@@ -77,6 +77,10 @@ select ok(
       and not rolbypassrls
   ),
   'bootstrap executor cannot log in or bypass row-level security'
+);
+select ok(
+  not has_schema_privilege('syncam_bootstrap_executor', 'identity', 'CREATE'),
+  'bootstrap executor has no persistent schema-create privilege'
 );
 select has_column(
   'audit', 'events', 'canonical_payload_bytes',

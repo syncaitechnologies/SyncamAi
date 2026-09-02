@@ -185,8 +185,32 @@ BEGIN
 END;
 $$;
 
+-- New functions inherit PUBLIC EXECUTE. Remove it while the migration runner
+-- still owns the function, before assigning the restricted owner below.
+REVOKE ALL ON FUNCTION identity.bootstrap_initial_super_admin(uuid, uuid, uuid, text)
+    FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, syncam_app;
+
+-- PostgreSQL allows changing an object's owner only when the migration runner
+-- can SET ROLE to that owner. The membership exists only for this migration;
+-- the function keeps its narrow owner after the membership is revoked.
+DO $$
+BEGIN
+    EXECUTE format('GRANT syncam_bootstrap_executor TO %I', current_user);
+END;
+$$;
+
+GRANT USAGE, CREATE ON SCHEMA identity TO syncam_bootstrap_executor;
+
 ALTER FUNCTION identity.bootstrap_initial_super_admin(uuid, uuid, uuid, text)
     OWNER TO syncam_bootstrap_executor;
+
+REVOKE CREATE ON SCHEMA identity FROM syncam_bootstrap_executor;
+
+DO $$
+BEGIN
+    EXECUTE format('REVOKE syncam_bootstrap_executor FROM %I', current_user);
+END;
+$$;
 
 GRANT USAGE ON SCHEMA identity, audit TO syncam_bootstrap_executor;
 GRANT USAGE ON SCHEMA extensions TO syncam_bootstrap_executor;
@@ -196,6 +220,3 @@ GRANT SELECT, INSERT ON audit.events TO syncam_bootstrap_executor;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA audit TO syncam_bootstrap_executor;
 GRANT USAGE ON SCHEMA auth TO syncam_bootstrap_executor;
 GRANT SELECT ON auth.users TO syncam_bootstrap_executor;
-
-REVOKE ALL ON FUNCTION identity.bootstrap_initial_super_admin(uuid, uuid, uuid, text)
-    FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, syncam_app;
