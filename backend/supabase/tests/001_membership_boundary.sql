@@ -1,5 +1,5 @@
 begin;
-select plan(23);
+select plan(27);
 
 select has_table('identity', 'user_tenant_memberships', 'tenant memberships exist');
 select has_table('identity', 'user_site_memberships', 'site memberships exist');
@@ -85,6 +85,22 @@ select ok(
 select has_column(
   'audit', 'events', 'canonical_payload_bytes',
   'bootstrap audit source bytes are retained for hash verification'
+);
+select has_table(
+  'identity', 'lifecycle_delivery_requests',
+  'lifecycle delivery requests are durable tenant records'
+);
+select ok(
+  exists (select 1 from pg_policies where schemaname = 'identity' and tablename = 'lifecycle_delivery_requests' and policyname = 'lifecycle_delivery_requests_tenant_isolation'),
+  'lifecycle delivery requests use transaction tenant isolation'
+);
+select ok(
+  not has_table_privilege('authenticated', 'identity.lifecycle_delivery_requests', 'SELECT,INSERT,UPDATE,DELETE'),
+  'browser users cannot read or mutate lifecycle delivery requests'
+);
+select ok(
+  has_table_privilege('syncam_app', 'identity.lifecycle_delivery_requests', 'SELECT,INSERT,UPDATE'),
+  'application role has only the lifecycle delivery privileges needed by a future worker'
 );
 select ok(
   position(
