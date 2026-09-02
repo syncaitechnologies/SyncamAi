@@ -47,6 +47,14 @@ func TestPostgresDeliveryStoreClaimsAndCompletesLease(t *testing.T) {
 	if err := store.MarkFailed(context.Background(), userTenant, lifecycleWorkerID, lifecycleRequestID, ""); err != nil {
 		t.Fatal(err)
 	}
+
+	pool.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadWrite})
+	pool.ExpectExec("SELECT set_config").WithArgs(userTenant).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+	pool.ExpectExec("UPDATE identity.lifecycle_delivery_requests").WithArgs(userTenant, lifecycleRequestID, lifecycleWorkerID, "Supabase invitation result requires reconciliation").WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	pool.ExpectCommit()
+	if err := store.MarkReconciliationRequired(context.Background(), userTenant, lifecycleWorkerID, lifecycleRequestID, "Supabase invitation result requires reconciliation"); err != nil {
+		t.Fatal(err)
+	}
 	if err := pool.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
 	}
@@ -56,6 +64,7 @@ type memoryDeliveryStore struct {
 	requests  []DeliveryRequest
 	delivered []string
 	failed    []string
+	reconcile []string
 }
 
 func (s *memoryDeliveryStore) Claim(context.Context, string, string, int) ([]DeliveryRequest, error) {
@@ -67,6 +76,10 @@ func (s *memoryDeliveryStore) MarkDelivered(_ context.Context, _ string, _ strin
 }
 func (s *memoryDeliveryStore) MarkFailed(_ context.Context, _ string, _ string, requestID, failure string) error {
 	s.failed = append(s.failed, requestID+":"+failure)
+	return nil
+}
+func (s *memoryDeliveryStore) MarkReconciliationRequired(_ context.Context, _ string, _ string, requestID, reason string) error {
+	s.reconcile = append(s.reconcile, requestID+":"+reason)
 	return nil
 }
 
@@ -81,15 +94,19 @@ func TestDeliveryWorkerMarksDeliveryAndSafeFailure(t *testing.T) {
 		{ID: "ok", Action: invitationDeliveryAction, ProviderOperationID: "lifecycle:ok"},
 		{ID: "bad", Action: invitationDeliveryAction, ProviderOperationID: "lifecycle:bad"},
 		{ID: "unsupported", Action: "disable"},
+		{ID: "reconcile", Action: invitationDeliveryAction},
 	}}
 	worker := DeliveryWorker{Store: store, WorkerID: lifecycleWorkerID, Provider: invitationProviderFunc(func(_ context.Context, request DeliveryRequest) error {
 		if request.ID == "bad" {
 			return errors.New("the provider returned a token")
 		}
+		if request.ID == "reconcile" {
+			return supabaseReconciliationRequiredError{}
+		}
 		return nil
 	})}
 	result, err := worker.DispatchTenant(context.Background(), userTenant)
-	if err == nil || result.Claimed != 3 || result.Delivered != 1 || result.Failed != 2 {
+	if err == nil || result.Claimed != 4 || result.Delivered != 1 || result.Failed != 2 || result.ReconciliationRequired != 1 {
 		t.Fatalf("dispatch lifecycle delivery: %#v %v", result, err)
 	}
 	if len(store.delivered) != 1 || store.delivered[0] != "ok" {
@@ -97,6 +114,9 @@ func TestDeliveryWorkerMarksDeliveryAndSafeFailure(t *testing.T) {
 	}
 	if len(store.failed) != 2 || store.failed[0] != "bad:provider delivery failed" {
 		t.Fatalf("failed = %#v", store.failed)
+	}
+	if len(store.reconcile) != 1 || store.reconcile[0] != "reconcile:Supabase invitation result requires reconciliation" {
+		t.Fatalf("reconciliation holds = %#v", store.reconcile)
 	}
 	if _, err := (DeliveryWorker{}).DispatchTenant(context.Background(), userTenant); err == nil {
 		t.Fatal("missing worker dependencies must fail")
