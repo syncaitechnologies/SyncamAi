@@ -185,8 +185,23 @@ BEGIN
 END;
 $$;
 
+-- PostgreSQL allows changing an object's owner only when the migration runner
+-- can SET ROLE to that owner. The membership exists only for this migration;
+-- the function keeps its narrow owner after the membership is revoked.
+DO $$
+BEGIN
+    EXECUTE format('GRANT syncam_bootstrap_executor TO %I', current_user);
+END;
+$$;
+
 ALTER FUNCTION identity.bootstrap_initial_super_admin(uuid, uuid, uuid, text)
     OWNER TO syncam_bootstrap_executor;
+
+DO $$
+BEGIN
+    EXECUTE format('REVOKE syncam_bootstrap_executor FROM %I', current_user);
+END;
+$$;
 
 GRANT USAGE ON SCHEMA identity, audit TO syncam_bootstrap_executor;
 GRANT USAGE ON SCHEMA extensions TO syncam_bootstrap_executor;
