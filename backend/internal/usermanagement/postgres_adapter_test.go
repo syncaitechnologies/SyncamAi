@@ -12,7 +12,7 @@ func TestPostgresAdapterQueuesInvitationIntentAndAudit(t *testing.T) {
 	pool, err := pgxmock.NewPool()
 	if err != nil { t.Fatal(err) }
 	defer pool.Close()
-	pool.ExpectBegin()
+	pool.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadWrite})
 	pool.ExpectExec("SELECT set_config").WithArgs(userTenant).WillReturnResult(pgxmock.NewResult("SELECT", 1))
 	pool.ExpectExec("INSERT INTO identity.lifecycle_delivery_requests").WithArgs(pgxmock.AnyArg(), userTenant, userRequest, pgxmock.AnyArg(), "actor-1").WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	pool.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs(pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("SELECT", 1))
