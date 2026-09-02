@@ -39,7 +39,7 @@ func (a *PostgresAdapter) Invite(ctx context.Context, request InviteRequest) (In
 	if _, err := tx.Exec(ctx, `INSERT INTO identity.lifecycle_delivery_requests (id, tenant_id, request_id, action, payload, created_by) VALUES ($1::uuid, $2::uuid, $3::uuid, 'invite', $4::jsonb, $5)`, id, request.TenantID, request.RequestID, payload, request.ActorID); err != nil { return Invitation{}, fmt.Errorf("queue invitation intent: %w", err) }
 	if _, err := audit.Append(ctx, tx, audit.Event{TenantID: request.TenantID, ActorID: request.ActorID, Action: "identity.invitation.queued", ResourceType: "lifecycle_delivery_request", ResourceID: id, RequestID: request.RequestID, AfterState: map[string]string{"action": "invite", "email": strings.TrimSpace(request.Email)}}); err != nil { return Invitation{}, err }
 	if err := tx.Commit(ctx); err != nil { return Invitation{}, fmt.Errorf("commit invitation intent: %w", err) }
-	return Invitation{ID: id, Email: strings.TrimSpace(request.Email)}, nil
+	return Invitation{ID: id, Email: strings.TrimSpace(request.Email), Queued: true}, nil
 }
 
 func (*PostgresAdapter) Disable(context.Context, DisableRequest) error { return ErrOperationUnavailable }
