@@ -39,6 +39,14 @@ func TestPostgresDeliveryStoreClaimsAndCompletesLease(t *testing.T) {
 	if err := store.MarkDelivered(context.Background(), userTenant, lifecycleWorkerID, lifecycleRequestID); err != nil {
 		t.Fatal(err)
 	}
+
+	pool.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadWrite})
+	pool.ExpectExec("SELECT set_config").WithArgs(userTenant).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+	pool.ExpectExec("UPDATE identity.lifecycle_delivery_requests").WithArgs(userTenant, lifecycleRequestID, lifecycleWorkerID, "provider delivery failed").WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	pool.ExpectCommit()
+	if err := store.MarkFailed(context.Background(), userTenant, lifecycleWorkerID, lifecycleRequestID, ""); err != nil {
+		t.Fatal(err)
+	}
 	if err := pool.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
 	}
