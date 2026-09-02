@@ -1,5 +1,5 @@
 begin;
-select plan(8);
+select plan(12);
 
 select has_table('identity', 'user_tenant_memberships', 'tenant memberships exist');
 select has_table('identity', 'user_site_memberships', 'site memberships exist');
@@ -18,6 +18,22 @@ select ok(
 );
 select function_privs_are('identity', 'syncam_custom_access_token', ARRAY['jsonb'], 'anon', ARRAY[]::text[], 'anon cannot invoke the auth hook');
 select function_privs_are('identity', 'syncam_custom_access_token', ARRAY['jsonb'], 'authenticated', ARRAY[]::text[], 'browser users cannot invoke the auth hook');
+select ok(
+  exists (select 1 from pg_proc where oid = 'audit.reject_event_mutation()'::regprocedure and proconfig @> ARRAY['search_path=""']::text[]),
+  'audit immutability trigger has a fixed empty search path'
+);
+select ok(
+  exists (select 1 from pg_proc where oid = 'alerts.reject_action_mutation()'::regprocedure and proconfig @> ARRAY['search_path=""']::text[]),
+  'alert immutability trigger has a fixed empty search path'
+);
+select ok(
+  exists (select 1 from pg_proc where oid = 'config.reject_privacy_mask_approval_mutation()'::regprocedure and proconfig @> ARRAY['search_path=""']::text[]),
+  'privacy-mask approval immutability trigger has a fixed empty search path'
+);
+select ok(
+  exists (select 1 from pg_proc where oid = 'config.reject_privacy_mask_release_manifest_mutation()'::regprocedure and proconfig @> ARRAY['search_path=""']::text[]),
+  'privacy-mask release immutability trigger has a fixed empty search path'
+);
 
 select * from finish();
 rollback;
