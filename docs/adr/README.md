@@ -14,5 +14,6 @@ Architecture decisions are immutable records: supersede an accepted ADR with a n
 | [ADR-008](ADR-008-composite-deployment.md) | Composite MVP deployables | Accepted |
 | [ADR-009](ADR-009-supabase-cloudflare-mvp-backend.md) | Temporary Supabase + Cloudflare MVP backend | Accepted |
 | [ADR-010](ADR-010-initial-super-admin-bootstrap.md) | Initial Super Admin bootstrap | Accepted |
+| [ADR-011](ADR-011-identity-provider-lifecycle-delivery.md) | Identity-provider lifecycle delivery | Accepted |
 
 Every ADR must state its operational and security consequences. ADR-001 remains a release blocker until legal approval is recorded.
