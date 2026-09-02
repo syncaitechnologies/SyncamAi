@@ -27,9 +27,11 @@ acquires a short database lease, assigns the stable local operation identifier
 to the delivery attempt, and can reclaim an expired lease after a crash. Its
 Supabase Admin credential is supplied at runtime through an untracked secret
 store, never browser configuration, source control, logs, audit payloads, or
-outbox payloads. The worker records a stable delivery operation identifier,
-retries safely, and reconciles uncertain provider responses before issuing a
-second invitation or a conflicting user change.
+outbox payloads. The worker records a stable delivery operation identifier.
+Because the Supabase invite endpoint does not document an idempotency key, an
+ambiguous response is held in `reconciliation_required` rather than retried; a
+future reconciliation procedure must establish provider state before any
+second invitation or conflicting user change.
 
 The initial implementation order is: invitation intent and durable delivery;
 then disablement with session revocation; then site reassignment. Roles,
@@ -50,6 +52,6 @@ them as live.
   partially committed browser operation.
 - The local transaction remains the authoritative audit point; provider
   response metadata is minimised and never contains bearer credentials.
-- The next implementation slice must add lifecycle persistence, RLS grants
-  only for `syncam_app`, pgtAP allow/deny tests, and worker delivery tests
-  before any Supabase Admin call is enabled.
+- The server-only invitation provider calls no browser route and is not wired
+  into a deployed worker in this repository. Its runtime secret is never
+  represented in source, checked-in configuration, or frontend environment.

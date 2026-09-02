@@ -32,6 +32,7 @@ type DeliveryStore interface {
 	Claim(context.Context, string, string, int) ([]DeliveryRequest, error)
 	MarkDelivered(context.Context, string, string, string) error
 	MarkFailed(context.Context, string, string, string, string) error
+	MarkReconciliationRequired(context.Context, string, string, string, string) error
 }
 
 // InvitationProvider is deliberately provider-neutral. No Supabase Admin
@@ -131,6 +132,46 @@ func (s *PostgresDeliveryStore) MarkFailed(ctx context.Context, tenantID, worker
 	return s.finish(ctx, tenantID, workerID, requestID, failure)
 }
 
+// MarkReconciliationRequired prevents a provider retry after an ambiguous
+// result, such as a timeout after Supabase may already have sent an invite.
+func (s *PostgresDeliveryStore) MarkReconciliationRequired(ctx context.Context, tenantID, workerID, requestID, reason string) error {
+	if len(reason) > 2000 {
+		reason = reason[:2000]
+	}
+	if reason == "" {
+		reason = "provider delivery requires reconciliation"
+	}
+	if s == nil || s.pool == nil {
+		return errors.New("postgres lifecycle delivery store is unavailable")
+	}
+	if _, err := uuid.Parse(workerID); err != nil {
+		return fmt.Errorf("invalid lifecycle delivery worker: %w", err)
+	}
+	if _, err := uuid.Parse(requestID); err != nil {
+		return fmt.Errorf("invalid lifecycle delivery request: %w", err)
+	}
+	tx, err := s.begin(ctx, tenantID)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	tag, err := tx.Exec(ctx, `UPDATE identity.lifecycle_delivery_requests
+		SET status = 'reconciliation_required', lease_owner = NULL, lease_expires_at = NULL,
+			last_error = $4, updated_at = clock_timestamp()
+		WHERE tenant_id = $1::uuid AND id = $2::uuid AND lease_owner = $3::uuid
+			AND status = 'delivering'`, tenantID, requestID, workerID, reason)
+	if err != nil {
+		return fmt.Errorf("hold lifecycle delivery for reconciliation: %w", err)
+	}
+	if tag.RowsAffected() != 1 {
+		return ErrDeliveryLeaseLost
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit lifecycle delivery reconciliation hold: %w", err)
+	}
+	return nil
+}
+
 func (s *PostgresDeliveryStore) finish(ctx context.Context, tenantID, workerID, requestID, failure string) error {
 	if s == nil || s.pool == nil {
 		return errors.New("postgres lifecycle delivery store is unavailable")
@@ -194,7 +235,7 @@ type DeliveryWorker struct {
 	BatchSize int
 }
 
-type DeliveryResult struct{ Claimed, Delivered, Failed int }
+type DeliveryResult struct{ Claimed, Delivered, Failed, ReconciliationRequired int }
 
 func (w DeliveryWorker) DispatchTenant(ctx context.Context, tenantID string) (DeliveryResult, error) {
 	if w.Store == nil || w.Provider == nil {
@@ -217,6 +258,16 @@ func (w DeliveryWorker) DispatchTenant(ctx context.Context, tenantID string) (De
 			err = w.Provider.DeliverInvitation(ctx, request)
 		}
 		if err != nil {
+			var reconciliation reconciliationRequiredError
+			if errors.As(err, &reconciliation) {
+				result.ReconciliationRequired++
+				if markErr := w.Store.MarkReconciliationRequired(ctx, tenantID, w.WorkerID, request.ID, reconciliation.ReconciliationReason()); markErr != nil {
+					failures = append(failures, fmt.Errorf("reconcile %s: %v; release lease: %w", request.ID, err, markErr))
+				} else {
+					failures = append(failures, fmt.Errorf("reconcile %s: %w", request.ID, err))
+				}
+				continue
+			}
 			result.Failed++
 			failure := safeDeliveryFailure(err)
 			if markErr := w.Store.MarkFailed(ctx, tenantID, w.WorkerID, request.ID, failure); markErr != nil {
@@ -239,6 +290,11 @@ func (w DeliveryWorker) DispatchTenant(ctx context.Context, tenantID string) (De
 type safeDeliveryError interface {
 	error
 	SafeDeliveryFailure() string
+}
+
+type reconciliationRequiredError interface {
+	error
+	ReconciliationReason() string
 }
 
 func safeDeliveryFailure(err error) string {
