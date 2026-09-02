@@ -599,6 +599,24 @@
       "dependencies": ["T-0310", "T-0311", "T-0313", "T-0315", "T-0364"],
       "status": "complete",
       "acceptance": "Pinned Supabase CLI migrations own schema history, preserve legacy provenance, reserve only syncam_realtime for application realtime data, use auth.users-backed memberships and trusted app_metadata.syncam claims, and fail closed for anonymous, unprovisioned, cross-tenant, cross-site, browser-write, audit/outbox, and missing transaction-tenant access."
+    },
+    {
+      "id": "T-0366",
+      "title": "Add Supabase PKCE web authentication foundation",
+      "phase": 1,
+      "owner": "Web and Security",
+      "dependencies": ["T-0310", "T-0311", "T-0365"],
+      "status": "in_review",
+      "acceptance": "The Vite web app supports Supabase PKCE session restoration, refresh, logout, redirect-based SSO initiation, and password sign-in in explicitly configured live mode. It fails closed when live public configuration is absent, keeps demo mode credential-free, exposes no privileged key, and copies only the short-lived access token to the existing Go API bridge. Browser code makes no authorization decision from user_metadata or app_metadata; Go remains the authorization boundary."
+    },
+    {
+      "id": "T-0367",
+      "title": "Add a safe organization onboarding shell",
+      "phase": 1,
+      "owner": "Web and Security",
+      "dependencies": ["T-0183", "T-0365", "T-0366"],
+      "status": "in_review",
+      "acceptance": "A browser-only onboarding shell validates organization, first-site, and first-team-member request details with accessible step, navigation, review, and error states. It makes no remote database/Auth write, role assignment, invitation, tenant claim, or provisioning decision, and explicitly requires a future audited Go provisioning API for those business mutations."
     }
   ]
 }

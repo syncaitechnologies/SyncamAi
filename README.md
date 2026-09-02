@@ -16,6 +16,10 @@ Run the complete verification gate with `make verify` on macOS/Linux or `pwsh sc
 
 Phase 1 local persistence uses Postgres 16 with separate `syncam_admin` migration and `syncam_app` runtime roles. It includes tenant/site persistence, authenticated event ingestion, a leased transactional-outbox worker, an idempotent alert queue, audited acknowledgment, and a ticketed resumable alert WebSocket. Copy `.env.example`, start `docker compose up -d postgres`, run `go run ./backend/cmd/migrate`, and follow the [Phase 1 development guide](docs/development/phase-1-identity.md). AWS is not required for this local workflow.
 
+## Web authentication (temporary Supabase MVP)
+
+The web app stays in synthetic demo mode until its Supabase configuration is deliberately enabled. For a live development login, copy [`frontend/apps/web/.env.example`](frontend/apps/web/.env.example) to an ignored `frontend/apps/web/.env.local`, set `VITE_SYNCAM_DATA_MODE=live`, and enter only the development project's URL and **publishable** key. Also add the local and deployed web origins to Supabase Auth's Redirect URLs before testing a redirect-based SSO provider. The browser uses PKCE and maintains its own session; it supplies only the short-lived access token to the existing Go API. Authorization remains server-side and uses trusted `app_metadata.syncam`, never browser-controlled user metadata. Do not place service-role keys, database passwords, access tokens, or refresh tokens in Vite or Vercel environment configuration.
+
 The FR-103a event-only vehicle adapter converts confirmed camera-local tracks into review-required events without LPR, ReID, speed, risk scoring, or theft claims. See the [vehicle-activity development guide](docs/development/phase-6-vehicle-activity.md).
 
 ## Source availability

@@ -4,12 +4,13 @@ import type { AlertItem, AlertStatus, Severity } from "./alert-contracts";
 import { CameraWall } from "./CameraWall";
 import { Icon } from "./icon";
 import { ModelRegistryWorkspace } from "./ModelRegistryWorkspace";
+import { OrganizationOnboarding } from "./OrganizationOnboarding";
 import { OperationsDashboard } from "./OperationsDashboard";
 import { useAlertFeed } from "./use-alert-feed";
 import { ZoneBuilder } from "./ZoneBuilder";
 
 type Filter = "all" | "critical" | "unacknowledged" | "acknowledged";
-type View = "dashboard" | "alerts" | "cameras" | "zones" | "models";
+type View = "dashboard" | "alerts" | "cameras" | "zones" | "models" | "onboarding";
 
 const seedAlerts: AlertItem[] = [
   {
@@ -164,7 +165,21 @@ function formatAge(timestamp: string) {
     : `${Math.floor(minutes / 60)}h ${minutes % 60}m ago`;
 }
 
-export function App() {
+type AppProps = {
+  userEmail?: string;
+  onSignOut?: () => void;
+};
+
+function initials(value: string) {
+  return value
+    .split(/[^a-z0-9]+/i)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+export function App({ userEmail, onSignOut }: AppProps = {}) {
   const {
     alerts,
     setAlerts,
@@ -452,6 +467,15 @@ export function App() {
             Configuration
           </button>
           <button
+            className={activeView === "onboarding" ? "nav-item active" : "nav-item"}
+            type="button"
+            onClick={() => setActiveView("onboarding")}
+            aria-current={activeView === "onboarding" ? "page" : undefined}
+          >
+            <Icon name="users" />
+            <span>Organization setup</span>
+          </button>
+          <button
             className={activeView === "models" ? "nav-item active" : "nav-item"}
             type="button"
             onClick={() => setActiveView("models")}
@@ -469,13 +493,19 @@ export function App() {
               <small>All actions are logged</small>
             </span>
           </div>
-          <button className="profile-button" type="button">
-            <span className="user-avatar">RS</span>
+          <button
+            className="profile-button"
+            type="button"
+            onClick={onSignOut}
+            disabled={!onSignOut}
+            aria-label={onSignOut ? "Sign out" : undefined}
+          >
+            <span className="user-avatar">{userEmail ? initials(userEmail) : "DE"}</span>
             <span>
-              <strong>Rajan Shah</strong>
-              <small>SOC operator</small>
+              <strong>{userEmail ?? "Local demo"}</strong>
+              <small>{onSignOut ? "Signed in · click to sign out" : "Synthetic workspace"}</small>
             </span>
-            <Icon name="more" />
+            <Icon name={onSignOut ? "close" : "more"} />
           </button>
         </div>
       </aside>
@@ -493,6 +523,8 @@ export function App() {
                     ? "Zones & rules"
                     : activeView === "models"
                       ? "Model registry"
+                      : activeView === "onboarding"
+                        ? "Organization setup"
                   : "Alert Center"}
             </strong>
           </div>
@@ -550,6 +582,8 @@ export function App() {
           <ZoneBuilder dataMode={dataMode} onNotify={setToast} />
         ) : activeView === "models" ? (
           <ModelRegistryWorkspace dataMode={dataMode} />
+        ) : activeView === "onboarding" ? (
+          <OrganizationOnboarding dataMode={dataMode} />
         ) : (
           <>
         <section className="page-heading">

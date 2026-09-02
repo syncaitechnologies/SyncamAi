@@ -4,6 +4,7 @@
   "code_licenses": ["Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "MIT", "Python-2.0", "Unicode-3.0"],
   "model_licenses": ["Apache-2.0"],
   "package_allowlist": [
+    "@supabase/supabase-js",
     "@types/react",
     "@types/react-dom",
     "@vitejs/plugin-react",
@@ -22,5 +23,5 @@
     "github.com/testcontainers/testcontainers-go",
     "github.com/testcontainers/testcontainers-go/modules/postgres"
   ],
-  "notes": "Transitive licenses are checked by dependency review/SBOM tooling. Any new direct dependency requires explicit review. The pinned supabase CLI 2.116.0 is MIT-licensed and is approved solely for local development, migration and CI verification."
+  "notes": "Transitive licenses are checked by dependency review/SBOM tooling. Any new direct dependency requires explicit review. The pinned supabase CLI 2.116.0 is MIT-licensed and is approved solely for local development, migration and CI verification. The pinned @supabase/supabase-js 2.113.0 browser client is MIT-licensed and approved solely for the temporary Supabase PKCE authentication boundary; it must never receive privileged Supabase keys."
 }
