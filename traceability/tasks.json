@@ -617,6 +617,33 @@
       "dependencies": ["T-0183", "T-0365", "T-0366"],
       "status": "complete",
       "acceptance": "A browser-only onboarding shell validates organization, first-site, and first-team-member request details with accessible step, navigation, review, and error states. It makes no remote database/Auth write, role assignment, invitation, tenant claim, or provisioning decision, and explicitly requires a future audited Go provisioning API for those business mutations."
+    },
+    {
+      "id": "T-0379",
+      "title": "Add isolated Supabase invitation delivery worker",
+      "phase": 1,
+      "owner": "Security and Platform",
+      "dependencies": ["T-0365"],
+      "status": "complete",
+      "acceptance": "A separately deployable, tenant-scoped Go worker holds the Supabase secret only at runtime, leases invitation delivery requests, invokes the server-only invitation provider, and records safe delivery state. It creates no deployment configuration, browser secret, or production activation claim."
+    },
+    {
+      "id": "T-0380",
+      "title": "Queue durable user disablement",
+      "phase": 1,
+      "owner": "Security and Platform",
+      "dependencies": ["T-0365"],
+      "status": "complete",
+      "acceptance": "A tenant-scoped transaction prevents self-disablement and loss of the last active Super Admin, suspends local tenant and site memberships, writes the hash-chained audit event, and queues provider session revocation atomically. The HTTP API and browser remain unable to initiate the transition, and no provider session is claimed revoked until a separately reviewed worker delivers it."
+    },
+    {
+      "id": "T-0381",
+      "title": "Scope lifecycle-delivery workers to their explicit provider actions",
+      "phase": 1,
+      "owner": "Security and Platform",
+      "dependencies": ["T-0379", "T-0380"],
+      "status": "in_review",
+      "acceptance": "A lifecycle worker validates and claims only the bounded action set its injected provider explicitly supports. The existing Supabase invitation worker claims invitation intents only; queued disablement remains unclaimed until a separately reviewed session-revocation provider is available. Unsupported, empty, and duplicate action declarations fail closed, and no browser route, provider secret exposure, live deployment, or claim of completed session revocation is added."
     }
   ]
 }
