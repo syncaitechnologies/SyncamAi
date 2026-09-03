@@ -44,6 +44,12 @@ failure/recovery procedure are implemented and tested, the application must
 continue to report lifecycle operations as unavailable rather than presenting
 them as live.
 
+The durable disablement step suspends the local tenant and site memberships,
+which prevents the custom access-token hook from issuing fresh SyncCam claims.
+It records an audit event and queues provider session revocation, but the
+invitation-only worker deliberately leaves that request pending. The HTTP API
+and browser remain unable to initiate this transition.
+
 ## Consequences
 
 - No Supabase service-role or secret key enters the frontend or the Go HTTP

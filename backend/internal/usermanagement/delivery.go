@@ -77,6 +77,9 @@ func (s *PostgresDeliveryStore) Claim(ctx context.Context, tenantID, workerID st
 			SELECT id
 			FROM identity.lifecycle_delivery_requests
 			WHERE tenant_id = $1::uuid
+			  -- This worker currently owns only the Supabase invitation adapter.
+			  -- Disablement stays pending until its session-revocation adapter exists.
+			  AND action = 'invite'
 			  AND (
 				status IN ('pending', 'failed')
 				OR (status = 'delivering' AND lease_expires_at <= clock_timestamp())
