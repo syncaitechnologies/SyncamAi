@@ -73,13 +73,13 @@ func TestPostgresAdapterRejectsUnavailableAndBeginFailure(t *testing.T) {
 	}
 }
 
-func expectDisableAudit(pool pgxmock.PgxPool) {
+func expectDisableAudit(pool pgxmock.PgxPoolIface) {
 	pool.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs(pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("SELECT", 1))
 	pool.ExpectQuery("SELECT record_hash").WithArgs(userTenant, pgxmock.AnyArg()).WillReturnError(pgx.ErrNoRows)
 	pool.ExpectExec("INSERT INTO audit.events").WithArgs(pgxmock.AnyArg(), userTenant, pgxmock.AnyArg(), pgxmock.AnyArg(), "actor-1", "identity.user.disable.queued", "user_tenant_membership", userID, userRequest, pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
 }
 
-func expectDisableStart(t *testing.T) pgxmock.PgxPool {
+func expectDisableStart(t *testing.T) pgxmock.PgxPoolIface {
 	t.Helper()
 	pool, err := pgxmock.NewPool()
 	if err != nil { t.Fatal(err) }
