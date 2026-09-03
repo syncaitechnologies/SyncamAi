@@ -10,7 +10,10 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const invitationDeliveryAction = "invite"
+const (
+	invitationDeliveryAction  = "invite"
+	disablementDeliveryAction = "disable"
+)
 
 var ErrDeliveryLeaseLost = errors.New("lifecycle delivery lease was lost")
 
@@ -29,16 +32,18 @@ type DeliveryRequest struct {
 // DeliveryStore persists the lease state around an externally observable
 // provider operation. Implementations must never be callable by a browser.
 type DeliveryStore interface {
-	Claim(context.Context, string, string, int) ([]DeliveryRequest, error)
+	Claim(context.Context, string, string, int, []string) ([]DeliveryRequest, error)
 	MarkDelivered(context.Context, string, string, string) error
 	MarkFailed(context.Context, string, string, string, string) error
 	MarkReconciliationRequired(context.Context, string, string, string, string) error
 }
 
-// InvitationProvider is deliberately provider-neutral. No Supabase Admin
-// client is configured or invoked by this package.
-type InvitationProvider interface {
-	DeliverInvitation(context.Context, DeliveryRequest) error
+// DeliveryProvider is deliberately provider-neutral. A worker may claim only
+// the actions this provider explicitly supports, so one lifecycle adapter can
+// never accidentally consume work that belongs to another adapter.
+type DeliveryProvider interface {
+	DeliveryActions() []string
+	Deliver(context.Context, DeliveryRequest) error
 }
 
 type deliveryPool interface {
@@ -53,7 +58,7 @@ func NewPostgresDeliveryStore(pool deliveryPool) *PostgresDeliveryStore {
 	return &PostgresDeliveryStore{pool: pool}
 }
 
-func (s *PostgresDeliveryStore) Claim(ctx context.Context, tenantID, workerID string, limit int) ([]DeliveryRequest, error) {
+func (s *PostgresDeliveryStore) Claim(ctx context.Context, tenantID, workerID string, limit int, actions []string) ([]DeliveryRequest, error) {
 	if s == nil || s.pool == nil {
 		return nil, errors.New("postgres lifecycle delivery store is unavailable")
 	}
@@ -66,6 +71,10 @@ func (s *PostgresDeliveryStore) Claim(ctx context.Context, tenantID, workerID st
 	if limit < 1 || limit > 100 {
 		return nil, errors.New("lifecycle delivery claim limit must be between 1 and 100")
 	}
+	actions, err := validatedDeliveryActions(actions)
+	if err != nil {
+		return nil, err
+	}
 
 	tx, err := s.begin(ctx, tenantID)
 	if err != nil {
@@ -77,9 +86,7 @@ func (s *PostgresDeliveryStore) Claim(ctx context.Context, tenantID, workerID st
 			SELECT id
 			FROM identity.lifecycle_delivery_requests
 			WHERE tenant_id = $1::uuid
-			  -- This worker currently owns only the Supabase invitation adapter.
-			  -- Disablement stays pending until its session-revocation adapter exists.
-			  AND action = 'invite'
+			  AND action = ANY($4::text[])
 			  AND (
 				status IN ('pending', 'failed')
 				OR (status = 'delivering' AND lease_expires_at <= clock_timestamp())
@@ -99,7 +106,7 @@ func (s *PostgresDeliveryStore) Claim(ctx context.Context, tenantID, workerID st
 		FROM candidates
 		WHERE request.tenant_id = $1::uuid AND request.id = candidates.id
 		RETURNING request.id::text, request.tenant_id::text, request.request_id::text,
-			request.action, request.payload, request.provider_operation_id`, tenantID, limit, workerID)
+			request.action, request.payload, request.provider_operation_id`, tenantID, limit, workerID, actions)
 	if err != nil {
 		return nil, fmt.Errorf("claim lifecycle delivery requests: %w", err)
 	}
@@ -233,7 +240,7 @@ func (s *PostgresDeliveryStore) begin(ctx context.Context, tenantID string) (pgx
 // deployment supplies the provider; this repository intentionally has none.
 type DeliveryWorker struct {
 	Store     DeliveryStore
-	Provider  InvitationProvider
+	Provider  DeliveryProvider
 	WorkerID  string
 	BatchSize int
 }
@@ -244,22 +251,22 @@ func (w DeliveryWorker) DispatchTenant(ctx context.Context, tenantID string) (De
 	if w.Store == nil || w.Provider == nil {
 		return DeliveryResult{}, errors.New("lifecycle delivery worker dependencies are required")
 	}
+	actions, err := validatedDeliveryActions(w.Provider.DeliveryActions())
+	if err != nil {
+		return DeliveryResult{}, err
+	}
 	batchSize := w.BatchSize
 	if batchSize == 0 {
 		batchSize = 25
 	}
-	requests, err := w.Store.Claim(ctx, tenantID, w.WorkerID, batchSize)
+	requests, err := w.Store.Claim(ctx, tenantID, w.WorkerID, batchSize, actions)
 	if err != nil {
 		return DeliveryResult{}, err
 	}
 	result := DeliveryResult{Claimed: len(requests)}
 	var failures []error
 	for _, request := range requests {
-		if request.Action != invitationDeliveryAction {
-			err = fmt.Errorf("unsupported lifecycle delivery action %q", request.Action)
-		} else {
-			err = w.Provider.DeliverInvitation(ctx, request)
-		}
+		err = w.Provider.Deliver(ctx, request)
 		if err != nil {
 			var reconciliation reconciliationRequiredError
 			if errors.As(err, &reconciliation) {
@@ -288,6 +295,25 @@ func (w DeliveryWorker) DispatchTenant(ctx context.Context, tenantID string) (De
 		result.Delivered++
 	}
 	return result, errors.Join(failures...)
+}
+
+func validatedDeliveryActions(actions []string) ([]string, error) {
+	if len(actions) == 0 {
+		return nil, errors.New("lifecycle delivery provider must support at least one action")
+	}
+	seen := make(map[string]struct{}, len(actions))
+	validated := make([]string, 0, len(actions))
+	for _, action := range actions {
+		if action != invitationDeliveryAction && action != disablementDeliveryAction {
+			return nil, fmt.Errorf("unsupported lifecycle delivery action %q", action)
+		}
+		if _, exists := seen[action]; exists {
+			return nil, fmt.Errorf("duplicate lifecycle delivery action %q", action)
+		}
+		seen[action] = struct{}{}
+		validated = append(validated, action)
+	}
+	return validated, nil
 }
 
 type safeDeliveryError interface {

@@ -20,14 +20,14 @@ func TestPostgresDeliveryStoreClaimsAndCompletesLease(t *testing.T) {
 	defer pool.Close()
 	pool.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadWrite})
 	pool.ExpectExec("SELECT set_config").WithArgs(userTenant).WillReturnResult(pgxmock.NewResult("SELECT", 1))
-	pool.ExpectQuery("WITH candidates AS").WithArgs(userTenant, 25, lifecycleWorkerID).WillReturnRows(
+	pool.ExpectQuery("WITH candidates AS").WithArgs(userTenant, 25, lifecycleWorkerID, []string{invitationDeliveryAction}).WillReturnRows(
 		pgxmock.NewRows([]string{"id", "tenant_id", "request_id", "action", "payload", "provider_operation_id"}).
 			AddRow(lifecycleRequestID, userTenant, userRequest, invitationDeliveryAction, []byte(`{"email":"new.user@example.test"}`), "lifecycle:"+lifecycleRequestID),
 	)
 	pool.ExpectCommit()
 
 	store := NewPostgresDeliveryStore(pool)
-	requests, err := store.Claim(context.Background(), userTenant, lifecycleWorkerID, 25)
+	requests, err := store.Claim(context.Background(), userTenant, lifecycleWorkerID, 25, []string{invitationDeliveryAction})
 	if err != nil || len(requests) != 1 || requests[0].ProviderOperationID != "lifecycle:"+lifecycleRequestID {
 		t.Fatalf("claim lifecycle delivery: %#v %v", requests, err)
 	}
@@ -67,7 +67,7 @@ type memoryDeliveryStore struct {
 	reconcile []string
 }
 
-func (s *memoryDeliveryStore) Claim(context.Context, string, string, int) ([]DeliveryRequest, error) {
+func (s *memoryDeliveryStore) Claim(context.Context, string, string, int, []string) ([]DeliveryRequest, error) {
 	return s.requests, nil
 }
 func (s *memoryDeliveryStore) MarkDelivered(_ context.Context, _ string, _ string, requestID string) error {
@@ -85,8 +85,16 @@ func (s *memoryDeliveryStore) MarkReconciliationRequired(_ context.Context, _ st
 
 type invitationProviderFunc func(context.Context, DeliveryRequest) error
 
-func (f invitationProviderFunc) DeliverInvitation(ctx context.Context, request DeliveryRequest) error {
+func (invitationProviderFunc) DeliveryActions() []string { return []string{invitationDeliveryAction} }
+func (f invitationProviderFunc) Deliver(ctx context.Context, request DeliveryRequest) error {
 	return f(ctx, request)
+}
+
+type invalidDeliveryProvider []string
+
+func (p invalidDeliveryProvider) DeliveryActions() []string { return []string(p) }
+func (invalidDeliveryProvider) Deliver(context.Context, DeliveryRequest) error {
+	return nil
 }
 
 func TestDeliveryWorkerMarksDeliveryAndSafeFailure(t *testing.T) {
@@ -97,6 +105,9 @@ func TestDeliveryWorkerMarksDeliveryAndSafeFailure(t *testing.T) {
 		{ID: "reconcile", Action: invitationDeliveryAction},
 	}}
 	worker := DeliveryWorker{Store: store, WorkerID: lifecycleWorkerID, Provider: invitationProviderFunc(func(_ context.Context, request DeliveryRequest) error {
+		if request.Action != invitationDeliveryAction {
+			return errors.New("unsupported lifecycle delivery action")
+		}
 		if request.ID == "bad" {
 			return errors.New("the provider returned a token")
 		}
@@ -125,7 +136,7 @@ func TestDeliveryWorkerMarksDeliveryAndSafeFailure(t *testing.T) {
 
 func TestPostgresDeliveryStoreRejectsInvalidBoundary(t *testing.T) {
 	store := NewPostgresDeliveryStore(nil)
-	if _, err := store.Claim(context.Background(), userTenant, lifecycleWorkerID, 25); err == nil {
+	if _, err := store.Claim(context.Background(), userTenant, lifecycleWorkerID, 25, []string{invitationDeliveryAction}); err == nil {
 		t.Fatal("missing pool must fail")
 	}
 	pool, err := pgxmock.NewPool()
@@ -137,13 +148,17 @@ func TestPostgresDeliveryStoreRejectsInvalidBoundary(t *testing.T) {
 	for _, input := range []struct {
 		tenant, worker string
 		limit          int
+		actions        []string
 	}{
-		{"bad", lifecycleWorkerID, 25},
-		{userTenant, "bad", 25},
-		{userTenant, lifecycleWorkerID, 0},
-		{userTenant, lifecycleWorkerID, 101},
+		{"bad", lifecycleWorkerID, 25, []string{invitationDeliveryAction}},
+		{userTenant, "bad", 25, []string{invitationDeliveryAction}},
+		{userTenant, lifecycleWorkerID, 0, []string{invitationDeliveryAction}},
+		{userTenant, lifecycleWorkerID, 101, []string{invitationDeliveryAction}},
+		{userTenant, lifecycleWorkerID, 25, nil},
+		{userTenant, lifecycleWorkerID, 25, []string{"unknown"}},
+		{userTenant, lifecycleWorkerID, 25, []string{invitationDeliveryAction, invitationDeliveryAction}},
 	} {
-		if _, err := store.Claim(context.Background(), input.tenant, input.worker, input.limit); err == nil {
+		if _, err := store.Claim(context.Background(), input.tenant, input.worker, input.limit, input.actions); err == nil {
 			t.Fatal("invalid lifecycle delivery claim accepted")
 		}
 	}
@@ -152,5 +167,18 @@ func TestPostgresDeliveryStoreRejectsInvalidBoundary(t *testing.T) {
 	}
 	if err := store.MarkDelivered(context.Background(), userTenant, lifecycleWorkerID, "bad"); err == nil {
 		t.Fatal("invalid request accepted")
+	}
+}
+
+func TestDeliveryWorkerRejectsInvalidProviderActionDeclarations(t *testing.T) {
+	for _, actions := range [][]string{nil, {"unknown"}, {invitationDeliveryAction, invitationDeliveryAction}} {
+		worker := DeliveryWorker{
+			Store:    &memoryDeliveryStore{},
+			Provider: invalidDeliveryProvider(actions),
+			WorkerID: lifecycleWorkerID,
+		}
+		if _, err := worker.DispatchTenant(context.Background(), userTenant); err == nil {
+			t.Fatalf("invalid provider action declaration accepted: %#v", actions)
+		}
 	}
 }

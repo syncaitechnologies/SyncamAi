@@ -91,6 +91,17 @@ func (p *SupabaseInvitationProvider) DeliverInvitation(ctx context.Context, requ
 	return nil
 }
 
+// DeliveryActions limits this adapter to invitation messages. Disablement is
+// intentionally left pending until its separately reviewed provider adapter
+// can revoke the target user's sessions without a browser credential.
+func (*SupabaseInvitationProvider) DeliveryActions() []string {
+	return []string{invitationDeliveryAction}
+}
+
+func (p *SupabaseInvitationProvider) Deliver(ctx context.Context, request DeliveryRequest) error {
+	return p.DeliverInvitation(ctx, request)
+}
+
 // supabaseReconciliationRequiredError contains no provider body or secret. It
 // makes the worker hold an ambiguous attempt instead of automatically retrying.
 type supabaseReconciliationRequiredError struct{}
