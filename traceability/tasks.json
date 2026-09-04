@@ -642,7 +642,7 @@
       "phase": 1,
       "owner": "Security and Platform",
       "dependencies": ["T-0379", "T-0380"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A lifecycle worker validates and claims only the bounded action set its injected provider explicitly supports. The existing Supabase invitation worker claims invitation intents only; queued disablement remains unclaimed until a separately reviewed session-revocation provider is available. Unsupported, empty, and duplicate action declarations fail closed, and no browser route, provider secret exposure, live deployment, or claim of completed session revocation is added."
     }
   ]
