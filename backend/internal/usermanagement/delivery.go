@@ -11,8 +11,10 @@ import (
 )
 
 const (
-	invitationDeliveryAction  = "invite"
-	disablementDeliveryAction = "disable"
+	invitationDeliveryAction                    = "invite"
+	disablementDeliveryAction                   = "disable"
+	supabaseInvitationReconciliationReason      = "Supabase invitation result requires reconciliation"
+	genericDeliveryReconciliationRequiredReason = "provider delivery requires reconciliation"
 )
 
 var ErrDeliveryLeaseLost = errors.New("lifecycle delivery lease was lost")
@@ -148,9 +150,7 @@ func (s *PostgresDeliveryStore) MarkFailed(ctx context.Context, tenantID, worker
 // MarkReconciliationRequired prevents a provider retry after an ambiguous
 // result, such as a timeout after Supabase may already have sent an invite.
 func (s *PostgresDeliveryStore) MarkReconciliationRequired(ctx context.Context, tenantID, workerID, requestID, reason string) error {
-	if len(reason) > 2000 {
-		reason = reason[:2000]
-	}
+	reason = safeReconciliationReason(reason)
 	if reason == "" {
 		reason = "provider delivery requires reconciliation"
 	}
@@ -284,7 +284,8 @@ func (w DeliveryWorker) DispatchTenant(ctx context.Context, tenantID string) (De
 			var reconciliation reconciliationRequiredError
 			if errors.As(err, &reconciliation) {
 				result.ReconciliationRequired++
-				if markErr := w.Store.MarkReconciliationRequired(ctx, tenantID, w.WorkerID, request.ID, reconciliation.ReconciliationReason()); markErr != nil {
+				reason := safeReconciliationReason(reconciliation.SafeReconciliationReason())
+				if markErr := w.Store.MarkReconciliationRequired(ctx, tenantID, w.WorkerID, request.ID, reason); markErr != nil {
 					failures = append(failures, fmt.Errorf("reconcile %s: %v; release lease: %w", request.ID, err, markErr))
 				} else {
 					failures = append(failures, fmt.Errorf("reconcile %s: %w", request.ID, err))
@@ -362,7 +363,14 @@ type safeDeliveryError interface {
 
 type reconciliationRequiredError interface {
 	error
-	ReconciliationReason() string
+	SafeReconciliationReason() string
+}
+
+func safeReconciliationReason(reason string) string {
+	if reason == supabaseInvitationReconciliationReason {
+		return reason
+	}
+	return genericDeliveryReconciliationRequiredReason
 }
 
 func safeDeliveryFailure(err error) string {

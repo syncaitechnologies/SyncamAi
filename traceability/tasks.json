@@ -662,6 +662,15 @@
       "dependencies": ["T-0382"],
       "status": "in_review",
       "acceptance": "Before calling a server-side lifecycle provider, the worker rejects a request whose action is not explicitly claimed by that provider, whose invitation carries a target user, or whose disablement lacks a valid target Auth-user UUID. Rejected requests fail closed through the existing durable failure state without exposing the target identity. It adds no provider API call, session revocation, browser route, secret, deployment, or activation."
+    },
+    {
+      "id": "T-0384",
+      "title": "Bound lifecycle reconciliation holds to safe reason codes",
+      "phase": 1,
+      "owner": "Security and Platform",
+      "dependencies": ["T-0383"],
+      "status": "in_review",
+      "acceptance": "A lifecycle worker records a reconciliation hold only with an allowlisted safe reason code, replacing every unrecognised provider-supplied detail with a generic code before persistence. The bounded reason path is tested without recording a provider response, target identity, credential, session token, or error body. It adds no provider API call, session revocation, browser route, secret, deployment, or activation."
     }
   ]
 }

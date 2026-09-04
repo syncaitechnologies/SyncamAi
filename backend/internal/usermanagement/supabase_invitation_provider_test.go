@@ -67,7 +67,7 @@ func TestSupabaseInvitationProviderFailsClosedOnInvalidOrAmbiguousDelivery(t *te
 		t.Fatal("ambiguous provider response must not succeed")
 	} else {
 		var reconciliation reconciliationRequiredError
-		if !errors.As(err, &reconciliation) || reconciliation.ReconciliationReason() != "Supabase invitation result requires reconciliation" {
+		if !errors.As(err, &reconciliation) || reconciliation.SafeReconciliationReason() != supabaseInvitationReconciliationReason {
 			t.Fatalf("unexpected ambiguous delivery error: %v", err)
 		}
 	}

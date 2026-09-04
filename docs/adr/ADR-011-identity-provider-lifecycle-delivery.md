@@ -59,6 +59,11 @@ Before a provider receives a request, the worker fails closed if its action was
 not claimed by that provider, an invitation contains a target user, or a
 disablement omits a valid target UUID.
 
+Reconciliation holds persist only allowlisted, safe reason codes. An
+unrecognised provider reason is replaced with a generic reconciliation code;
+the worker must never persist raw provider response text, credentials, or a
+target identity in the delivery failure field.
+
 ## Consequences
 
 - No Supabase service-role or secret key enters the frontend or the Go HTTP
