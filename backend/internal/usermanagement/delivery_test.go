@@ -243,6 +243,7 @@ func TestDeliveryWorkerRejectsInvalidOrUnclaimedTargetsBeforeProvider(t *testing
 	}
 
 	store = &memoryDeliveryStore{requests: []DeliveryRequest{{ID: "unclaimed-disable", Action: disablementDeliveryAction, TargetUserID: userID}}}
+	worker.Store = store
 	worker.Provider = deliveryProviderFunc{actions: []string{invitationDeliveryAction}, deliver: func(context.Context, DeliveryRequest) error {
 		providerCalls++
 		return nil
