@@ -50,6 +50,12 @@ It records an audit event and queues provider session revocation, but the
 invitation-only worker deliberately leaves that request pending. The HTTP API
 and browser remain unable to initiate this transition.
 
+Delivery requests expose the existing target Auth-user UUID only to the
+separately deployed, action-scoped server worker when that action carries one.
+This transport identity is not a provider-session revocation, authorization
+claim, secret, or browser-visible value. The current invitation provider
+receives invitation requests only and continues to leave disablement pending.
+
 ## Consequences
 
 - No Supabase service-role or secret key enters the frontend or the Go HTTP
