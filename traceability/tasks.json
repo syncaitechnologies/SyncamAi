@@ -678,7 +678,7 @@
       "phase": 1,
       "owner": "Owner, Security and Platform",
       "dependencies": ["T-0384"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A checklist records the required product-owner, security, and infrastructure decisions and evidence before a session-revocation provider can be implemented, configured, or deployed. It keeps the browser and HTTP API outside the provider boundary and makes no approval, secret, provider API call, session-revocation, deployment, or activation claim."
     }
   ]
