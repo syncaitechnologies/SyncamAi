@@ -21,14 +21,14 @@ func TestPostgresDeliveryStoreClaimsAndCompletesLease(t *testing.T) {
 	pool.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadWrite})
 	pool.ExpectExec("SELECT set_config").WithArgs(userTenant).WillReturnResult(pgxmock.NewResult("SELECT", 1))
 	pool.ExpectQuery("WITH candidates AS").WithArgs(userTenant, 25, lifecycleWorkerID, []string{invitationDeliveryAction}).WillReturnRows(
-		pgxmock.NewRows([]string{"id", "tenant_id", "request_id", "action", "payload", "provider_operation_id"}).
-			AddRow(lifecycleRequestID, userTenant, userRequest, invitationDeliveryAction, []byte(`{"email":"new.user@example.test"}`), "lifecycle:"+lifecycleRequestID),
+		pgxmock.NewRows([]string{"id", "tenant_id", "request_id", "action", "target_user_id", "payload", "provider_operation_id"}).
+			AddRow(lifecycleRequestID, userTenant, userRequest, invitationDeliveryAction, "", []byte(`{"email":"new.user@example.test"}`), "lifecycle:"+lifecycleRequestID),
 	)
 	pool.ExpectCommit()
 
 	store := NewPostgresDeliveryStore(pool)
 	requests, err := store.Claim(context.Background(), userTenant, lifecycleWorkerID, 25, []string{invitationDeliveryAction})
-	if err != nil || len(requests) != 1 || requests[0].ProviderOperationID != "lifecycle:"+lifecycleRequestID {
+	if err != nil || len(requests) != 1 || requests[0].TargetUserID != "" || requests[0].ProviderOperationID != "lifecycle:"+lifecycleRequestID {
 		t.Fatalf("claim lifecycle delivery: %#v %v", requests, err)
 	}
 
@@ -54,6 +54,29 @@ func TestPostgresDeliveryStoreClaimsAndCompletesLease(t *testing.T) {
 	pool.ExpectCommit()
 	if err := store.MarkReconciliationRequired(context.Background(), userTenant, lifecycleWorkerID, lifecycleRequestID, "Supabase invitation result requires reconciliation"); err != nil {
 		t.Fatal(err)
+	}
+	if err := pool.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresDeliveryStorePreservesTargetUserID(t *testing.T) {
+	pool, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	pool.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadWrite})
+	pool.ExpectExec("SELECT set_config").WithArgs(userTenant).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+	pool.ExpectQuery("WITH candidates AS").WithArgs(userTenant, 1, lifecycleWorkerID, []string{disablementDeliveryAction}).WillReturnRows(
+		pgxmock.NewRows([]string{"id", "tenant_id", "request_id", "action", "target_user_id", "payload", "provider_operation_id"}).
+			AddRow(lifecycleRequestID, userTenant, userRequest, disablementDeliveryAction, userID, []byte(`{}`), "lifecycle:"+lifecycleRequestID),
+	)
+	pool.ExpectCommit()
+
+	requests, err := NewPostgresDeliveryStore(pool).Claim(context.Background(), userTenant, lifecycleWorkerID, 1, []string{disablementDeliveryAction})
+	if err != nil || len(requests) != 1 || requests[0].TargetUserID != userID {
+		t.Fatalf("claim lifecycle disablement target: %#v %v", requests, err)
 	}
 	if err := pool.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

@@ -644,6 +644,15 @@
       "dependencies": ["T-0379", "T-0380"],
       "status": "complete",
       "acceptance": "A lifecycle worker validates and claims only the bounded action set its injected provider explicitly supports. The existing Supabase invitation worker claims invitation intents only; queued disablement remains unclaimed until a separately reviewed session-revocation provider is available. Unsupported, empty, and duplicate action declarations fail closed, and no browser route, provider secret exposure, live deployment, or claim of completed session revocation is added."
+    },
+    {
+      "id": "T-0382",
+      "title": "Expose lifecycle-delivery target identity to action-scoped providers",
+      "phase": 1,
+      "owner": "Security and Platform",
+      "dependencies": ["T-0381"],
+      "status": "in_review",
+      "acceptance": "A leased lifecycle delivery request exposes the existing target Auth-user UUID only for actions that carry one, while invitations retain an empty target. The Postgres delivery store preserves the tenant-scoped target identity and action-specific workers receive it only through their server-side provider boundary. It adds no browser route, secret, session token, provider API call, session-revocation claim, deployment, or provider identity lookup."
     }
   ]
 }

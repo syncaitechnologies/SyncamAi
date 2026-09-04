@@ -19,12 +19,14 @@ var ErrDeliveryLeaseLost = errors.New("lifecycle delivery lease was lost")
 
 // DeliveryRequest is a leased, durable intent. ProviderOperationID is stable
 // across retries and must be used by a provider implementation as its
-// idempotency key. It contains no credential or bearer token.
+// idempotency key. TargetUserID is present only for lifecycle actions that
+// already carry a target identity. It contains no credential or bearer token.
 type DeliveryRequest struct {
 	ID                  string
 	TenantID            string
 	RequestID           string
 	Action              string
+	TargetUserID        string
 	Payload             json.RawMessage
 	ProviderOperationID string
 }
@@ -106,7 +108,8 @@ func (s *PostgresDeliveryStore) Claim(ctx context.Context, tenantID, workerID st
 		FROM candidates
 		WHERE request.tenant_id = $1::uuid AND request.id = candidates.id
 		RETURNING request.id::text, request.tenant_id::text, request.request_id::text,
-			request.action, request.payload, request.provider_operation_id`, tenantID, limit, workerID, actions)
+			request.action, COALESCE(request.target_user_id::text, ''), request.payload,
+			request.provider_operation_id`, tenantID, limit, workerID, actions)
 	if err != nil {
 		return nil, fmt.Errorf("claim lifecycle delivery requests: %w", err)
 	}
@@ -114,7 +117,7 @@ func (s *PostgresDeliveryStore) Claim(ctx context.Context, tenantID, workerID st
 	requests := make([]DeliveryRequest, 0)
 	for rows.Next() {
 		var request DeliveryRequest
-		if err := rows.Scan(&request.ID, &request.TenantID, &request.RequestID, &request.Action, &request.Payload, &request.ProviderOperationID); err != nil {
+		if err := rows.Scan(&request.ID, &request.TenantID, &request.RequestID, &request.Action, &request.TargetUserID, &request.Payload, &request.ProviderOperationID); err != nil {
 			return nil, fmt.Errorf("scan lifecycle delivery request: %w", err)
 		}
 		requests = append(requests, request)
