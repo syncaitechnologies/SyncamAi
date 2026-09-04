@@ -671,6 +671,15 @@
       "dependencies": ["T-0383"],
       "status": "complete",
       "acceptance": "A lifecycle worker records a reconciliation hold only with an allowlisted safe reason code, replacing every unrecognised provider-supplied detail with a generic code before persistence. The bounded reason path is tested without recording a provider response, target identity, credential, session token, or error body. It adds no provider API call, session revocation, browser route, secret, deployment, or activation."
+    },
+    {
+      "id": "T-0385",
+      "title": "Prepare session-revocation approval checklist",
+      "phase": 1,
+      "owner": "Owner, Security and Platform",
+      "dependencies": ["T-0384"],
+      "status": "in_review",
+      "acceptance": "A checklist records the required product-owner, security, and infrastructure decisions and evidence before a session-revocation provider can be implemented, configured, or deployed. It keeps the browser and HTTP API outside the provider boundary and makes no approval, secret, provider API call, session-revocation, deployment, or activation claim."
     }
   ]
 }
