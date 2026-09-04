@@ -653,6 +653,15 @@
       "dependencies": ["T-0381"],
       "status": "in_review",
       "acceptance": "A leased lifecycle delivery request exposes the existing target Auth-user UUID only for actions that carry one, while invitations retain an empty target. The Postgres delivery store preserves the tenant-scoped target identity and action-specific workers receive it only through their server-side provider boundary. It adds no browser route, secret, session token, provider API call, session-revocation claim, deployment, or provider identity lookup."
+    },
+    {
+      "id": "T-0383",
+      "title": "Validate action-scoped lifecycle delivery targets before provider invocation",
+      "phase": 1,
+      "owner": "Security and Platform",
+      "dependencies": ["T-0382"],
+      "status": "in_review",
+      "acceptance": "Before calling a server-side lifecycle provider, the worker rejects a request whose action is not explicitly claimed by that provider, whose invitation carries a target user, or whose disablement lacks a valid target Auth-user UUID. Rejected requests fail closed through the existing durable failure state without exposing the target identity. It adds no provider API call, session revocation, browser route, secret, deployment, or activation."
     }
   ]
 }

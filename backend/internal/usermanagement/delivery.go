@@ -269,6 +269,16 @@ func (w DeliveryWorker) DispatchTenant(ctx context.Context, tenantID string) (De
 	result := DeliveryResult{Claimed: len(requests)}
 	var failures []error
 	for _, request := range requests {
+		if err := validateDeliveryRequest(request, actions); err != nil {
+			result.Failed++
+			failure := safeDeliveryFailure(err)
+			if markErr := w.Store.MarkFailed(ctx, tenantID, w.WorkerID, request.ID, failure); markErr != nil {
+				failures = append(failures, fmt.Errorf("validate %s: %v; release lease: %w", request.ID, err, markErr))
+			} else {
+				failures = append(failures, fmt.Errorf("validate %s: %w", request.ID, err))
+			}
+			continue
+		}
 		err = w.Provider.Deliver(ctx, request)
 		if err != nil {
 			var reconciliation reconciliationRequiredError
@@ -317,6 +327,32 @@ func validatedDeliveryActions(actions []string) ([]string, error) {
 		validated = append(validated, action)
 	}
 	return validated, nil
+}
+
+// validateDeliveryRequest ensures a provider never sees a request for an
+// action it did not claim, or a target identity with invalid action semantics.
+func validateDeliveryRequest(request DeliveryRequest, actions []string) error {
+	claimed := false
+	for _, action := range actions {
+		if request.Action == action {
+			claimed = true
+			break
+		}
+	}
+	if !claimed {
+		return errors.New("lifecycle delivery request action was not claimed by provider")
+	}
+	switch request.Action {
+	case invitationDeliveryAction:
+		if request.TargetUserID != "" {
+			return errors.New("invitation delivery request must not include a target user")
+		}
+	case disablementDeliveryAction:
+		if _, err := uuid.Parse(request.TargetUserID); err != nil {
+			return errors.New("disablement delivery request requires a valid target user")
+		}
+	}
+	return nil
 }
 
 type safeDeliveryError interface {

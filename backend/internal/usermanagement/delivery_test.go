@@ -113,6 +113,16 @@ func (f invitationProviderFunc) Deliver(ctx context.Context, request DeliveryReq
 	return f(ctx, request)
 }
 
+type deliveryProviderFunc struct {
+	actions []string
+	deliver func(context.Context, DeliveryRequest) error
+}
+
+func (p deliveryProviderFunc) DeliveryActions() []string { return p.actions }
+func (p deliveryProviderFunc) Deliver(ctx context.Context, request DeliveryRequest) error {
+	return p.deliver(ctx, request)
+}
+
 type invalidDeliveryProvider []string
 
 func (p invalidDeliveryProvider) DeliveryActions() []string { return []string(p) }
@@ -203,5 +213,42 @@ func TestDeliveryWorkerRejectsInvalidProviderActionDeclarations(t *testing.T) {
 		if _, err := worker.DispatchTenant(context.Background(), userTenant); err == nil {
 			t.Fatalf("invalid provider action declaration accepted: %#v", actions)
 		}
+	}
+}
+
+func TestDeliveryWorkerRejectsInvalidOrUnclaimedTargetsBeforeProvider(t *testing.T) {
+	store := &memoryDeliveryStore{requests: []DeliveryRequest{
+		{ID: "invite-target", Action: invitationDeliveryAction, TargetUserID: userID},
+		{ID: "disable-missing-target", Action: disablementDeliveryAction},
+		{ID: "valid-disable", Action: disablementDeliveryAction, TargetUserID: userID},
+	}}
+	providerCalls := 0
+	worker := DeliveryWorker{
+		Store:    store,
+		WorkerID: lifecycleWorkerID,
+		Provider: deliveryProviderFunc{
+			actions: []string{invitationDeliveryAction, disablementDeliveryAction},
+			deliver: func(context.Context, DeliveryRequest) error {
+				providerCalls++
+				return nil
+			},
+		},
+	}
+	result, err := worker.DispatchTenant(context.Background(), userTenant)
+	if err == nil || result.Claimed != 3 || result.Delivered != 1 || result.Failed != 2 || providerCalls != 1 {
+		t.Fatalf("dispatch invalid lifecycle targets: %#v %v calls=%d", result, err, providerCalls)
+	}
+	if len(store.failed) != 2 || store.failed[0] != "invite-target:provider delivery failed" || store.failed[1] != "disable-missing-target:provider delivery failed" {
+		t.Fatalf("failed = %#v", store.failed)
+	}
+
+	store = &memoryDeliveryStore{requests: []DeliveryRequest{{ID: "unclaimed-disable", Action: disablementDeliveryAction, TargetUserID: userID}}}
+	worker.Store = store
+	worker.Provider = deliveryProviderFunc{actions: []string{invitationDeliveryAction}, deliver: func(context.Context, DeliveryRequest) error {
+		providerCalls++
+		return nil
+	}}
+	if _, err := worker.DispatchTenant(context.Background(), userTenant); err == nil || providerCalls != 1 || len(store.failed) != 1 || store.failed[0] != "unclaimed-disable:provider delivery failed" {
+		t.Fatalf("unclaimed lifecycle action reached provider: calls=%d failures=%#v", providerCalls, store.failed)
 	}
 }
