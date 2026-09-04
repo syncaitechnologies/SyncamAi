@@ -55,6 +55,9 @@ separately deployed, action-scoped server worker when that action carries one.
 This transport identity is not a provider-session revocation, authorization
 claim, secret, or browser-visible value. The current invitation provider
 receives invitation requests only and continues to leave disablement pending.
+Before a provider receives a request, the worker fails closed if its action was
+not claimed by that provider, an invitation contains a target user, or a
+disablement omits a valid target UUID.
 
 ## Consequences
 
