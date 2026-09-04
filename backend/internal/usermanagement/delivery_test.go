@@ -130,6 +130,13 @@ func (invalidDeliveryProvider) Deliver(context.Context, DeliveryRequest) error {
 	return nil
 }
 
+type unrecognizedReconciliationError struct{}
+
+func (unrecognizedReconciliationError) Error() string { return "unrecognized provider reconciliation detail" }
+func (unrecognizedReconciliationError) SafeReconciliationReason() string {
+	return "unrecognized provider reconciliation detail"
+}
+
 func TestDeliveryWorkerMarksDeliveryAndSafeFailure(t *testing.T) {
 	store := &memoryDeliveryStore{requests: []DeliveryRequest{
 		{ID: "ok", Action: invitationDeliveryAction, ProviderOperationID: "lifecycle:ok"},
@@ -250,5 +257,23 @@ func TestDeliveryWorkerRejectsInvalidOrUnclaimedTargetsBeforeProvider(t *testing
 	}}
 	if _, err := worker.DispatchTenant(context.Background(), userTenant); err == nil || providerCalls != 1 || len(store.failed) != 1 || store.failed[0] != "unclaimed-disable:provider delivery failed" {
 		t.Fatalf("unclaimed lifecycle action reached provider: calls=%d failures=%#v", providerCalls, store.failed)
+	}
+}
+
+func TestDeliveryWorkerRecordsOnlyAllowlistedReconciliationReasons(t *testing.T) {
+	store := &memoryDeliveryStore{requests: []DeliveryRequest{{ID: "unknown-reason", Action: invitationDeliveryAction}}}
+	worker := DeliveryWorker{
+		Store:    store,
+		WorkerID: lifecycleWorkerID,
+		Provider: deliveryProviderFunc{
+			actions: []string{invitationDeliveryAction},
+			deliver: func(context.Context, DeliveryRequest) error {
+				return unrecognizedReconciliationError{}
+			},
+		},
+	}
+	result, err := worker.DispatchTenant(context.Background(), userTenant)
+	if err == nil || result.ReconciliationRequired != 1 || len(store.reconcile) != 1 || store.reconcile[0] != "unknown-reason:"+genericDeliveryReconciliationRequiredReason {
+		t.Fatalf("reconciliation reason was not safely bounded: %#v %v %#v", result, err, store.reconcile)
 	}
 }

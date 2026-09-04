@@ -106,7 +106,7 @@ func (p *SupabaseInvitationProvider) Deliver(ctx context.Context, request Delive
 // makes the worker hold an ambiguous attempt instead of automatically retrying.
 type supabaseReconciliationRequiredError struct{}
 
-func (supabaseReconciliationRequiredError) Error() string { return "Supabase invitation result requires reconciliation" }
-func (supabaseReconciliationRequiredError) ReconciliationReason() string {
-	return "Supabase invitation result requires reconciliation"
+func (supabaseReconciliationRequiredError) Error() string { return supabaseInvitationReconciliationReason }
+func (supabaseReconciliationRequiredError) SafeReconciliationReason() string {
+	return supabaseInvitationReconciliationReason
 }
