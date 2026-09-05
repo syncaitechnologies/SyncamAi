@@ -687,7 +687,7 @@
       "phase": 5,
       "owner": "Product, AI, Security, Privacy, and Platform",
       "dependencies": ["T-0357", "T-0363"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A planning-only boundary defines the approval order, consent, retention, human-oversight, and fail-closed requirements for future face attendance and liveness. It explicitly excludes enrollment, biometric templates, matching, liveness inference, customer footage, datasets, model artifacts, evaluation results, API changes, activation, promotion, and production enablement until biometric legal/privacy approval and ADR-001 model-release evidence are complete."
     }
   ]
