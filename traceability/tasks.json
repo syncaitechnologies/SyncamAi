@@ -696,7 +696,7 @@
       "phase": 5,
       "owner": "Product, Privacy, Legal, Security, AI, and Platform",
       "dependencies": ["T-0386"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A planning-only checklist enumerates the decisions, sign-offs, and non-sensitive evidence references required before a future biometric attendance implementation task can be proposed. It grants no approval and adds no consent record, personal or biometric data, enrollment, template, matching, liveness inference, customer footage, dataset, model artifact, evaluation result, API, browser route, activation, promotion, deployment, or production-enablement claim."
     }
   ]
