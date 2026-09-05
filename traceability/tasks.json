@@ -689,6 +689,15 @@
       "dependencies": ["T-0357", "T-0363"],
       "status": "complete",
       "acceptance": "A planning-only boundary defines the approval order, consent, retention, human-oversight, and fail-closed requirements for future face attendance and liveness. It explicitly excludes enrollment, biometric templates, matching, liveness inference, customer footage, datasets, model artifacts, evaluation results, API changes, activation, promotion, and production enablement until biometric legal/privacy approval and ADR-001 model-release evidence are complete."
+    },
+    {
+      "id": "T-0387",
+      "title": "Prepare biometric attendance approval-evidence checklist",
+      "phase": 5,
+      "owner": "Product, Privacy, Legal, Security, AI, and Platform",
+      "dependencies": ["T-0386"],
+      "status": "in_review",
+      "acceptance": "A planning-only checklist enumerates the decisions, sign-offs, and non-sensitive evidence references required before a future biometric attendance implementation task can be proposed. It grants no approval and adds no consent record, personal or biometric data, enrollment, template, matching, liveness inference, customer footage, dataset, model artifact, evaluation result, API, browser route, activation, promotion, deployment, or production-enablement claim."
     }
   ]
 }

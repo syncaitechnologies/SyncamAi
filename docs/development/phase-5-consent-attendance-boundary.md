@@ -68,3 +68,11 @@ their own planned model and human-oversight gates. Loitering is already
 camera-local dwell logic under Phase 3 and is not a face-attendance capability.
 This boundary does not make any of those capabilities live or change their
 release status.
+
+## Next planning slice: T-0387
+
+T-0387 supplies a non-authorizing
+[biometric attendance approval-evidence checklist](../governance/biometric-attendance-approval-evidence-checklist.md).
+It records the review inputs that must exist before a future implementation
+task can be proposed, without recording decisions, consent, biometric data, or
+any model, dataset, evaluation, deployment, or activation evidence.
