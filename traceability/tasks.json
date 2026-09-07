@@ -750,7 +750,7 @@
       "phase": 7,
       "owner": "Product, Finance, Legal, Security, and Platform",
       "dependencies": ["T-0016"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A planning-only boundary records the founder, Finance/Legal, Security, provider, metering, and tenant-isolation prerequisites for future billing delivery. It treats the canonical price tables as assumptions pending final approval and adds no plan entitlement, quota enforcement, usage meter, invoice, tax calculation, payment-provider account, credential, payment, refund, API, browser route, activation, deployment, or production-enablement claim."
     }
   ]
