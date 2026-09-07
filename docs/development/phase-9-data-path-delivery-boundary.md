@@ -84,9 +84,10 @@ privacy and recovery decisions, and a safe test design before proposing any
 data-path or scale implementation. It does not unblock the historical Sprint
 9 deliverables or revise the existing Phase 5 biometric gates.
 
-## Next safe slice
+## Next safe slice: T-0398
 
-A later planning task may provide a non-authorizing Phase 9 retention,
-erasure, and recovery review template. That template must record no customer
-or personal data, decision, approval, benchmark evidence, configuration, or
-implementation claim.
+T-0398 provides a non-authorizing [retention, erasure, and recovery review
+template](../governance/phase-9-retention-erasure-recovery-review-template.md).
+It structures the future lifecycle and recovery decision without recording a
+customer or personal-data item, decision, approval, benchmark evidence,
+configuration, or implementation claim.
