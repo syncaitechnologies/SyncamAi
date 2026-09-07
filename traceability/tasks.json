@@ -770,6 +770,15 @@
       "dependencies": ["T-0221"],
       "status": "complete",
       "acceptance": "A release-notes process and unreleased-only changelog define evidence, approval, security, privacy, and customer-communication checks before any note is published. They contain no release announcement, customer data, production version, deployment, feature-availability, billing, or capability-enablement claim."
+    },
+    {
+      "id": "T-0396",
+      "title": "Prepare Phase 7 pilot provisioning approval checklist",
+      "phase": 7,
+      "owner": "Product, Customer Success, Security, Privacy, Legal, and Platform",
+      "dependencies": ["T-0393", "T-0394"],
+      "status": "in_review",
+      "acceptance": "A preparation-only checklist records the Product, customer, Privacy/Legal, Security, Platform, device, commercial, and support evidence required before a controlled pilot-provisioning procedure may be considered. It grants no approval and creates no tenant, site, user, role, invitation, device claim, camera integration, stream, billing record, entitlement, deployment, or production-support claim."
     }
   ]
 }

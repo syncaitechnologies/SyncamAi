@@ -95,3 +95,11 @@ T-0395 establishes an unreleased-only
 [release-notes process](../release-notes-process.md) and changelog. Neither
 document announces a release, enables a capability, or makes a customer-facing
 availability claim.
+
+## Final safe Phase 7 slice: T-0396
+
+T-0396 adds a non-authorizing
+[pilot-provisioning approval checklist](../governance/pilot-provisioning-approval-checklist.md).
+It consolidates the prerequisites for a future controlled pilot procedure but
+does not create a customer, device, camera, stream, billing record, or
+entitlement.
