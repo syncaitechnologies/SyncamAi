@@ -797,6 +797,15 @@
       "dependencies": ["T-0397"],
       "status": "complete",
       "acceptance": "A preparation-only template structures the future retention, deletion, legal-hold, backup, restore, reconciliation, test-data, cost, and approval review for Phase 9 data-path work. It records no data, decision, approval, lifecycle configuration, backup, restore, test execution, benchmark result, API, deployment, or production-enablement claim."
+    },
+    {
+      "id": "T-0399",
+      "title": "Prepare Phase 9 non-production scale-test review template",
+      "phase": 9,
+      "owner": "Product, Privacy, Legal, Security, Finance, and Platform",
+      "dependencies": ["T-0397", "T-0398"],
+      "status": "in_review",
+      "acceptance": "A preparation-only template structures the future isolated-environment, synthetic-data, workload, tenant-isolation, safety-stop, cleanup, cost, and approval review for Phase 9 scale testing. It records no test authorization, environment, workload, synthetic device, event, data, benchmark, result, capacity change, API, deployment, or production-enablement claim."
     }
   ]
 }

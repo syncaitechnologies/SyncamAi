@@ -91,3 +91,10 @@ template](../governance/phase-9-retention-erasure-recovery-review-template.md).
 It structures the future lifecycle and recovery decision without recording a
 customer or personal-data item, decision, approval, benchmark evidence,
 configuration, or implementation claim.
+
+## Next safe slice: T-0399
+
+T-0399 provides a non-authorizing [non-production scale-test review
+template](../governance/phase-9-non-production-scale-test-review-template.md).
+It structures the future test-design review without authorizing a workload,
+synthetic fleet, test traffic, benchmark, capacity change, or production claim.
