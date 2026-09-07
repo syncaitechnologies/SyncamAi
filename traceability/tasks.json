@@ -806,6 +806,15 @@
       "dependencies": ["T-0397", "T-0398"],
       "status": "complete",
       "acceptance": "A preparation-only template structures the future isolated-environment, synthetic-data, workload, tenant-isolation, safety-stop, cleanup, cost, and approval review for Phase 9 scale testing. It records no test authorization, environment, workload, synthetic device, event, data, benchmark, result, capacity change, API, deployment, or production-enablement claim."
+    },
+    {
+      "id": "T-0400",
+      "title": "Define Phase 10 security and compliance delivery boundary",
+      "phase": 10,
+      "owner": "Product, Security, Privacy, Legal, AI, and Platform",
+      "dependencies": ["T-0399"],
+      "status": "in_review",
+      "acceptance": "A planning-only boundary records the Product, Security, Privacy, Legal, AI, Platform, external-assessment, staging-isolation, evidence, remediation, and approval prerequisites for future Phase 10 security and compliance work. It adds no scan, test, target, credential, finding, evidence artifact, remediation, compliance determination, API, deployment, or production-enablement claim."
     }
   ]
 }
