@@ -84,9 +84,10 @@ Privacy/Legal, evidence, and assessment gates remain mandatory. The Phase 5
 biometric and model-release gates are unchanged and cannot be bypassed by an
 operations or DR activity.
 
-## Next safe slice
+## Next safe slice: T-0403
 
-A later planning task may provide a non-authorizing Phase 11 operational
-readiness and DR review template. It must record no alerting configuration,
-on-call schedule, runbook, recovery target, drill authority, result, decision,
-approval, or deployment claim.
+T-0403 provides a non-authorizing [operational-readiness and DR review
+template](../governance/phase-11-operational-readiness-and-dr-review-template.md).
+It structures the future operations and recovery review without recording an
+alerting configuration, on-call schedule, runbook, recovery target, drill
+authority, result, decision, approval, or deployment claim.

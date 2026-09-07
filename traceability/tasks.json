@@ -833,6 +833,15 @@
       "dependencies": ["T-0401"],
       "status": "complete",
       "acceptance": "A planning-only boundary records the Product, Platform, SRE, Security, Privacy, Legal, Finance, telemetry, on-call, backup, recovery, drill, evidence, cost, and approval prerequisites for future Phase 11 operations and DR work. It adds no metric, dashboard, alert, pager, runbook, backup, restore, drill, failover, incident, API, deployment, or production-enablement claim."
+    },
+    {
+      "id": "T-0403",
+      "title": "Prepare Phase 11 operational-readiness and DR review template",
+      "phase": 11,
+      "owner": "Product, Platform, SRE, Security, Privacy, Legal, and Finance",
+      "dependencies": ["T-0402"],
+      "status": "in_review",
+      "acceptance": "A preparation-only template structures the future service-ownership, telemetry, on-call, alerting, lifecycle, backup, restore, failover, drill, evidence, cost, and approval review for Phase 11 operations and DR work. It records no configuration, schedule, runbook, target, drill authority, result, incident, decision, deployment, or production-enablement claim."
     }
   ]
 }
