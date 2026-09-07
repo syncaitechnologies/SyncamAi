@@ -734,6 +734,15 @@
       "dependencies": ["T-0390"],
       "status": "complete",
       "acceptance": "A planning-only template structures the future held-out evaluation, liveness-attack, demographic, site/lighting, withdrawal/deletion, human-oversight, and approval requirements for biometric attendance. It records no threshold, metric, dataset, model, evaluation result, or promotion decision and adds no biometric or personal data, enrollment, template, matching, liveness inference, customer footage, model artifact, API, browser route, activation, deployment, or production-enablement claim."
+    },
+    {
+      "id": "T-0392",
+      "title": "Prepare biometric attendance implementation-readiness review template",
+      "phase": 5,
+      "owner": "Product, Privacy, Legal, Security, AI, and Platform",
+      "dependencies": ["T-0391"],
+      "status": "in_review",
+      "acceptance": "A planning-only template consolidates the Product, Privacy/Legal, Security, Platform, AI-release, dataset, evaluation, and human-oversight evidence required before a future biometric attendance implementation proposal may be considered. It grants no approval or readiness decision and adds no biometric or personal data, consent record, enrollment, template, matching, liveness inference, customer footage, dataset, model artifact, evaluation result, API, browser route, activation, promotion, deployment, or production-enablement claim."
     }
   ]
 }
