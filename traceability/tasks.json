@@ -741,7 +741,7 @@
       "phase": 5,
       "owner": "Product, Privacy, Legal, Security, AI, and Platform",
       "dependencies": ["T-0391"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A planning-only template consolidates the Product, Privacy/Legal, Security, Platform, AI-release, dataset, evaluation, and human-oversight evidence required before a future biometric attendance implementation proposal may be considered. It grants no approval or readiness decision and adds no biometric or personal data, consent record, enrollment, template, matching, liveness inference, customer footage, dataset, model artifact, evaluation result, API, browser route, activation, promotion, deployment, or production-enablement claim."
     }
   ]
