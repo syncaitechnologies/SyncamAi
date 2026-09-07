@@ -723,7 +723,7 @@
       "phase": 5,
       "owner": "Privacy, Legal, Security, Product, and Platform",
       "dependencies": ["T-0389"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A planning-only template structures the future consent withdrawal, retention, deletion, backup, reconciliation, and safe-audit decisions for biometric attendance. It records no lifecycle decision, configuration, or evidence and adds no biometric or personal data, consent record, enrollment, template, matching, liveness inference, customer footage, dataset, model artifact, evaluation result, API, browser route, activation, promotion, deployment, or production-enablement claim."
     }
   ]
