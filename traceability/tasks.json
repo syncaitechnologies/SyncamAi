@@ -842,6 +842,15 @@
       "dependencies": ["T-0402"],
       "status": "complete",
       "acceptance": "A preparation-only template structures the future service-ownership, telemetry, on-call, alerting, lifecycle, backup, restore, failover, drill, evidence, cost, and approval review for Phase 11 operations and DR work. It records no configuration, schedule, runbook, target, drill authority, result, incident, decision, deployment, or production-enablement claim."
+    },
+    {
+      "id": "T-0404",
+      "title": "Define Sprint 12 GA-readiness delivery boundary",
+      "phase": 12,
+      "owner": "Founders, Product, Engineering, Platform, SRE, Security, Privacy, Legal, Finance, and Customer Success",
+      "dependencies": ["T-0403"],
+      "status": "in_review",
+      "acceptance": "A planning-only boundary records the founder, Product, Engineering, Platform, SRE, Security, Privacy, Legal, Finance, Customer Success, commercial, release, and approval prerequisites for a future Sprint 12 GA-readiness proposal. It adds no checklist status, go/no-go decision, launch date, release, rollout, customer communication, deployment, or production-enablement claim."
     }
   ]
 }
