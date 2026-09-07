@@ -705,7 +705,7 @@
       "phase": 5,
       "owner": "Security, Privacy, Product, AI, and Platform",
       "dependencies": ["T-0387"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A planning-only template structures the future threat-model review for face attendance and liveness, including tenant isolation, consent withdrawal, retention/deletion, privileged access, presentation attacks, audit exposure, and fail-closed behavior. It records no actual threat-model decision or risk acceptance and adds no biometric or personal data, enrollment, template, matching, liveness inference, customer footage, dataset, model artifact, evaluation result, API, browser route, activation, promotion, deployment, or production-enablement claim."
     }
   ]
