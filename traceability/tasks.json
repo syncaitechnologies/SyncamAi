@@ -707,6 +707,15 @@
       "dependencies": ["T-0387"],
       "status": "complete",
       "acceptance": "A planning-only template structures the future threat-model review for face attendance and liveness, including tenant isolation, consent withdrawal, retention/deletion, privileged access, presentation attacks, audit exposure, and fail-closed behavior. It records no actual threat-model decision or risk acceptance and adds no biometric or personal data, enrollment, template, matching, liveness inference, customer footage, dataset, model artifact, evaluation result, API, browser route, activation, promotion, deployment, or production-enablement claim."
+    },
+    {
+      "id": "T-0389",
+      "title": "Prepare biometric attendance human-oversight review template",
+      "phase": 5,
+      "owner": "Product, Privacy, Security, AI, and Platform",
+      "dependencies": ["T-0388"],
+      "status": "in_review",
+      "acceptance": "A planning-only template structures the future human-review, correction, dispute, withdrawal, fairness-oversight, and safe-audit requirements for biometric attendance. It grants no approval, creates no review queue or attendance outcome, and adds no biometric or personal data, consent record, enrollment, template, matching, liveness inference, customer footage, dataset, model artifact, evaluation result, API, browser route, activation, promotion, deployment, or production-enablement claim."
     }
   ]
 }
