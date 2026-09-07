@@ -84,3 +84,11 @@ T-0388 adds a non-authorizing
 It structures the required future Security review but records no live design,
 threat-model decision, risk acceptance, security finding, or implementation
 evidence.
+
+## Next planning slice: T-0389
+
+T-0389 adds a non-authorizing
+[biometric attendance human-oversight review template](../governance/biometric-attendance-human-oversight-review-template.md).
+It structures future human review, correction, dispute, withdrawal, fairness,
+and safe-audit decisions without creating a review queue, attendance outcome,
+operational procedure, or implementation evidence.
