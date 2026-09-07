@@ -76,3 +76,11 @@ T-0387 supplies a non-authorizing
 It records the review inputs that must exist before a future implementation
 task can be proposed, without recording decisions, consent, biometric data, or
 any model, dataset, evaluation, deployment, or activation evidence.
+
+## Next planning slice: T-0388
+
+T-0388 adds a non-authorizing
+[biometric attendance threat-model review template](../governance/biometric-attendance-threat-model-review-template.md).
+It structures the required future Security review but records no live design,
+threat-model decision, risk acceptance, security finding, or implementation
+evidence.
