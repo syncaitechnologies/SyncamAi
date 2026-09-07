@@ -815,6 +815,15 @@
       "dependencies": ["T-0399"],
       "status": "complete",
       "acceptance": "A planning-only boundary records the Product, Security, Privacy, Legal, AI, Platform, external-assessment, staging-isolation, evidence, remediation, and approval prerequisites for future Phase 10 security and compliance work. It adds no scan, test, target, credential, finding, evidence artifact, remediation, compliance determination, API, deployment, or production-enablement claim."
+    },
+    {
+      "id": "T-0401",
+      "title": "Prepare Phase 10 security and compliance review template",
+      "phase": 10,
+      "owner": "Product, Security, Privacy, Legal, AI, and Platform",
+      "dependencies": ["T-0400"],
+      "status": "in_review",
+      "acceptance": "A preparation-only template structures the future assessment authority, staging isolation, access, evidence, finding, remediation, incident, jurisdiction, model-gate, and approval review for Phase 10 security and compliance work. It records no authorization, target, credential, finding, evidence artifact, decision, remediation, compliance determination, API, deployment, or production-enablement claim."
     }
   ]
 }

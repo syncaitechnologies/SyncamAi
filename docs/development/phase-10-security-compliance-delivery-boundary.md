@@ -88,8 +88,10 @@ by their Product, Privacy/Legal, Security, AI-release, evaluation, and
 human-oversight approvals. This boundary neither bypasses nor replaces those
 gates.
 
-## Next safe slice
+## Next safe slice: T-0401
 
-A later planning task may provide a non-authorizing Phase 10 security and
-compliance review template. It must record no test scope, authorization,
-finding, evidence, decision, approval, remediation, or deployment claim.
+T-0401 provides a non-authorizing [security and compliance review
+template](../governance/phase-10-security-compliance-review-template.md). It
+structures the future assessment, evidence, and compliance review without
+recording a test scope, authorization, finding, evidence, decision, approval,
+remediation, or deployment claim.
