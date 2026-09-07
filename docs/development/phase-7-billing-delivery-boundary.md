@@ -81,3 +81,10 @@ Razorpay/Stripe, usage dashboards, onboarding, pilot provisioning, and model
 registry work. This boundary does not make any of those items live. It is the
 first dependency-safe step before a separate, approved billing implementation
 task can be proposed.
+
+## Next safe Phase 7 slice: T-0394
+
+T-0394 adds a customer-safe [pilot onboarding guide](../customer/pilot-onboarding-guide.md).
+It helps a pilot prepare a non-sensitive controlled-provisioning request but
+does not create a tenant, device, camera integration, stream, billing record,
+or entitlement.
