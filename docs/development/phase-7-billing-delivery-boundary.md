@@ -88,3 +88,10 @@ T-0394 adds a customer-safe [pilot onboarding guide](../customer/pilot-onboardin
 It helps a pilot prepare a non-sensitive controlled-provisioning request but
 does not create a tenant, device, camera integration, stream, billing record,
 or entitlement.
+
+## Next safe Phase 7 slice: T-0395
+
+T-0395 establishes an unreleased-only
+[release-notes process](../release-notes-process.md) and changelog. Neither
+document announces a release, enables a capability, or makes a customer-facing
+availability claim.
