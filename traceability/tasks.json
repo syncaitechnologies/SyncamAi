@@ -761,6 +761,15 @@
       "dependencies": ["T-0367", "T-0322"],
       "status": "complete",
       "acceptance": "A pilot-readiness guide provides a customer-safe site setup checklist, camera readiness checklist, controlled-provisioning handoff, and FAQ. It records no customer, device, network, or credential data and makes no tenant provisioning, device activation, billing, entitlement, streaming, data-retention, or production-support claim."
+    },
+    {
+      "id": "T-0395",
+      "title": "Establish Phase 7 release-notes process",
+      "phase": 7,
+      "owner": "Product, Customer Success, Security, and Engineering",
+      "dependencies": ["T-0221"],
+      "status": "in_review",
+      "acceptance": "A release-notes process and unreleased-only changelog define evidence, approval, security, privacy, and customer-communication checks before any note is published. They contain no release announcement, customer data, production version, deployment, feature-availability, billing, or capability-enablement claim."
     }
   ]
 }
