@@ -813,7 +813,7 @@
       "phase": 10,
       "owner": "Product, Security, Privacy, Legal, AI, and Platform",
       "dependencies": ["T-0399"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A planning-only boundary records the Product, Security, Privacy, Legal, AI, Platform, external-assessment, staging-isolation, evidence, remediation, and approval prerequisites for future Phase 10 security and compliance work. It adds no scan, test, target, credential, finding, evidence artifact, remediation, compliance determination, API, deployment, or production-enablement claim."
     }
   ]
