@@ -777,7 +777,7 @@
       "phase": 7,
       "owner": "Product, Customer Success, Security, Privacy, Legal, and Platform",
       "dependencies": ["T-0393", "T-0394"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A preparation-only checklist records the Product, customer, Privacy/Legal, Security, Platform, device, commercial, and support evidence required before a controlled pilot-provisioning procedure may be considered. It grants no approval and creates no tenant, site, user, role, invitation, device claim, camera integration, stream, billing record, entitlement, deployment, or production-support claim."
     }
   ]
