@@ -53,6 +53,10 @@ jobs:
           cache: pnpm
       - name: Install pinned Supabase CLI
         run: pnpm install --frozen-lockfile
+      - name: Isolate the disposable local Supabase database port
+        run: |
+          sed -i 's/^port = 54322$/port = 55422/' backend/supabase/config.toml
+          grep -qx 'port = 55422' backend/supabase/config.toml
       - name: Start disposable local Supabase stack
         run: pnpm exec supabase start --workdir backend
       - name: Reset and verify Supabase schema
