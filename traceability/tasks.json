@@ -804,7 +804,7 @@
       "phase": 9,
       "owner": "Product, Privacy, Legal, Security, Finance, and Platform",
       "dependencies": ["T-0397", "T-0398"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A preparation-only template structures the future isolated-environment, synthetic-data, workload, tenant-isolation, safety-stop, cleanup, cost, and approval review for Phase 9 scale testing. It records no test authorization, environment, workload, synthetic device, event, data, benchmark, result, capacity change, API, deployment, or production-enablement claim."
     }
   ]
