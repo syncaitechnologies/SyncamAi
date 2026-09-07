@@ -824,6 +824,15 @@
       "dependencies": ["T-0400"],
       "status": "complete",
       "acceptance": "A preparation-only template structures the future assessment authority, staging isolation, access, evidence, finding, remediation, incident, jurisdiction, model-gate, and approval review for Phase 10 security and compliance work. It records no authorization, target, credential, finding, evidence artifact, decision, remediation, compliance determination, API, deployment, or production-enablement claim."
+    },
+    {
+      "id": "T-0402",
+      "title": "Define Phase 11 operations and disaster-recovery delivery boundary",
+      "phase": 11,
+      "owner": "Product, Platform, SRE, Security, Privacy, Legal, and Finance",
+      "dependencies": ["T-0401"],
+      "status": "in_review",
+      "acceptance": "A planning-only boundary records the Product, Platform, SRE, Security, Privacy, Legal, Finance, telemetry, on-call, backup, recovery, drill, evidence, cost, and approval prerequisites for future Phase 11 operations and DR work. It adds no metric, dashboard, alert, pager, runbook, backup, restore, drill, failover, incident, API, deployment, or production-enablement claim."
     }
   ]
 }
