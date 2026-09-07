@@ -768,7 +768,7 @@
       "phase": 7,
       "owner": "Product, Customer Success, Security, and Engineering",
       "dependencies": ["T-0221"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A release-notes process and unreleased-only changelog define evidence, approval, security, privacy, and customer-communication checks before any note is published. They contain no release announcement, customer data, production version, deployment, feature-availability, billing, or capability-enablement claim."
     }
   ]
