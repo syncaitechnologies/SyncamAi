@@ -108,3 +108,11 @@ T-0391 adds a non-authorizing
 It structures future held-out, liveness-attack, fairness, operational, and
 lifecycle evaluation decisions without recording a dataset, model, threshold,
 metric, result, or promotion decision.
+
+## Final planning slice: T-0392
+
+T-0392 adds a non-authorizing
+[biometric attendance implementation-readiness review template](../governance/biometric-attendance-implementation-readiness-review-template.md).
+It consolidates the prerequisite evidence and makes clear that a future
+implementation proposal remains blocked unless all approval gates are met; the
+template itself grants no readiness decision or implementation authority.
