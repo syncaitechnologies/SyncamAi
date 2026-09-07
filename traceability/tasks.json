@@ -743,6 +743,15 @@
       "dependencies": ["T-0391"],
       "status": "complete",
       "acceptance": "A planning-only template consolidates the Product, Privacy/Legal, Security, Platform, AI-release, dataset, evaluation, and human-oversight evidence required before a future biometric attendance implementation proposal may be considered. It grants no approval or readiness decision and adds no biometric or personal data, consent record, enrollment, template, matching, liveness inference, customer footage, dataset, model artifact, evaluation result, API, browser route, activation, promotion, deployment, or production-enablement claim."
+    },
+    {
+      "id": "T-0393",
+      "title": "Define Phase 7 billing delivery boundary",
+      "phase": 7,
+      "owner": "Product, Finance, Legal, Security, and Platform",
+      "dependencies": ["T-0016"],
+      "status": "in_review",
+      "acceptance": "A planning-only boundary records the founder, Finance/Legal, Security, provider, metering, and tenant-isolation prerequisites for future billing delivery. It treats the canonical price tables as assumptions pending final approval and adds no plan entitlement, quota enforcement, usage meter, invoice, tax calculation, payment-provider account, credential, payment, refund, API, browser route, activation, deployment, or production-enablement claim."
     }
   ]
 }
