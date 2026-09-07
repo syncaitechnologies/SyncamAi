@@ -759,7 +759,7 @@
       "phase": 7,
       "owner": "Product, Customer Success, Security, and Platform",
       "dependencies": ["T-0367", "T-0322"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A pilot-readiness guide provides a customer-safe site setup checklist, camera readiness checklist, controlled-provisioning handoff, and FAQ. It records no customer, device, network, or credential data and makes no tenant provisioning, device activation, billing, entitlement, streaming, data-retention, or production-support claim."
     }
   ]
