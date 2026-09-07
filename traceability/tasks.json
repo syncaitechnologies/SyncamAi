@@ -725,6 +725,15 @@
       "dependencies": ["T-0389"],
       "status": "complete",
       "acceptance": "A planning-only template structures the future consent withdrawal, retention, deletion, backup, reconciliation, and safe-audit decisions for biometric attendance. It records no lifecycle decision, configuration, or evidence and adds no biometric or personal data, consent record, enrollment, template, matching, liveness inference, customer footage, dataset, model artifact, evaluation result, API, browser route, activation, promotion, deployment, or production-enablement claim."
+    },
+    {
+      "id": "T-0391",
+      "title": "Prepare biometric attendance evaluation and fairness review template",
+      "phase": 5,
+      "owner": "AI, Privacy, Product, Security, and Legal",
+      "dependencies": ["T-0390"],
+      "status": "in_review",
+      "acceptance": "A planning-only template structures the future held-out evaluation, liveness-attack, demographic, site/lighting, withdrawal/deletion, human-oversight, and approval requirements for biometric attendance. It records no threshold, metric, dataset, model, evaluation result, or promotion decision and adds no biometric or personal data, enrollment, template, matching, liveness inference, customer footage, model artifact, API, browser route, activation, deployment, or production-enablement claim."
     }
   ]
 }

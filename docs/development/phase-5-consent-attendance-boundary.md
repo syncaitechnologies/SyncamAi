@@ -100,3 +100,11 @@ T-0390 adds a non-authorizing
 It structures future consent withdrawal, retention, deletion, backup, and
 reconciliation decisions without recording consent, lifecycle evidence,
 configuration, data, or implementation evidence.
+
+## Next planning slice: T-0391
+
+T-0391 adds a non-authorizing
+[biometric attendance evaluation and fairness review template](../governance/biometric-attendance-evaluation-and-fairness-review-template.md).
+It structures future held-out, liveness-attack, fairness, operational, and
+lifecycle evaluation decisions without recording a dataset, model, threshold,
+metric, result, or promotion decision.
