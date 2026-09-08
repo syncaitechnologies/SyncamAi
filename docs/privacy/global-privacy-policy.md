@@ -2,7 +2,7 @@
 
 > Draft operational privacy policy — requires review and approval by qualified legal/privacy counsel before production use in the applicable jurisdiction.
 
-Version: `2026-09-08.draft-1`. Not effective for production. [Implementation status](privacy-implementation-traceability.md) is part of this draft.
+Version: `2026-09-08.draft-2`. Not effective for production. [Implementation status](privacy-implementation-traceability.md) is part of this draft.
 
 ## Identity, scope and responsibility
 
@@ -58,3 +58,7 @@ No sale/advertising-sharing feature was found. A company-wide assertion that per
 ## Incidents and changes
 
 Suspected exposure must be handled through the proposed [incident procedure](privacy-incident-and-breach-procedure.md), with jurisdiction-specific notification triggers and clocks. The procedure is not proof of a staffed incident service. Keep the current published version, material-change history, approval references and any renewed consent requirements before changing purposes. This draft's version history is in Git; no effective date or legal approval is created by a merge.
+
+## Draft change record
+
+Draft 2 records the T-0406 source changes following the audit: the external font import is removed, service entrypoints emit fixed failure categories, and generic attendance intake is rejected before persistence. The baseline descriptions above remain historical audit findings, not a statement that the old font request remains in this proposed revision. Deployment of these fixes is not established by this draft. See [exposure-fix evidence](../development/privacy-exposure-fixes.md). No consent, retention or erasure workflow is added.

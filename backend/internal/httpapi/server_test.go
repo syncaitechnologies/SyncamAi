@@ -443,3 +443,37 @@ func TestIngestEventMapsScopeAndRepositoryFailures(t *testing.T) {
 		})
 	}
 }
+
+func TestAttendanceIntakeCannotBypassApprovalGate(t *testing.T) {
+	principal := viewer()
+	principal.TenantID = "11111111-1111-4111-8111-111111111111"
+	principal.SiteIDs = []string{"33333333-3333-4333-8333-333333333333"}
+	principal.Roles = []identity.Role{identity.RoleSiteAdmin}
+	principal.Scopes = []string{"events:write"}
+	calls := 0
+	repository := eventRepositoryFunc(func(_ context.Context, command eventing.IngestCommand) (eventing.IngestResult, error) {
+		calls++
+		return eventing.IngestResult{EventID: command.Event.EventID, Accepted: true}, nil
+	})
+	handler := New(fakeVerifier{principal: principal}, leakyRepository{}, repository)
+	requestID := "66666666-6666-4666-8666-666666666666"
+	for _, eventType := range []string{"attendance_review", " attendance_review ", "ATTENDANCE_REVIEW"} {
+		body := strings.Replace(validEventBody, `"intrusion"`, `"`+eventType+`"`, 1)
+		response := eventRequest(handler, body, "valid", principal.TenantID, requestID)
+		if response.Code != http.StatusUnprocessableEntity || !strings.Contains(response.Body.String(), "VALIDATION_FAILED") {
+			t.Fatalf("expected blocked attendance: %d %s", response.Code, response.Body.String())
+		}
+		if response := eventRequest(handler, body, "", principal.TenantID, requestID); response.Code != http.StatusUnauthorized {
+			t.Fatalf("authentication gate changed: %d", response.Code)
+		}
+		if response := eventRequest(handler, body, "valid", "77777777-7777-4777-8777-777777777777", requestID); response.Code != http.StatusNotFound {
+			t.Fatalf("tenant gate changed: %d", response.Code)
+		}
+	}
+	if calls != 0 {
+		t.Fatal("blocked attendance reached repository")
+	}
+	if response := eventRequest(handler, validEventBody, "valid", principal.TenantID, requestID); response.Code != http.StatusAccepted || calls != 1 {
+		t.Fatalf("non-biometric intake regressed: status=%d calls=%d", response.Code, calls)
+	}
+}

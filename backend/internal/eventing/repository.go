@@ -19,9 +19,10 @@ import (
 )
 
 var (
-	ErrDedupeConflict = errors.New("dedupe key reused with a different event")
-	ErrEventConflict  = errors.New("event identifier already exists")
-	ErrSiteNotFound   = errors.New("event site not found")
+	ErrDedupeConflict        = errors.New("dedupe key reused with a different event")
+	ErrEventConflict         = errors.New("event identifier already exists")
+	ErrSiteNotFound          = errors.New("event site not found")
+	ErrAttendanceUnavailable = errors.New("attendance events are unavailable pending approval")
 )
 
 const OutboxTopic = "detection-events-v1"
@@ -72,6 +73,10 @@ func NewPostgresRepository(pool transactionPool) *PostgresRepository {
 
 // Ingest commits the event, one outbox message, and one audit event atomically.
 func (r *PostgresRepository) Ingest(ctx context.Context, command IngestCommand) (IngestResult, error) {
+	// Generic event intake must not bypass the dedicated biometric approval gate.
+	if strings.EqualFold(strings.TrimSpace(command.Event.EventType), "attendance_review") {
+		return IngestResult{}, ErrAttendanceUnavailable
+	}
 	if r == nil || r.pool == nil {
 		return IngestResult{}, fmt.Errorf("postgres event repository is unavailable")
 	}
@@ -219,6 +224,10 @@ func NewMemoryRepository() *MemoryRepository {
 }
 
 func (r *MemoryRepository) Ingest(_ context.Context, command IngestCommand) (IngestResult, error) {
+	// Generic event intake must not bypass the dedicated biometric approval gate.
+	if strings.EqualFold(strings.TrimSpace(command.Event.EventType), "attendance_review") {
+		return IngestResult{}, ErrAttendanceUnavailable
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	event := normalizeEvent(command.Event)

@@ -22,17 +22,17 @@ func main() {
 		log.Fatal("SYNCAM_DATABASE_URL and SYNCAM_WORKER_TENANT_ID are required")
 	}
 	if _, err := uuid.Parse(tenantID); err != nil {
-		log.Fatalf("SYNCAM_WORKER_TENANT_ID must be a UUID: %v", err)
+		log.Fatal("SYNCAM_WORKER_TENANT_ID must be a UUID")
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
-		log.Fatalf("open Postgres pool: %v", err)
+		log.Fatal("open Postgres pool failed")
 	}
 	defer pool.Close()
 	if err := pool.Ping(ctx); err != nil {
-		log.Fatalf("connect Postgres: %v", err)
+		log.Fatal("connect Postgres failed")
 	}
 	dispatcher := outbox.Dispatcher{
 		Store: outbox.NewPostgresStore(pool), Publisher: alerting.NewProjector(pool),
@@ -43,7 +43,7 @@ func main() {
 	for {
 		result, err := dispatcher.DispatchTenant(ctx, tenantID)
 		if err != nil && ctx.Err() == nil {
-			log.Printf("dispatch outbox: %v", err)
+			log.Print("dispatch outbox failed")
 		}
 		if result.Claimed > 0 {
 			log.Printf("outbox claimed=%d published=%d failed=%d", result.Claimed, result.Published, result.Failed)
