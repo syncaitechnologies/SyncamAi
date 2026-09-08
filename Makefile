@@ -7,6 +7,7 @@ verify: docs contracts traceability python go web
 
 docs:
 	$(PYTHON) scripts/validate_markdown_links.py
+	$(PYTHON) scripts/validate_privacy_policies.py
 	$(PYTHON) scripts/validate_task_references.py
 	$(PYTHON) scripts/validate_licenses.py
 	$(PYTHON) scripts/validate_secrets.py

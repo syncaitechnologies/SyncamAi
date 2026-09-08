@@ -8,6 +8,8 @@ function Assert-NativeSuccess {
 
 python scripts/validate_markdown_links.py
 Assert-NativeSuccess
+python scripts/validate_privacy_policies.py
+Assert-NativeSuccess
 python scripts/validate_task_references.py
 Assert-NativeSuccess
 python scripts/validate_licenses.py

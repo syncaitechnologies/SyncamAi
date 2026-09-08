@@ -882,7 +882,7 @@
       "dependencies": [
         "T-0405"
       ],
-      "status": "planned",
+      "status": "in_review",
       "acceptance": "Canonical verification checks policy inventory, versions, draft warning and local traceability references; negative fixtures detect missing documents, unsafe paths and false approval status; no legal approval or production activation is inferred."
     }
   ]
