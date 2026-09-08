@@ -849,7 +849,7 @@
       "phase": 12,
       "owner": "Founders, Product, Engineering, Platform, SRE, Security, Privacy, Legal, Finance, and Customer Success",
       "dependencies": ["T-0403"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A planning-only boundary records the founder, Product, Engineering, Platform, SRE, Security, Privacy, Legal, Finance, Customer Success, commercial, release, and approval prerequisites for a future Sprint 12 GA-readiness proposal. It adds no checklist status, go/no-go decision, launch date, release, rollout, customer communication, deployment, or production-enablement claim."
     },
     {
@@ -860,7 +860,7 @@
       "dependencies": [
         "T-0404"
       ],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Dated official-source research, current-main implementation audit, global and jurisdiction drafts, notices and traceability distinguish runtime evidence from planning and preserve every approval gate."
     },
     {
@@ -871,7 +871,7 @@
       "dependencies": [
         "T-0405"
       ],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Remove unnecessary remote fonts, prevent raw entrypoint error logging and reject generic attendance events without weakening tenant authorization or enabling biometrics; regression tests pass."
     },
     {
@@ -882,7 +882,7 @@
       "dependencies": [
         "T-0405"
       ],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Canonical verification checks policy inventory, versions, draft warning and local traceability references; negative fixtures detect missing documents, unsafe paths and false approval status; no legal approval or production activation is inferred."
     }
   ]
