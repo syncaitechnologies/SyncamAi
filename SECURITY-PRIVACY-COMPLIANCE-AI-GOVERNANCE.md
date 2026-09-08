@@ -9,6 +9,8 @@
 
 ---
 
+> **2026-09-08 implementation and legal-research correction (T-0405):** This historical plan specifies intended controls, not evidence that they operate. The [current audit](docs/development/2026-09-08-current-state-audit.md) and [draft privacy package](docs/privacy/README.md) distinguish implemented foundations from blocked work. For India, Canada and U.S. current-law inputs use the dated [primary-source matrix](docs/privacy/privacy-jurisdiction-matrix.md). This update grants no compliance, biometric, source-publication or GA approval.
+
 ## Table of Contents
 
 1. [Security Architecture](#1-security-architecture)
@@ -532,7 +534,7 @@ Retention is enforced at three layers (schema TTL, lifecycle rules, erasure jobs
 | E. Template theft via API abuse | Rate-limit/query anomalies, unusual vector-batch downloads | Kill-switch on biometric endpoints, anomaly-based blocking, full audit replay, disclosure |
 | F. Model-extraction (embedding space theft) | Red-team findings, unusual inference volume | Rate limits, quantization/obfuscation, re-embedding, model version rotation |
 
-**Universal recovery playbook:** (1) contain (revoke keys/access/sessions), (2) preserve evidence (audit chain), (3) assess exposure (was it ciphertext or plaintext, who affected), (4) notify (tenant, affected individuals, regulators per breach-notification SLAs — 72h GDPR, 30d DPDP, immediate BIPA-affected states), (5) remediate (rotate embeddings by re-enrollment where exposure warrants, rotate keys, harden vector), (6) review (root cause, playbook update, training). Incident severity follows §6.2.
+**Universal recovery playbook:** (1) contain (revoke keys/access/sessions), (2) preserve evidence (audit chain), (3) assess exposure (was it ciphertext or plaintext, who affected), (4) notify (tenant, affected individuals, regulators per breach-notification SLAs — jurisdiction-specific triggers and clocks in the privacy incident procedure), (5) remediate (rotate embeddings by re-enrollment where exposure warrants, rotate keys, harden vector), (6) review (root cause, playbook update, training). Incident severity follows §6.2.
 
 ---
 
@@ -671,7 +673,7 @@ All drift events are logged to the model registry (versioned) and appear in the 
 | Adversarial attack | P1 | Block vectors, liveness/model update, red-team revalidation | Tenant + regulator as applicable |
 | Function creep | P2 | Scope lockdown, consent re-verification, audit | Tenant + legal review |
 
-**Governance:** AI incident log is part of the risk register; quarterly AI governance board review of all incidents; post-incident model cards updated; regulatory notification assessed per §5 (GDPR Art 33 72h, DPDP 30d, state biometric laws, AI Act high-risk obligations as they come into force).
+**Governance:** AI incident log is part of the risk register; quarterly AI governance board review of all incidents; post-incident model cards updated; regulatory notification assessed per §5 (applicable GDPR, staged DPDP, state/sectoral and AI Act obligations; see the dated privacy incident procedure).
 
 ### 4.12 Specialized Risk Analyses
 
@@ -691,7 +693,7 @@ All drift events are logged to the model registry (versioned) and appear in the 
 | Risk | Nature | Mitigation |
 |---|---|---|
 | **Identity error** (wrong match) | Wrong attendance, false accusation | Site-tuned thresholds (FAR/FRR), liveness gate always, confidence floors, human review of exceptions, appeals workflow |
-| **Consent/lawfulness** | BIPA-style private actions; GDPR Art 9; DPDP sensitive data | Consent-first enrollment, embeddings-only default, opt-out + alternatives (§3), notice packs, DPIA kit |
+| **Consent/lawfulness** | BIPA-style private actions; GDPR Art 9; DPDP personal data and current IT/SPDI duties | Consent-first enrollment, embeddings-only default, opt-out + alternatives (§3), notice packs, DPIA kit |
 | **Function creep** (attendance → surveillance) | Privacy backlash, regulatory breach | Purpose-scoped consent, separate scopes for face search (Phase 2, audit-gated), watchlist use requires tenant policy + legal review |
 | **Spoofing** | Attendance fraud | Passive liveness (APCER ≤1.5%), depth-IR upgrade for door mode, spoof-blocked exception queue |
 | **Bias/disparate impact** | Discrimination claims | §4.6 bias evaluation, subgroup metrics, human review |
@@ -708,7 +710,7 @@ All drift events are logged to the model registry (versioned) and appear in the 
 |---|---|
 | GDPR Art 22 | Attendance→payroll and door access are **automated decisions with legal/significant effects** on employees. Art 22(2)(b) employment-necessity basis may apply in some states, but the safe design is: **human review of all exceptions** (low-confidence, spoof-blocked, disputes), **right to obtain human intervention**, **right to contest** (appeals workflow via attendance adjustments), and transparency (notice of automated processing). |
 | EU AI Act | High-risk classification for employment-related biometric systems and workplace safety; obligations include risk management, data governance, technical documentation, record-keeping, transparency, human oversight, accuracy/robustness/cybersecurity — our design (model cards, eval gates, HITL, audit) maps to these; formal AI Act compliance pack in Phase 3 (§5.3, §8). |
-| DPDP 2023 (India) | Consent for sensitive data (biometrics) + purpose limitation; automated-decision safeguards are being operationalized by DPB rules — align via consent-first design and human review. |
+| DPDP 2023 (India) | Apply the staged DPDP framework and current IT/SPDI rules; DPDP has no separate sensitive-data category. Consent-first biometric design and human review remain product safeguards subject to the India supplement. |
 | Employment law (IL BIPA, workplace surveillance statutes) | Consent/notice plus collective-bargaining implications; employer must have lawful basis — customer obligation, supported by our compliance kit (§5.9). |
 | AI-assisted vs automated | Reports (FR-117) are **assisted** (human-generated, AI provides evidence and drafts); dossiers carry confidence/model metadata and are not automated decisions. The AI Assistant (Phase 3) is read-only and cannot change decisions (UX §5.19 guardrails). |
 
@@ -722,12 +724,7 @@ All drift events are logged to the model registry (versioned) and appear in the 
 
 ### 5.1 Canada
 
-| Framework | Key requirements for this product | Platform response |
-|---|---|---|
-| **PIPEDA** (private sector) | Consent, purpose limitation, accountability, safeguarding (10 fair information principles); **biometric information as sensitive**; access/correction rights; breach notification to OPC + affected individuals | Consent-first enrollment + embeddings-only default; access/correction/erasure APIs (§3.9); breach-notification runbooks (72h to OPC for serious harm); DPA with customers as joint controllers/processors structure |
-| **Provincial privacy laws** | BC PIPA, AB PIPA (private-sector equivalents), **Quebec Law 25** — most prescriptive: biometric consent, **privacy impact assessment (PIA) required before biometric processing**, breach notification (72h), data portability, private right of action (2023+), governance duties (privacy officer, registers) | Law 25 compliance pack: PIA template, consent templates, privacy-officer registers per tenant, breach process with 72h clock, deletion/portability exports |
-| **Workplace surveillance** (federal + provincial) | Video surveillance of employees must be reasonable, disclosed, minimally intrusive; **Quebec**: surveillance must be justified, unions must be informed; **Ontario** employment standards on monitoring transparency (disclosure); unionized workplaces → collective agreement/works-council consultation | Notice/signage pack (PRD §15.5), works-council onboarding kit, proportionality guidance in DPIA kit, zone-based masking to minimize employee capture |
-| **Public bodies** | *Charter* s.8 (unreasonable search) applies where public bodies deploy; school boards, municipalities → heightened standard | Guidance + legal-review question for public-sector tenants (§5.9) |
+Use the dated [Canada supplement](docs/privacy/canada-privacy-supplement.md) and primary sources. Determine province, commercial cross-border flows, public/private sector and federally regulated employment scope before selecting PIPEDA, Alberta PIPA, BC PIPA or Quebec law. Do not assume a universal PIPEDA regime, joint-controller role or Canadian 72-hour notification rule. Sensitive biometric processing defaults to separate express opt-in and a non-biometric alternative, with Quebec biometric disclosure requirements independently reviewed. Rights, consent, erasure and incident workflows are not implemented merely because described here.
 
 ### 5.2 Europe (GDPR + EU AI Act)
 
@@ -744,27 +741,11 @@ All drift events are logged to the model registry (versioned) and appear in the 
 
 ### 5.3 United States
 
-| Framework | Key requirements | Platform response |
-|---|---|---|
-| **IL BIPA** (high-water mark) | Written consent before collecting biometric identifiers; retention schedule; **private right of action with liquidated damages**; no sale | Consent-first enrollment (signed, versioned), embeddings-only default, published retention schedule, employee rights workflow; BIPA state pack |
-| **TX CUBI, WA** | Consent/notice; disclosure/retention schedules; no private action (TX) but AG enforcement | Same pack, state-specific templates |
-| **Other state biometric laws** (CA, CO, DE, OR, UT, VA, MD, NY, NH + more pending) | Consent, retention, security safeguards, opt-outs | Configurable compliance packs; legal-review per state (§5.9) |
-| **CCPA/CPRA** | Biometric data = personal info; notice at collection; **opt-out of sale/share** (biometric data not to be sold/shared); deletion requests; service-provider contracts | Notice UI, deletion APIs, DPA/CPPA service-provider terms, no-sale commitment (PRD §15.8) |
-| **Workplace surveillance/monitoring laws** (CT, NY, DE, MA disclosure; more states) | Employee monitoring disclosure (email/phone/filing rules; camera-specific in some states); union/collective-bargaining notice | Employee notice templates per state, disclosure guidance in compliance kit |
-| **HIPAA** (hospitals) | PHI if cameras capture identifiable individuals in covered entities | PHI guidance, masking controls, BAAs where the tenant is a covered entity (legal review) |
-| **FERPA** (schools) | Student-record privacy for school deployments | Education pack (parent/guardian consent where required) — legal review |
+Use the [U.S. supplement](docs/privacy/us-privacy-supplement.md) and its state/local matrix. Assess FTC section 5, California consumer/employee and sensitive-data rules, applicable sectoral laws, and Illinois, Texas, Washington, Colorado and local biometric restrictions independently. The list is not a complete launch clearance. Current CPPA rules have staged compliance dates. A hospital camera is not automatically HIPAA-regulated PHI, nor every school camera a FERPA record; determine actual entities and data. No notice, consent or generic policy overrides a facial-recognition prohibition or the existing biometric approval gates.
 
-### 5.4 India (DPDP Act 2023)
+### 5.4 India (DPDP Act 2023 and Rules 2025)
 
-| Requirement | Platform response |
-|---|---|
-| Consent for personal data; **sensitive data (biometrics)** needs explicit consent + purpose limitation | Consent-first, scope-bound, versioned consent records; biometric scope UI |
-| **Consent managers** framework | Consent records exportable in manager-compatible format (Phase 2) |
-| Erasure / right to update | Erasure APIs + manifests (§3.7) |
-| Breach notification to DPB + affected individuals | Breach runbook (30-day window as prescribed) |
-| Cross-border transfer rules (DPB-approved countries/whitelist mechanisms) | Residency pinning (ap-south-1), transfer decision support |
-| Children's data (guardian consent) | School-deployment pack flags guardian-consent obligations (legal review) |
-| Data fiduciary duties (security safeguards, purpose limitation, storage limitation) | Full control set in this document |
+Use the [India supplement](docs/privacy/india-privacy-supplement.md) for G.S.R.843(E)'s staged commencement and the corrected Rules. Core processing/rights provisions are scheduled eighteen months after Gazette publication; do not claim simultaneous commencement. DPDP has no separate sensitive-personal-data category or DPB-approved country whitelist. Current IT/SPDI and CERT-In obligations require separate review. Future rule 7 uses initial notification without delay and a 72-hour detailed Board update, not a 30-day breach window. Category retention, including the Rules' one-year provisions, requires legal reconciliation with ADR-006 before implementation. All proposed controls remain subject to evidence and approval.
 
 ### 5.5 Brief APAC & Middle East
 
@@ -791,7 +772,7 @@ All drift events are logged to the model registry (versioned) and appear in the 
 | Standard | Requirement | Control ref | Evidence artifact | Status target |
 |---|---|---|---|---|
 | PIPEDA / provincial | Consent + breach + access | §3, §5.1 | Consent records, breach runbook | MVP+ |
-| QC Law 25 | PIA before biometrics, 72h breach | §5.1 | PIA template pack | Phase 2 |
+| QC Law 25 | Applicable PIA/biometric disclosure and prompt serious-injury breach notification | §5.1 | PIA template pack | Phase 2 |
 | GDPR | DPIA, Art 22, erasure, transfers | §4.12.3, §5.2 | DPIA kit, transfer mechanics | MVP (built-in) / Phase 2 pack |
 | EU AI Act | High-risk obligations | §4, §5.2 | AI Act classification + docs | Phase 3 |
 | IL BIPA / state packs | Consent, retention, no sale | §5.3 | State packs, retention schedule | Phase 2 |
@@ -813,7 +794,7 @@ All drift events are logged to the model registry (versioned) and appear in the 
 | 4 | Ship consent/notice/signage pack (per region) | Compliance | MVP |
 | 5 | Publish biometric data-handling statement + no-sale commitment | Compliance | MVP |
 | 6 | Implement region-pinned residency + transfer decision UI | Eng | MVP |
-| 7 | Breach-notification runbooks (72h GDPR/QC, 30d DPDP, state rules) | SecOps | MVP |
+| 7 | Breach-notification runbooks (jurisdiction-specific triggers and clocks in the privacy incident procedure) | SecOps | MVP |
 | 8 | Retention/erasure completeness tests as release gates | Eng | MVP |
 | 9 | SOC 2 Type II readiness audit | Compliance | Phase 2 start |
 | 10 | ISO 27001 gap analysis + ISMS build | Compliance | Phase 2 |
@@ -833,7 +814,7 @@ All drift events are logged to the model registry (versioned) and appear in the 
 9. **Insurance/forensic use:** Do insurer requirements to retain evidence conflict with retention policies or erasure rights?
 10. **Public-sector deployments:** What Charter/administrative-law standards apply to schools, hospitals, municipalities?
 11. **Children's data:** What guardian-consent obligations apply to school deployments (COPPA, FERPA, DPDP children's provisions)?
-12. **Cross-border transfers:** Which transfer mechanisms are required for each tenant's data path (EU SCCs, DPDP whitelist, US state requirements)?
+12. **Cross-border transfers:** Which transfer mechanisms are required for each tenant's data path (EU SCCs, applicable DPDP restrictions, US state requirements)?
 13. **Liability allocation:** How do controller/processor roles allocate liability for misuse, surveillance disputes, or model errors (product liability for AI decisions)?
 14. **Weapon-detection deployment:** Are weapon-detection features subject to weapons-related restrictions or heightened disclosure duties in any region?
 15. **Voice/audio capture:** If audio features are added (Phase 3 gunshot), which wiretap/consent statutes apply?
@@ -881,7 +862,7 @@ The platform's compliance story is: **controls are engineered, evidence is gener
 - Account takeover (revoke sessions/tokens, force re-auth, SCIM check)
 - Evidence tampering detection (freeze chain, verify all artifacts, notify customer)
 - Region/cloud incident (coordinate with ARCHITECTURE §19 DR runbooks)
-- Regulatory breach notification (72h/30d clocks, regulator + individual templates)
+- Regulatory breach notification (jurisdiction-specific clocks, regulator + individual templates)
 - Model incident (rollback, shadow-disable, recalibrate, §4.11)
 
 **Communication plan:** pre-approved templates (customer, regulator, media), spokespersons defined, 1-hour internal notification for P1, customer notification ≤24h for data incidents, regulatory per §5.
@@ -1093,7 +1074,7 @@ Extends ARCHITECTURE §19 (RTO ≤60 min, RPO ≤5 min) with security-specific c
 | SD-05 | Evidence integrity via hash chain + S3 Object Lock + public verification API | Forensic/insurance standard (P9, FR-117) |
 | SD-06 | Compliance is configuration-driven per tenant, with per-region packs | Multi-region GTM (India/EU/US) without code forks (P6) |
 | SD-07 | Annual external pen tests + adversarial ML red-team as standing commitments | PRD §6 security NFR; AI-ARCHITECTURE §14 model security |
-| SD-08 | Breach runbooks with regulator clocks (72h/30d) built into SecOps | Notification obligations across regimes |
+| SD-08 | Breach runbooks with jurisdiction-specific regulator clocks built into SecOps | Notification obligations across regimes |
 
 ### 9.2 Cross-Reference Map (section → source docs)
 
