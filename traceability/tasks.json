@@ -851,6 +851,39 @@
       "dependencies": ["T-0403"],
       "status": "in_review",
       "acceptance": "A planning-only boundary records the founder, Product, Engineering, Platform, SRE, Security, Privacy, Legal, Finance, Customer Success, commercial, release, and approval prerequisites for a future Sprint 12 GA-readiness proposal. It adds no checklist status, go/no-go decision, launch date, release, rollout, customer communication, deployment, or production-enablement claim."
+    },
+    {
+      "id": "T-0405",
+      "title": "Audit implemented privacy controls and draft jurisdiction policy package",
+      "phase": 12,
+      "owner": "Engineering, Privacy and Legal",
+      "dependencies": [
+        "T-0404"
+      ],
+      "status": "in_review",
+      "acceptance": "Dated official-source research, current-main implementation audit, global and jurisdiction drafts, notices and traceability distinguish runtime evidence from planning and preserve every approval gate."
+    },
+    {
+      "id": "T-0406",
+      "title": "Close verified browser egress, logging and attendance ingestion privacy gaps",
+      "phase": 12,
+      "owner": "Engineering, Privacy and Legal",
+      "dependencies": [
+        "T-0405"
+      ],
+      "status": "planned",
+      "acceptance": "Remove unnecessary remote fonts, prevent raw entrypoint error logging and reject generic attendance events without weakening tenant authorization or enabling biometrics; regression tests pass."
+    },
+    {
+      "id": "T-0407",
+      "title": "Validate versioned draft privacy policy inventory",
+      "phase": 12,
+      "owner": "Engineering, Privacy and Legal",
+      "dependencies": [
+        "T-0405"
+      ],
+      "status": "planned",
+      "acceptance": "Canonical verification checks policy inventory, versions, draft warning and local traceability references; negative fixtures detect missing documents, unsafe paths and false approval status; no legal approval or production activation is inferred."
     }
   ]
 }

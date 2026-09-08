@@ -1,0 +1,64 @@
+# Current implementation audit — 2026-09-08
+
+Task: T-0405. Inspected remote `main`: `06626a1dbd73b02b8963b5cb2c59d4c0e74b2b48`, merging [PR 131](https://github.com/syncaitechnologies/SyncamAi/pull/131) on 2026-09-07. No open PRs at inspection. Latest merged work includes PRs 117–131: data-path, security, operations/DR, and GA planning boundaries/templates, not implementation of those capabilities. This audit records source and CI evidence, not a penetration test, legal determination, or production validation.
+
+## A. Verified state
+
+[Main CI run](https://github.com/syncaitechnologies/SyncamAi/actions/runs/34155248816) reports successful verify, Supabase, and secrets jobs; dependencies is skipped on a main push and runs on PRs. The verify job enables Testcontainers integration tests; Supabase resets a disposable local database, tests RLS, and runs security advisors. There is no repository E2E/browser-accessibility suite, deployed service monitoring, signed release pipeline, or load/DR execution evidence in this checkout. Go's coverage gate measures aggregate backend coverage; the coverage-policy validator checks a declared changed-line policy, not actual changed-line coverage.
+
+GitHub deployment metadata includes deployment `6314915246`, environment named `Production`, for this SHA. Vercel configuration builds the Vite frontend. This is evidence of a deployment record, not proof that the backend, customer rollout, or GA was approved. No GitHub releases were returned. No customer system, live camera, production database, or deployment secret was accessed. Availability, recovery and capacity claims remain unverified.
+
+| Requirement | Tracker | Code | Tests | Runtime/deployment evidence | Status | Remaining work |
+|---|---|---|---|---|---|---|
+| Identity and tenant/site authorization | T-0310–T-0316, T-0364–T-0366 | `backend/internal/identity`, `authz`, `tenant`, `httpapi`; authoritative Supabase migrations | OIDC/authz/HTTP/tenant tests; `backend/supabase/tests/001_membership_boundary.sql` | Wired into control-plane; main CI passes | IMPLEMENTED_NEEDS_VALIDATION | Deployed token/session, TLS, roles and tenant-negative validation |
+| Events, outbox, alert acknowledgement and resumable feed | T-0315–T-0319 | `eventing`, `outbox`, `alerting`, `realtime`; frontend alert client | Repository, HTTP and realtime tests | Wired Go server and outbox binary; no delivery SLO evidence | IMPLEMENTED_NEEDS_VALIDATION | Provider transport, production reliability; generic event ingestion is not model approval |
+| Cameras, device claims and heartbeat | T-0322–T-0329 | `device`, HTTP handlers, edge libraries | Certificate/claim/heartbeat/RTSP/spool tests | Server routes present; edge `cmd/edge-agent/main.go` only prints scaffold | PARTIAL | Compose a reviewed executable edge runtime and certify hardware |
+| Zones, loitering and event-only vehicle/object logic | T-0307–T-0308, T-0330–T-0339 | `zones`, `configdelivery`, Python track/zone/vehicle/abandoned-object modules | Deterministic unit and integration tests | Metadata libraries; no promoted detector/model artifacts | PARTIAL | Approved inference, end-to-end integration and held-out evaluation |
+| Privacy masks and evidence integrity | T-0340–T-0354; FR-117 | `privacymasks`, edge release/HIL/hardware adapter; `audit.Append` hash chain | Ledger/release/signature/hardware-boundary tests | Metadata gates and injected executor; no physical masking result or WORM deployment proved | PARTIAL | Physical signed HIL, actual pixel path, evidence object storage and access audit |
+| Model registry and provenance | T-0355–T-0363 | Python metadata registry/projections and frontend synthetic catalog | Registry/manifest validator tests | Planned-only catalog, not loading weights | PLANNING_ONLY | Per-model license, dataset, eval, signature, rollback, human promotion |
+| Membership lifecycle | T-0379–T-0385 | Invitation worker, leases, reconciliation, local suspension | Service/provider/SQL adapter tests | Worker binary exists; HTTP/browser lifecycle unavailable | PARTIAL | Session-revocation checklist approvals and provider validation |
+| Consent and biometric attendance | T-0386–T-0392; FR-102 | No consent ledger, enrollment/matching/liveness or attendance service | FR-102 placeholder; generic `attendance_review` event vocabulary is not attendance implementation | No approved deployment | BLOCKED_APPROVAL | All biometric evidence checklist approvals, then dedicated contracts/implementation |
+| Individual rights | FR-206 | No rights-request endpoint, owner queue, withdrawal or fulfillment worker | Privacy acceptance placeholder | None found | NOT_IMPLEMENTED | Approved workflow, identity verification, tenant-scoped persistence, audit, UI and fulfillment |
+| Retention/erasure/recovery | T-0397–T-0399; FR-206 | Tenant `retention_days` 7–365/default 30; bounded edge spool; no category lifecycle worker | Schema/spool tests only | No cross-store erasure or restore evidence | PARTIAL | Approved schedules/holds/store inventory, workers and restore reconciliation |
+| Frontend | T-0319–T-0321, T-0330, T-0358, T-0367 | React/Vite, Supabase PKCE; demo default; live alert/camera paths | TS typecheck and Node model/contract tests | Vercel deployment record; onboarding/registry partly synthetic | PARTIAL | Runtime privacy notices/settings, rights UX, E2E/accessibility and claims review |
+| Billing/pilot | T-0393–T-0396 | Preparation-only onboarding shell; no billing service | Onboarding model test, documents | No payment/provider implementation proved | BLOCKED_APPROVAL | Price/tax/DPA/support/customer-communication approvals, validated metering |
+| Security/operations/GA | T-0400–T-0404 | CI validators/scans, health endpoint, dependency configuration; Terraform creates no resources | CI; templates are not tests | Frontend deployment metadata only | BLOCKED_APPROVAL | Approved assessment/operations environment, observability, restore/DR evidence and human GA decision |
+| Source publication | T-0309 | Public repository, no LICENSE | License and secret validators | Public source observed | BLOCKED_APPROVAL | Owner/Legal final decision; no license/visibility change |
+| Later modules and scale | historical roadmap phases 10/11 | Catalog/planning references only for LPR/ReID/face search/autonomous actions | Mostly placeholders | No release evidence | DEFERRED | Approved scope and prerequisites; no speculative implementation |
+
+Statuses describe each capability, not whether every associated task is done. No capability is marked IMPLEMENTED_AND_VERIFIED for production on this evidence.
+
+## B. Historical discrepancies
+
+1. ADR-009 supersedes AWS-first MVP deployment prose: Supabase migrations are authoritative, Go owns business mutations, Cloudflare is reserved, and AWS remains a migration target. The embedded migration command is retired despite the older README setup paragraph.
+2. Historical roadmap phase 9 means GA/Sprint 12; `phase-9-data-path` means historical Sprint 9. `phase-10-security` and `phase-11-operations` likewise do not mean the later Phase 2 Modules or Phase 3 + Scale roadmap phases are delivered.
+3. ADR-006 retention numbers are schema/design values. Later T-0397 explicitly requires schedule and lifecycle approvals. Neither proves automatic deletion, backup expiration, or cross-border placement; `data_region` is not enforced residency.
+4. The security plan's statements about Canadian 72-hour clocks, Indian sensitive-data categories under DPDP, a DPDP whitelist, a 30-day DPDP breach clock, and universal WORM/encryption/erasure are not reliable current-law or runtime descriptions. The [privacy matrix](../privacy/privacy-jurisdiction-matrix.md) and supplements supply dated corrections. Architecture control requirements remain targets.
+5. T-0404 is `in_review` even though PR 131 merged. This audit leaves that historical tracker state unchanged; reconciliation must not imply a GA approval.
+6. A `Production` frontend deployment record contradicts an absolute claim that no deployment occurred. It supplies no evidence of an authorized GA launch. The latest instructions and merged boundary prohibit treating labels as approval.
+
+## C. Remaining Phase 9 work by owner
+
+- Engineering: compose existing edge libraries, validate live frontend/API integration, implement approved privacy intake/consent/lifecycle slices in that order, and address the verified exposures below. Preserve canonical contracts and storage ownership.
+- Privacy/Legal: entity/contact, deployment role and jurisdiction, notices, category schedules, lawful holds, processors/transfers, grievance ownership, and counsel approval. Biometrics remains blocked before implementation under its checklist.
+- Security: approve threat models, session semantics, assessment targets, least privilege, safe logging and evidence handling. Execute authorized scans/pen tests and review findings privately.
+- Infrastructure: approve runtime/secret store, telemetry/on-call, backup/restore/DR, isolated test environment, costs and rollback. No resource provisioning was done.
+- Commercial: price book, invoicing/tax, DPA/contracts, pilot eligibility, support and communication decisions. No customer was onboarded.
+- Human approval: [existing GA boundary](sprint-12-ga-readiness-delivery-boundary.md), source publication, biometric/model promotion and session worker. GA is PENDING HUMAN APPROVAL.
+
+## D. Privacy engineering findings
+
+Current source includes browser session persistence and an external Google Fonts CSS import. No advertising SDK was found, but that is not proof of vendor-side telemetry or no sale/sharing under law. Backend entrypoints format raw database/OIDC/worker errors; these can disclose connection details. Generic event fields include free-form evidence references and model/dedupe strings; they are not a safe place for credentials, biometric payloads or subject-rights evidence. `attendance_review` is accepted by the generic event API despite the separate biometric gate; follow-up must fail closed without altering the wire vocabulary. Camera retirement is a status change, not privacy erasure. Hash chains are not object-store signatures or tamper-proof WORM storage. Edge spool size limits are not time-based retention or encryption at rest.
+
+India needs staged commencement plus current IT/CERT-In mapping; Canada needs province/sector/employment determination; the U.S. needs state/local and biometric gates. All three need tested operational rights, withdrawal and lifecycle controls. See [traceability](../privacy/privacy-implementation-traceability.md).
+
+## E. Smallest safe PR sequence
+
+1. T-0405: this audit, dated primary research, draft policy/notices and implementation traceability. No application activation.
+2. T-0406: bounded fixes for browser third-party font requests, raw entrypoint errors and generic attendance ingestion, with regression checks; keep existing authorization/audit and model/biometric boundaries.
+3. T-0407: versioned policy inventory validation in canonical verification; draft status cannot be interpreted as release approval.
+4. After the named reviews: dedicated non-biometric rights intake, then purpose-specific consent/withdrawal, then category retention and erasure orchestration. Each needs contract, transaction/audit/isolation tests and UI/E2E. Biometric records and external revocation remain separately blocked. Broader Phase 9 testing and later roadmap modules require their recorded prerequisites.
+
+## F. Inputs not derivable from source
+
+Product owner must identify the operating legal entity, address, monitored privacy/grievance contact, launch states/provinces/sites and sectors, and individual reviewers. Privacy/Legal must approve the role/DPA, purposes/grounds, retention/holds, transfers and notices. Infrastructure must provide approved non-production runtime/test and evidence references. These are decisions, not facts an engineer can infer from a GitHub organization name. Refer to existing checklists rather than inventing approvals or repeating template-only phases.

@@ -14,7 +14,7 @@ The Phase 0 foundation lives beside the root specifications:
 
 Run the complete verification gate with `make verify` on macOS/Linux or `pwsh scripts/verify.ps1` on Windows. Required runtimes are Go 1.25.13+, Python 3.12, Node.js 22, and pnpm 11.16.0. Go patch releases are security floors, not merely feature baselines.
 
-Phase 1 local persistence uses Postgres 16 with separate `syncam_admin` migration and `syncam_app` runtime roles. It includes tenant/site persistence, authenticated event ingestion, a leased transactional-outbox worker, an idempotent alert queue, audited acknowledgment, and a ticketed resumable alert WebSocket. Copy `.env.example`, start `docker compose up -d postgres`, run `go run ./backend/cmd/migrate`, and follow the [Phase 1 development guide](docs/development/phase-1-identity.md). AWS is not required for this local workflow.
+Phase 1 local persistence uses Postgres 16 with separate `syncam_admin` migration and `syncam_app` runtime roles. It includes tenant/site persistence, authenticated event ingestion, a leased transactional-outbox worker, an idempotent alert queue, audited acknowledgment, and a ticketed resumable alert WebSocket. Copy `.env.example`, start `docker compose up -d postgres`, use the authoritative Supabase workflow in [`backend/supabase/README.md`](backend/supabase/README.md), and follow the [Phase 1 development guide](docs/development/phase-1-identity.md). AWS is not required for this local workflow.
 
 ## Web authentication (temporary Supabase MVP)
 
@@ -60,3 +60,7 @@ Read the relevant specification before changing requirements, architecture, APIs
 5. Keep `main` stable and use pull-request review for shared decisions.
 
 Technical identifiers such as existing API domains, webhook routes, and wire-level headers are intentionally preserved during the product-brand rename. Change them only through an explicit API migration decision.
+
+## Privacy implementation review
+
+The [2026-09-08 audit](docs/development/2026-09-08-current-state-audit.md) distinguishes implemented code from planning and deployment evidence. The [global privacy draft and jurisdiction supplements](docs/privacy/README.md) require qualified counsel approval and missing operational controls before production use. They do not enable biometrics or approve GA.
