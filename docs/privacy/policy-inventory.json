@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "status": "draft",
+  "traceability": "docs/privacy/privacy-implementation-traceability.md",
+  "policies": [
+    {
+      "path": "docs/privacy/biometric-and-face-recognition-notice.md",
+      "version": "2026-09-08.draft-1",
+      "sha256": "10a86062cf7df47512da8e881e277c6576e18627af2bc8e3e719fc4b57e87d24"
+    },
+    {
+      "path": "docs/privacy/camera-video-surveillance-notice.md",
+      "version": "2026-09-08.draft-1",
+      "sha256": "a762b0efe8ce2492a35f611bfff7ec7fe4d4ffc2ca41ec7ffde7d6fade04e7c4"
+    },
+    {
+      "path": "docs/privacy/canada-privacy-supplement.md",
+      "version": "2026-09-08.draft-1",
+      "sha256": "37cf92d8d399515fb1a6cc1c67f610a191daa0eaa25b4a0a0d4a2036da57a3e8"
+    },
+    {
+      "path": "docs/privacy/cross-border-data-transfer-policy.md",
+      "version": "2026-09-08.draft-1",
+      "sha256": "6d4272e48b12146f565563d5c3244368b7c49bba4e6bc8ffa19478f15d4a6954"
+    },
+    {
+      "path": "docs/privacy/data-retention-and-deletion-policy.md",
+      "version": "2026-09-08.draft-1",
+      "sha256": "0630d4ed9096cb6c36d5ce1f0c109464da86c15cf3000f1a49e8da43c0f42dfd"
+    },
+    {
+      "path": "docs/privacy/data-subject-request-procedure.md",
+      "version": "2026-09-08.draft-1",
+      "sha256": "8fa0b51e16edc56b2f7de67c0d8de138ec4f7fbe9fa6b26190740335dc55d26f"
+    },
+    {
+      "path": "docs/privacy/employee-attendance-privacy-notice.md",
+      "version": "2026-09-08.draft-1",
+      "sha256": "ca7aa8e32ea256daaf2bd4879302f2e423fed5f1c76e3eb2f16941f3336e63de"
+    },
+    {
+      "path": "docs/privacy/global-privacy-policy.md",
+      "version": "2026-09-08.draft-2",
+      "sha256": "ecdb1c9a261cd714b88fa11aa01a3552ce9ea750a0a02658a3ff4efff1aa9c60"
+    },
+    {
+      "path": "docs/privacy/india-privacy-supplement.md",
+      "version": "2026-09-08.draft-1",
+      "sha256": "08e84269c698ee3e4704e470479e39295b2865cbae59fcdbeeb13dc946686990"
+    },
+    {
+      "path": "docs/privacy/privacy-implementation-traceability.md",
+      "version": "2026-09-08.draft-2",
+      "sha256": "9a726f97faf315087fc0dbb9b6c6986fca515bbed5824aa7fbf0a027ae7724ab"
+    },
+    {
+      "path": "docs/privacy/privacy-incident-and-breach-procedure.md",
+      "version": "2026-09-08.draft-1",
+      "sha256": "1030ba197b842cfbccabe7e7e6f958e46c6963a1379e27c5106e3b5a8a745aa9"
+    },
+    {
+      "path": "docs/privacy/privacy-jurisdiction-matrix.md",
+      "version": "2026-09-08.draft-1",
+      "sha256": "35e23376afe46e3ecc6e149e1fb2e4db6ccf18207384d58504c9fd12be07558e"
+    },
+    {
+      "path": "docs/privacy/subprocessor-governance.md",
+      "version": "2026-09-08.draft-1",
+      "sha256": "8ae5f13f91cac8c9dc03be092b9632c73f72dedf73390924aece48845439f56c"
+    },
+    {
+      "path": "docs/privacy/us-privacy-supplement.md",
+      "version": "2026-09-08.draft-1",
+      "sha256": "29a7884e1f9e126e829decbf1294ae54f81ca13850335e1608c0c760fd831def"
+    }
+  ]
+}
