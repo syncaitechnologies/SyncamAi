@@ -259,6 +259,9 @@ func (s *Server) ingestEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func validateDetectionEvent(event eventing.DetectionEvent, tenantID string) error {
+	if strings.EqualFold(strings.TrimSpace(event.EventType), "attendance_review") {
+		return eventing.ErrAttendanceUnavailable
+	}
 	identifiers := []string{event.EventID, event.TenantID, event.SiteID, event.CameraID, event.ZoneID}
 	for _, identifier := range identifiers {
 		if _, err := uuid.Parse(identifier); err != nil {

@@ -2,7 +2,7 @@
 
 > Draft operational privacy policy — requires review and approval by qualified legal/privacy counsel before production use in the applicable jurisdiction.
 
-Version: `2026-09-08.draft-1`. Baseline: `06626a1`. T-0405 adds this draft only. [Audit](../development/2026-09-08-current-state-audit.md) contains requirement → task → code → tests → runtime → status → remaining work. Every policy claim must be rechecked against the proposed release SHA.
+Version: `2026-09-08.draft-2`. Baseline: `06626a1`. T-0405 adds this draft only. [Audit](../development/2026-09-08-current-state-audit.md) contains requirement → task → code → tests → runtime → status → remaining work. Every policy claim must be rechecked against the proposed release SHA.
 
 | Promise/control | Requirement/task | Implementation and tests at baseline | Status | Release-blocking dependency |
 |---|---|---|---|---|
@@ -37,3 +37,7 @@ These are review inputs, not a new architecture or operational database. Follow 
 Use the current task-ID allocator in `traceability/tasks.json`. Link the relevant FR and existing gated dependency; do not mark a template as runtime completion. Each approved workflow slice needs contract compatibility, unit tests, durable transaction/rollback tests, tenant/site and subject authorization negatives, audit integrity, migration/RLS tests, retry/concurrency cases, safe errors, UI/accessibility and E2E. Consent tests must cover missing/withdrawn/stale consent and purpose/version changes. Deletion tests must cover every applicable store, held records, failures, backup expiry and restored copies. AI work additionally needs approved provenance, evaluation and human promotion; fabricated metrics are forbidden.
 
 Evidence references and approval status belong in a private approved system where required. Public documentation should link only safe review references, not incident logs, consent, footage, biometric data, customer identities, credentials or generated production evidence. A future validator can check document completeness and draft/version consistency; it cannot grant legal approval.
+
+## T-0406 source change and verification
+
+[Exposure-fix evidence](../development/privacy-exposure-fixes.md) records the tested generic-attendance rejection, fixed entrypoint failure categories and external-font removal. These narrow controls are implemented and locally verified in the proposed branch; the baseline table above remains the main-commit audit. They do not establish deployed enforcement, a consent ledger, complete log sanitization, biometric approval or a retention/rights workflow.

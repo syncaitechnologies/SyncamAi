@@ -190,3 +190,34 @@ func TestMemoryRepositoryDedupeAndFailureClassification(t *testing.T) {
 		t.Fatal("unexpected errors must be preserved")
 	}
 }
+
+func TestAttendanceIntakeIsBlockedBeforePersistence(t *testing.T) {
+	for _, eventType := range []string{"attendance_review", " attendance_review ", "ATTENDANCE_REVIEW"} {
+		t.Run(eventType, func(t *testing.T) {
+			mock, err := pgxmock.NewPool()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer mock.Close()
+			memory := NewMemoryRepository()
+			command := testCommand()
+			command.Event.EventType = eventType
+			for _, repository := range []Repository{NewPostgresRepository(mock), memory} {
+				result, err := repository.Ingest(context.Background(), command)
+				if !errors.Is(err, ErrAttendanceUnavailable) || result.Accepted {
+					t.Fatalf("attendance intake must be blocked: result=%+v err=%v", result, err)
+				}
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatal(err)
+			}
+			if len(memory.replays) != 0 {
+				t.Fatal("blocked event left replay state")
+			}
+			result, err := memory.Ingest(context.Background(), testCommand())
+			if err != nil || !result.Accepted || result.Replayed {
+				t.Fatalf("blocked event must not reserve the dedupe key: %+v %v", result, err)
+			}
+		})
+	}
+}

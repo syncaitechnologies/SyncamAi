@@ -26,7 +26,7 @@ func main() {
 		log.Fatal("SYNCAM_DATABASE_URL, SYNCAM_WORKER_TENANT_ID, SYNCAM_SUPABASE_URL, and SYNCAM_SUPABASE_SECRET_KEY are required")
 	}
 	if _, err := uuid.Parse(tenantID); err != nil {
-		log.Fatalf("SYNCAM_WORKER_TENANT_ID must be a UUID: %v", err)
+		log.Fatal("SYNCAM_WORKER_TENANT_ID must be a UUID")
 	}
 	provider, err := usermanagement.NewSupabaseInvitationProvider(projectURL, secretKey, nil)
 	if err != nil {
@@ -37,11 +37,11 @@ func main() {
 	defer stop()
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
-		log.Fatalf("open Postgres pool: %v", err)
+		log.Fatal("open Postgres pool failed")
 	}
 	defer pool.Close()
 	if err := pool.Ping(ctx); err != nil {
-		log.Fatalf("connect Postgres: %v", err)
+		log.Fatal("connect Postgres failed")
 	}
 
 	worker := usermanagement.DeliveryWorker{
@@ -56,7 +56,7 @@ func main() {
 			log.Printf("lifecycle delivery claimed=%d delivered=%d failed=%d reconciliation_required=%d", result.Claimed, result.Delivered, result.Failed, result.ReconciliationRequired)
 		}
 		if err != nil && ctx.Err() == nil {
-			log.Printf("dispatch lifecycle delivery: %v", err)
+			log.Print("dispatch lifecycle delivery failed")
 		}
 		select {
 		case <-ctx.Done():

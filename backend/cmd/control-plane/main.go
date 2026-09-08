@@ -46,14 +46,14 @@ func main() {
 	verifier, err := identity.NewOIDCVerifierForProfile(discoveryContext, profile, issuer, audience)
 	cancelDiscovery()
 	if err != nil {
-		log.Fatalf("configure OIDC verifier: %v", err)
+		log.Fatal("configure OIDC verifier failed")
 	}
 
 	databaseContext, cancelDatabase := context.WithTimeout(context.Background(), 10*time.Second)
 	poolConfig, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
 		cancelDatabase()
-		log.Fatalf("configure Postgres pool: %v", err)
+		log.Fatal("configure Postgres pool failed")
 	}
 	poolConfig.MaxConns = 10
 	poolConfig.MinConns = 1
@@ -61,12 +61,12 @@ func main() {
 	pool, err := pgxpool.NewWithConfig(databaseContext, poolConfig)
 	if err != nil {
 		cancelDatabase()
-		log.Fatalf("open Postgres pool: %v", err)
+		log.Fatal("open Postgres pool failed")
 	}
 	if err := pool.Ping(databaseContext); err != nil {
 		pool.Close()
 		cancelDatabase()
-		log.Fatalf("connect Postgres: %v", err)
+		log.Fatal("connect Postgres failed")
 	}
 	cancelDatabase()
 	defer pool.Close()
@@ -98,13 +98,13 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := server.Shutdown(ctx); err != nil {
-			log.Printf("control-plane shutdown: %v", err)
+			log.Print("control-plane shutdown failed")
 		}
 	}()
 
-	log.Printf("control-plane listening on %s", server.Addr)
+	log.Print("control-plane listening")
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatalf("control-plane server: %v", err)
+		log.Fatal("control-plane server failed")
 	}
 }
 

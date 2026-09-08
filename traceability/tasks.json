@@ -871,7 +871,7 @@
       "dependencies": [
         "T-0405"
       ],
-      "status": "planned",
+      "status": "in_review",
       "acceptance": "Remove unnecessary remote fonts, prevent raw entrypoint error logging and reject generic attendance events without weakening tenant authorization or enabling biometrics; regression tests pass."
     },
     {
