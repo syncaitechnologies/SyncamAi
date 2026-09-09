@@ -91,6 +91,12 @@ button {
 .auth-divider { display: flex; align-items: center; gap: 11px; margin: 21px 0; color: #63747e; font: 10px "DM Mono", monospace; text-transform: uppercase; }
 .auth-divider:before, .auth-divider:after { content: ""; flex: 1; height: 1px; background: #293b45; }
 .auth-notice { margin: 18px 0 0; color: #e7bd7b; font-size: 12px; line-height: 1.5; }
+.auth-exit { margin-top: 20px; }
+.auth-enrollment { display: grid; gap: 16px; margin-top: 24px; }
+.auth-qr { width: 220px; max-width: 100%; height: auto; padding: 8px; background: white; border-radius: 8px; }
+.auth-secret { display: block; overflow-wrap: anywhere; margin-top: 12px; font-size: 14px; }
+.auth-form select { width: 100%; min-height: 42px; color: #e9f2f0; background: #0c151c; border: 1px solid #334853; border-radius: 8px; }
+.auth-session-notice { position: fixed; z-index: 100; top: 12px; left: 50%; transform: translateX(-50%); padding: 16px; max-width: 90vw; color: #e7bd7b; background: #16232b; border: 1px solid #e7bd7b; border-radius: 8px; }
 .app-shell {
   display: flex;
   min-height: 100vh;

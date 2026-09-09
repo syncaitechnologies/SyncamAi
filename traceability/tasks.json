@@ -891,8 +891,17 @@
       "phase": 12,
       "owner": "Engineering",
       "dependencies": ["T-0407"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "React and React DOM upgrade together with matching types, TypeScript and Vite tooling; existing contract tests, canonical verification, dependency scans and deployed browser smoke checks pass before superseding the older individual dependency PRs."
+    },
+    {
+      "id": "T-0409",
+      "title": "Complete privileged browser MFA and safe session recovery",
+      "phase": 12,
+      "owner": "Engineering and Security",
+      "dependencies": ["T-0408"],
+      "status": "in_review",
+      "acceptance": "Browser sign-in verifies Supabase claims, requires privileged MFA enrollment or registered-factor challenge, rejects untrusted membership and secret client keys, and recovers from provider failures without stale session resurrection. Regression tests pass; server authorization and gated capabilities remain unchanged. Live account verification is recorded separately from local fixture checks."
     }
   ]
 }

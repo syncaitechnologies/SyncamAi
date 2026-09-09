@@ -31,9 +31,14 @@ export function parseAuthRuntimeConfig(environment: RuntimeEnvironment): AuthRun
     };
   }
 
+  if (!/^sb_publishable_[A-Za-z0-9_-]+$/.test(publishableKey)) {
+    return { mode: "misconfigured", message: "Use a Supabase publishable key (sb_publishable_), never a secret or service-role key." };
+  }
+
   try {
     const parsed = new URL(url);
-    if (parsed.protocol !== "https:" || !parsed.hostname.endsWith(".supabase.co")) {
+    if (parsed.protocol !== "https:" || !/^[a-z0-9-]+\.supabase\.co$/.test(parsed.hostname)
+      || parsed.username || parsed.password || parsed.port || parsed.search || parsed.hash || parsed.pathname !== "/") {
       throw new Error("not a hosted Supabase project URL");
     }
   } catch {
@@ -50,8 +55,18 @@ export function readAuthRuntimeConfig() {
   return parseAuthRuntimeConfig(import.meta.env);
 }
 
+let browserClient: { url: string; publishableKey: string; client: SupabaseClient } | undefined;
+
 export function createSupabaseAuthClient(config: Extract<AuthRuntimeConfig, { mode: "configured" }>) {
-  return createClient(config.url, config.publishableKey, {
+  // One client per page, including React StrictMode remounts. Configuration
+  // changes require a page reload rather than competing auth refresh loops.
+  if (browserClient) {
+    if (browserClient.url !== config.url || browserClient.publishableKey !== config.publishableKey) {
+      throw new Error("Authentication configuration changed; reload this page.");
+    }
+    return browserClient.client;
+  }
+  const client = createClient(config.url, config.publishableKey, {
     auth: {
       autoRefreshToken: true,
       detectSessionInUrl: true,
@@ -59,6 +74,8 @@ export function createSupabaseAuthClient(config: Extract<AuthRuntimeConfig, { mo
       persistSession: true,
     },
   });
+  browserClient = { url: config.url, publishableKey: config.publishableKey, client };
+  return client;
 }
 
 export function syncAccessToken(
