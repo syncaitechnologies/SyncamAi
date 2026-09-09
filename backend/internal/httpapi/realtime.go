@@ -104,7 +104,11 @@ func (s *Server) streamAlerts(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "A valid realtime ticket is required.")
 		return
 	}
-	connection, err := websocket.Accept(w, r, &websocket.AcceptOptions{Subprotocols: []string{realtimeProtocol}})
+	options := &websocket.AcceptOptions{Subprotocols: []string{realtimeProtocol}}
+	if origin, ok := r.Context().Value(approvedBrowserOriginKey{}).(string); ok {
+		options.OriginPatterns = []string{origin}
+	}
+	connection, err := websocket.Accept(w, r, options)
 	if err != nil {
 		return
 	}

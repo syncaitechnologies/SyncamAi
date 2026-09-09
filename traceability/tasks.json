@@ -900,8 +900,17 @@
       "phase": 12,
       "owner": "Engineering and Security",
       "dependencies": ["T-0408"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Browser sign-in verifies Supabase claims, requires privileged MFA enrollment or registered-factor challenge, rejects untrusted membership and secret client keys, and recovers from provider failures without stale session resurrection. Regression tests pass; server authorization and gated capabilities remain unchanged. Live account verification is recorded separately from local fixture checks."
+    },
+    {
+      "id": "T-0410",
+      "title": "Connect browser REST and realtime through an explicit origin boundary",
+      "phase": 12,
+      "owner": "Engineering and Security",
+      "dependencies": ["T-0409"],
+      "status": "in_review",
+      "acceptance": "The Go entrypoint validates an exact browser-origin allowlist and handles restricted preflight requests. REST authentication and tenant isolation remain enforced; rejected WebSocket origins do not consume tickets and approved origins retain one-time-ticket checks. Tests reject wildcard, malformed, unapproved and duplicate origins. Deployment and live account verification are recorded separately."
     }
   ]
 }
