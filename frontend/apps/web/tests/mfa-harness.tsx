@@ -19,7 +19,7 @@ function Fixture() {
 }
 
 function Scenario({ scenario }: { scenario: string }) {
-  const [session, setSession] = useState<Session | null>({ access_token: "synthetic-aal1", user: { id: "synthetic-user", email: "fixture@example.invalid" } } as Session);
+  const [session, setSession] = useState<Session | null>({ access_token: "test1", user: { id: "synthetic-user", email: "fixture@example.invalid" } } as Session);
   const client = useMemo(() => {
     let hasFactor = scenario === "challenge" || scenario === "unsupported";
     let enrollments = 0;
@@ -27,7 +27,7 @@ function Scenario({ scenario }: { scenario: string }) {
       async getClaims(token: string) {
         if (scenario === "check-error") throw new Error("Synthetic provider outage");
         return { error: null, data: { claims: {
-          sub: "synthetic-user", aal: token === "synthetic-aal2" ? "aal2" : "aal1",
+          sub: "synthetic-user", aal: token === "test2" ? "aal2" : "aal1",
           app_metadata: scenario === "missing-membership" ? {} : { syncam: {
             tenant_id: "synthetic-tenant", roles: ["super_admin"], site_ids: [], scopes: ["alerts:read"], data_class: ["metadata"],
           } },
@@ -46,7 +46,7 @@ function Scenario({ scenario }: { scenario: string }) {
         async challengeAndVerify({ code }: { code: string }) {
           if (code !== "123456") return { error: new Error("Synthetic invalid code"), data: null };
           hasFactor = true;
-          setSession({ access_token: "synthetic-aal2", user: { id: "synthetic-user", email: "fixture@example.invalid" } } as Session);
+          setSession({ access_token: "test2", user: { id: "synthetic-user", email: "fixture@example.invalid" } } as Session);
           return { error: null, data: {} };
         },
       },
