@@ -163,25 +163,59 @@ The owner explicitly approved Render Free for the portable Go backend on
 credentials. Render and Vercel account access were verified; the existing
 Supabase connector also works. No credentials are committed to this repository.
 
-The first Render service has not yet been created. Before deploying:
+## T-0412 deployed control-plane verification
 
-1. Verify the project's exact Supabase session-pooler endpoint and provision a
-   separate least-privilege runtime login using the existing `syncam_app`
-   permissions, with verified TLS and no superuser/RLS bypass. Never use the
-   account-management token, service-role key or database administrator login.
-2. Review/deploy the five outstanding committed database migrations, preserving
-   their authoritative migration history. No first-admin membership is created
-   without the ADR-010 target and owner approval.
-3. Use Render **Free**, one Go web instance in Singapore, repository root,
-   branch `main`, build command
-   `go build -trimpath -tags netgo -ldflags '-s -w' -o bin/control-plane ./backend/cmd/control-plane`,
-   start command `./bin/control-plane`, and health path `/healthz`.
-4. Set runtime-only OIDC, database, claim-key, HTTP address and browser-origin
-   settings. Set `SYNCAM_BROWSER_ORIGINS` to the verified canonical frontend
-   HTTPS origin; do not grant arbitrary PR previews production backend access.
-5. Verify health, TLS, unauthenticated rejection, real MFA and tenant isolation
-   before switching the frontend from demo to live. Keep deployment status
-   separate from end-to-end product readiness.
+PR 140 merged as `d950144` after all six checks passed. All six pending
+canonical migrations were then applied, through
+`20260909171713_render_runtime_role.sql`, preserving their original versions.
+No seeds, tenant, administrator membership or authentication user was created.
+The Supabase security advisor reported no findings after migration deployment.
+
+The separately provisioned runtime login passed a real session-pooler connection
+using TLS 1.3, certificate-chain and hostname validation, restricted role/grant
+checks, no-site access without tenant context, and denial of `auth.users` reads.
+Disposable cross-tenant read/write fixtures passed in CI; the empty remote
+database is not cross-tenant real-user evidence.
+
+The system trust store did not contain Supabase's private CA. The deployment
+uses the public CA from the HTTPS URL published in Supabase's
+[dashboard configuration](https://github.com/supabase/supabase/blob/master/apps/studio/hooks/custom-content/custom-content.json),
+mounted as `/etc/secrets/supabase-ca.crt`. `PGSSLROOTCERT` points to that file,
+and the database URL retains `sslmode=verify-full`. Neither certificate
+verification nor hostname verification was disabled. For a local connection,
+point `PGSSLROOTCERT` to the local copy, not the Render mount path.
+
+The owner explicitly approved transmitting the runtime database credential and
+device-claim key to Render. The service contains only the runtime configuration
+allowlist and public CA; management tokens were not copied. Keep passwords,
+populated environment files, Auth UUIDs and private deployment receipts out of Git.
+
+On 2026-09-10 (Asia/Kolkata), Render reported the `d950144` deployment live at
+[the backend health endpoint](https://syncam-api.onrender.com/healthz). It uses
+one **Free** Go instance in Singapore, branch `main`, repository root, build
+command `go build -trimpath -tags netgo -ldflags '-s -w' -o bin/control-plane ./backend/cmd/control-plane`,
+start command `./bin/control-plane`, and health path `/healthz`.
+
+The reusable [public HTTP smoke check](../../scripts/verify_deployed_api.ps1)
+passed all seven cases through the deployed HTTPS origin:
+
+- Health returns HTTP 200 and the expected `ok` envelope.
+- Originless and approved-browser site requests without a token return 401.
+- A foreign origin returns 403, including on the WebSocket route.
+- Approved preflight returns 204; an unapproved preflight header returns 403.
+- Only approved responses carry the exact frontend origin; none grant cookies.
+
+Repeat with PowerShell 7:
+
+```powershell
+./scripts/verify_deployed_api.ps1 -BaseUrl https://syncam-api.onrender.com -BrowserOrigin https://syncam-ai-alert-center.vercel.app
+```
+
+The frontend remains **demo**. Real administrator creation, approved bootstrap,
+Auth hook configuration, MFA, trusted tenant/site selection, authenticated CRUD
+and browser reconnect tests are still outstanding. `/healthz` confirms a
+running process after startup checks, not continuous database health or product
+readiness. Do not switch the frontend to live based only on these smoke checks.
 
 Free-tier idle shutdown makes this a prototype, not an always-on CCTV service.
 There is no separately deployed outbox worker or continuous delivery guarantee.

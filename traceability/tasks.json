@@ -918,8 +918,17 @@
       "phase": 12,
       "owner": "Engineering and Security",
       "dependencies": ["T-0410"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A credential-free migration creates a disabled, connection-bounded runtime role inheriting only application privileges without role switching or delegation. Database tests verify forced RLS, inherited tenant isolation and denied administrator capabilities. Password provisioning, remote migration deployment and live runtime verification remain separate operations; no paid resource or gated feature is enabled."
+    },
+    {
+      "id": "T-0412",
+      "title": "Deploy and verify the free Go control-plane prototype",
+      "phase": 12,
+      "owner": "Engineering and Security",
+      "dependencies": ["T-0411"],
+      "status": "in_review",
+      "acceptance": "Canonical migrations deploy with preserved history; a restricted runtime login passes certificate/hostname-verified TLS and permission checks. A free Go web service starts with only approved runtime secrets and the official CA. Public health, unauthenticated denial and exact-origin checks pass through HTTPS. No frontend live mode, real-account MFA, continuous worker delivery, footage, biometric or GA readiness is inferred."
     }
   ]
 }
