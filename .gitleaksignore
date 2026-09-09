@@ -1,0 +1,8 @@
+# Exactly three reviewed false positives in the historical T-0409 UI fixture.
+# These were literal synthetic-aal1/synthetic-aal2 markers, never credentials,
+# JWTs or keys, and cannot authenticate to any service. Current markers are test1/test2.
+# Fingerprints include the original commit, file, rule and line: no path/rule
+# exemption applies to subsequent commits or real secrets. See PR 138.
+9d6536d1833809f5fec07eb66a96cd97b38c4036:frontend/apps/web/tests/mfa-harness.tsx:generic-api-key:22
+9d6536d1833809f5fec07eb66a96cd97b38c4036:frontend/apps/web/tests/mfa-harness.tsx:generic-api-key:30
+9d6536d1833809f5fec07eb66a96cd97b38c4036:frontend/apps/web/tests/mfa-harness.tsx:generic-api-key:49

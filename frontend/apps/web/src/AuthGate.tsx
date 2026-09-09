@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 
 import { App } from "./App";
+import { MfaGate } from "./MfaGate";
+import { observeSession } from "./auth-session";
 import {
   createSupabaseAuthClient,
   currentAuthRedirect,
@@ -24,6 +26,7 @@ function AuthScreen({ message }: { message?: string }) {
   const [password, setPassword] = useState("");
   const [notice, setNotice] = useState(message ?? "");
   const [submitting, setSubmitting] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     if (!client) {
@@ -32,31 +35,24 @@ function AuthScreen({ message }: { message?: string }) {
       return;
     }
 
-    let active = true;
-    const updateSession = (next: Session | null) => {
-      syncAccessToken(next);
-      if (!active) return;
+    syncAccessToken(null);
+    let lastAccessToken: string | undefined;
+    const stop = observeSession(client, (next) => {
+      if (!next || next.access_token !== lastAccessToken) syncAccessToken(null);
+      lastAccessToken = next?.access_token;
       setSession(next);
+      setPassword("");
       setState(next ? "loading" : "signed_out");
-    };
-    const { data: listener } = client.auth.onAuthStateChange((_event, next) => {
-      updateSession(next);
-    });
-
-    void client.auth.getSession().then(({ data, error }) => {
-      if (!active) return;
-      if (error) {
-        syncAccessToken(null);
-        setNotice("Your session could not be restored. Please sign in again.");
-        setState("signed_out");
-        return;
-      }
-      updateSession(data.session);
+    }, () => {
+      syncAccessToken(null);
+      setSession(null);
+      setNotice("Your session could not be restored. Please sign in again.");
+      setState("signed_out");
     });
 
     return () => {
-      active = false;
-      listener.subscription.unsubscribe();
+      stop();
+      syncAccessToken(null);
     };
   }, [client]);
 
@@ -65,11 +61,14 @@ function AuthScreen({ message }: { message?: string }) {
     if (!client) return;
     setSubmitting(true);
     setNotice("");
-    const { error } = await client.auth.signInWithPassword({ email, password });
-    setSubmitting(false);
-    if (error) {
+    try {
+      const { error } = await client.auth.signInWithPassword({ email: email.trim(), password });
+      if (error) throw error;
+    } catch {
+      setNotice("Sign-in was not successful. Check your details and connection, then try again.");
+    } finally {
       setPassword("");
-      setNotice("Sign-in was not successful. Check your details and try again.");
+      setSubmitting(false);
     }
   }
 
@@ -82,27 +81,42 @@ function AuthScreen({ message }: { message?: string }) {
     }
     setSubmitting(true);
     setNotice("");
-    const { error } = await client.auth.signInWithSSO({
-      domain,
-      options: { redirectTo: currentAuthRedirect() },
-    });
-    setSubmitting(false);
-    if (error) setNotice("Single sign-on is not available for this email domain.");
+    try {
+      const { error } = await client.auth.signInWithSSO({
+        domain,
+        options: { redirectTo: currentAuthRedirect() },
+      });
+      if (error) throw error;
+    } catch {
+      setNotice("Single sign-on could not be started. Check your connection or contact your administrator.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function signOut() {
-    if (!client) return;
+    if (!client || signingOut) return;
+    setSigningOut(true);
     setNotice("");
-    const { error } = await client.auth.signOut();
-    if (error) setNotice("Sign-out could not be completed. Please try again.");
+    syncAccessToken(null);
+    try {
+      const { error } = await client.auth.signOut();
+      if (error) throw error;
+      setSession(null);
+      setState("signed_out");
+    } catch {
+      setNotice("Sign-out could not be completed. Check your connection and retry. Your provider session may still be active.");
+    } finally {
+      setSigningOut(false);
+    }
   }
 
   if (config.mode === "demo") return <App />;
   if (config.mode === "misconfigured") {
     return <AuthConfigurationRequired message={config.message} />;
   }
-  if (session) {
-    return <App userEmail={session.user.email} onSignOut={() => void signOut()} />;
+  if (session && client) {
+    return <MfaGate key={session.user.id} client={client} session={session} notice={notice} signingOut={signingOut} onSignOut={() => void signOut()} />;
   }
   if (state === "loading") {
     return (

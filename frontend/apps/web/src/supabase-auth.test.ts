@@ -52,6 +52,16 @@ test("derives a conservative SSO domain from a work email", () => {
   assert.equal(ssoDomainFromEmail("not-an-email"), null);
 });
 
+test("rejects secret keys, legacy JWTs and URLs carrying credentials or paths", () => {
+  const config = { VITE_SYNCAM_DATA_MODE: "live", VITE_SUPABASE_URL: "https://example.supabase.co", VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_example" };
+  for (const key of ["sb_secret_example", "eyJhbGciOiJIUzI1NiJ9.service_role.signature", "arbitrary-key"]) {
+    assert.equal(parseAuthRuntimeConfig({ ...config, VITE_SUPABASE_PUBLISHABLE_KEY: key }).mode, "misconfigured");
+  }
+  for (const url of ["https://user:password@example.supabase.co", "https://example.supabase.co/auth", "https://example.supabase.co/?token=x", "https://example.supabase.co/#secret", "https://example.supabase.co:8443", "https://sub.example.supabase.co"]) {
+    assert.equal(parseAuthRuntimeConfig({ ...config, VITE_SUPABASE_URL: url }).mode, "misconfigured");
+  }
+});
+
 test("copies only the short-lived access token into the legacy API bridge", () => {
   const values = new Map<string, string>();
   const storage = {
