@@ -909,8 +909,17 @@
       "phase": 12,
       "owner": "Engineering and Security",
       "dependencies": ["T-0409"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "The Go entrypoint validates an exact browser-origin allowlist and handles restricted preflight requests. REST authentication and tenant isolation remain enforced; rejected WebSocket origins do not consume tickets and approved origins retain one-time-ticket checks. Tests reject wildcard, malformed, unapproved and duplicate origins. Deployment and live account verification are recorded separately."
+    },
+    {
+      "id": "T-0411",
+      "title": "Define and verify restricted Render prototype database access",
+      "phase": 12,
+      "owner": "Engineering and Security",
+      "dependencies": ["T-0410"],
+      "status": "in_review",
+      "acceptance": "A credential-free migration creates a disabled, connection-bounded runtime role inheriting only application privileges without role switching or delegation. Database tests verify forced RLS, inherited tenant isolation and denied administrator capabilities. Password provisioning, remote migration deployment and live runtime verification remain separate operations; no paid resource or gated feature is enabled."
     }
   ]
 }

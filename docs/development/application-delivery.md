@@ -146,6 +146,18 @@ Targeted `go vet` also passed. Database-container coverage remains a CI check.
 
 ## Free prototype hosting status
 
+PR 139 merged as `e373a10` after all six checks passed. T-0410 is complete as
+a tested origin boundary, not an end-to-end deployed application claim.
+
+T-0411 adds [ADR-012](../adr/ADR-012-free-prototype-runtime-access.md) and a
+credential-free migration for `syncam_render`. The role starts with login
+disabled, inherits `syncam_app` without SET/ADMIN options, and allows at most
+20 connections. Existing role ownership, unrelated memberships and direct
+non-database grants cause migration failure for operator review. Regression
+tests exercise inherited RLS with disposable metadata fixtures in a rollback
+transaction, in addition to privilege checks. No password belongs in a
+migration; enabling login and saving credentials is a separate private step.
+
 The owner explicitly approved Render Free for the portable Go backend on
 2026-09-09. The owner completed sign-in and supplied local deployment
 credentials. Render and Vercel account access were verified; the existing
