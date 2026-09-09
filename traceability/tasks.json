@@ -884,6 +884,15 @@
       ],
       "status": "complete",
       "acceptance": "Canonical verification checks policy inventory, versions, draft warning and local traceability references; negative fixtures detect missing documents, unsafe paths and false approval status; no legal approval or production activation is inferred."
+    },
+    {
+      "id": "T-0408",
+      "title": "Consolidate compatible web runtime and build dependency upgrades",
+      "phase": 12,
+      "owner": "Engineering",
+      "dependencies": ["T-0407"],
+      "status": "in_review",
+      "acceptance": "React and React DOM upgrade together with matching types, TypeScript and Vite tooling; existing contract tests, canonical verification, dependency scans and deployed browser smoke checks pass before superseding the older individual dependency PRs."
     }
   ]
 }

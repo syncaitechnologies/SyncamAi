@@ -26,7 +26,7 @@ export function useAlertFeed(seedAlerts: AlertItem[]) {
   );
   const [feedError, setFeedError] = useState("");
   const [newAlertCount, setNewAlertCount] = useState(0);
-  const apiRef = useRef<AlertApiClient>();
+  const apiRef = useRef<AlertApiClient | undefined>(undefined);
 
   const refresh = useCallback(
     async (api: AlertApiClient, signal?: AbortSignal) => {
