@@ -103,9 +103,77 @@ References: [Supabase TOTP](https://supabase.com/docs/guides/auth/auth-mfa/totp)
 [verified claims](https://supabase.com/docs/reference/javascript/auth-getclaims),
 security governance §1.7 and [ADR-010](../adr/ADR-010-initial-super-admin-bootstrap.md).
 
-## Hosting decision awaiting account access
+PR 138 merged as `4601c49` after all six GitHub checks passed. T-0409 is
+complete as a tested browser implementation; real-account verification remains
+outstanding and is not inferred from the synthetic fixture.
+
+## T-0410 browser API origin boundary
+
+The control-plane entrypoint wraps REST and WebSocket routes with an explicit
+`SYNCAM_BROWSER_ORIGINS` allowlist. Configure comma-separated bare HTTPS
+origins, without paths, wildcards, credentials, queries or fragments. Each
+origin is matched exactly, including its scheme and port. Plain HTTP is
+accepted only for explicitly configured `localhost` or `127.0.0.1` development
+origins. Do not add local origins to hosted configuration.
+
+An empty allowlist denies requests containing an Origin header. Requests
+without that header, such as health probes and native clients, retain existing
+authentication and authorization behavior. For same-origin proxies, configure
+the browser's public origin too; forwarded headers are not an authority source.
+
+Preflight permits only existing REST methods and the explicit authorization,
+tenant, correlation, idempotency and content headers. Responses vary by origin,
+and preflight responses also vary by requested method and headers. There is
+no cookie-credentials grant. Unauthorized REST responses remain readable to
+the approved frontend so it can show sign-in/retry states.
+
+The same boundary rejects unapproved WebSocket origins before ticket
+consumption. Only its private validated context value extends the WebSocket
+library's exact origin pattern; origin checking is never disabled. Existing
+short-lived, one-time, tenant/site-scoped tickets remain required. An origin is
+not an identity: native callers can forge it, so JWT verification, tenant/RLS,
+role/scope/MFA and device certificate checks remain independent.
+
+The regression suite covers malformed configuration, scheme/port/suffix
+mismatches, opaque and duplicate origins, restricted preflight headers,
+unchanged REST authorization and WebSocket ticket preservation/single use.
+This is local synthetic integration coverage, not a deployed-service result.
+
+Canonical local verification passed with 80.5% backend coverage, Go/edge tests,
+41 frontend tests, 49 AI fixture tests, 17 validator cases (one host-specific
+symlink skip), contract/secret/traceability checks and the production web build.
+Targeted `go vet` also passed. Database-container coverage remains a CI check.
+
+## Free prototype hosting status
 
 The owner explicitly approved Render Free for the portable Go backend on
-2026-09-09. Account sign-in is being completed by the owner. No paid resource,
-backend deployment or database credential has been provisioned by this step.
+2026-09-09. The owner completed sign-in and supplied local deployment
+credentials. Render and Vercel account access were verified; the existing
+Supabase connector also works. No credentials are committed to this repository.
+
+The first Render service has not yet been created. Before deploying:
+
+1. Verify the project's exact Supabase session-pooler endpoint and provision a
+   separate least-privilege runtime login using the existing `syncam_app`
+   permissions, with verified TLS and no superuser/RLS bypass. Never use the
+   account-management token, service-role key or database administrator login.
+2. Review/deploy the five outstanding committed database migrations, preserving
+   their authoritative migration history. No first-admin membership is created
+   without the ADR-010 target and owner approval.
+3. Use Render **Free**, one Go web instance in Singapore, repository root,
+   branch `main`, build command
+   `go build -trimpath -tags netgo -ldflags '-s -w' -o bin/control-plane ./backend/cmd/control-plane`,
+   start command `./bin/control-plane`, and health path `/healthz`.
+4. Set runtime-only OIDC, database, claim-key, HTTP address and browser-origin
+   settings. Set `SYNCAM_BROWSER_ORIGINS` to the verified canonical frontend
+   HTTPS origin; do not grant arbitrary PR previews production backend access.
+5. Verify health, TLS, unauthenticated rejection, real MFA and tenant isolation
+   before switching the frontend from demo to live. Keep deployment status
+   separate from end-to-end product readiness.
+
 Free-tier idle shutdown makes this a prototype, not an always-on CCTV service.
+There is no separately deployed outbox worker or continuous delivery guarantee.
+Render TLS termination does not supply a verified edge client certificate to
+the current Go verifier: edge routes must remain fail-closed, not trust a
+client-supplied proxy header. Biometrics, model promotion, footage and evidence
+storage keep their existing approval gates. No paid resources are authorized.

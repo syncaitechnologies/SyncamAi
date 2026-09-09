@@ -82,9 +82,13 @@ func main() {
 	configurationRepository := configdelivery.NewPostgresRepository(pool)
 	privacyMaskRepository := privacymasks.NewPostgresRepository(pool)
 	tickets := realtime.NewMemoryTicketStore()
+	handler, err := httpapi.WithBrowserOrigins(httpapi.NewWithPrivacyMaskReleaseTransport(verifier, repository, eventRepository, alertRepository, realtimeRepository, tickets, cameraRepository, enrollmentRepository, deviceStatusRepository, device.MTLSDeviceVerifier{}, zoneRepository, configurationRepository, privacyMaskRepository, privacymasks.NewPostgresReleaseTransportRepository(pool)), os.Getenv("SYNCAM_BROWSER_ORIGINS"))
+	if err != nil {
+		log.Fatal("SYNCAM_BROWSER_ORIGINS is invalid; use explicit HTTPS origins (HTTP only for localhost)")
+	}
 	server := &http.Server{
 		Addr:              envOrDefault("SYNCAM_HTTP_ADDR", ":8080"),
-		Handler:           httpapi.NewWithPrivacyMaskReleaseTransport(verifier, repository, eventRepository, alertRepository, realtimeRepository, tickets, cameraRepository, enrollmentRepository, deviceStatusRepository, device.MTLSDeviceVerifier{}, zoneRepository, configurationRepository, privacyMaskRepository, privacymasks.NewPostgresReleaseTransportRepository(pool)),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,
