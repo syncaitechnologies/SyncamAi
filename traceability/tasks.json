@@ -954,8 +954,17 @@
       "phase": 12,
       "owner": "Edge, Security and Privacy",
       "dependencies": ["T-0354", "T-0414"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A bounded RGB24 frame boundary accepts only the camera bound into a validated two-approver mask candidate and matching HIL-gated hardware activation. It blackens the normalized polygon in place before synchronous downstream transfer, conservatively masks polygon boundaries, preserves declared holes, rejects malformed or mismatched frames before mutation, caches only the geometry bitmap, and never restores unmasked pixels after downstream failure. Synthetic pixel tests pass; physical HIL, runtime wiring, recording, inference, and model promotion remain separate gates."
+    },
+    {
+      "id": "T-0416",
+      "title": "Enforce bounded post-mask analytics frame sampling",
+      "phase": 12,
+      "owner": "Edge and AI",
+      "dependencies": ["T-0160", "T-0415"],
+      "status": "in_review",
+      "acceptance": "A camera-local consumer accepts only complete, ordered, already-masked RGB24 frames; enforces the canonical 5--10 FPS analytics range; suppresses frames arriving inside the sampling interval and identical consecutive sampled frames; retains only ordering metadata and a SHA-256 digest; reports payload-free counters and downstream backpressure; and forwards frames synchronously. Tests prove mask-before-sampling composition, rate and duplicate suppression, fail-closed ordering and buffer validation, and downstream failure accounting. FFmpeg wiring, inference, model artifacts, evaluation, and promotion remain separate gates."
     }
   ]
 }

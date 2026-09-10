@@ -258,3 +258,16 @@ buffer validation, activation binding, and failure behavior. See
 [the pre-analytics mask guide](phase-3-pre-analytics-mask.md). This is not
 physical HIL evidence, runtime wiring, recording, inference, model promotion,
 or permission to process customer footage.
+
+## T-0416 post-mask analytics sampling
+
+PR 145 merged as `325b769`; T-0415 is complete. T-0416 adds the camera-local
+5--10 FPS sampling and consecutive-frame deduplication boundary required by
+OD-12 and historical T-0160. It accepts only complete timestamp- and
+sequence-ordered RGB24 frames, retains only a digest plus safe counters, and
+returns downstream failure as backpressure.
+
+The integration test composes the HIL-gated pixel mask directly into the
+sampler and proves the analytics consumer receives blackened pixels. See
+[the frame-sampling guide](phase-4-frame-sampling.md). FFmpeg still uses its
+null sink in the executable, and there is still no detector or model artifact.

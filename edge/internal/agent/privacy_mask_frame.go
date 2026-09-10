@@ -7,6 +7,7 @@ import (
 	"math"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -19,10 +20,12 @@ var ErrInvalidPrivacyMaskFrame = errors.New("privacy mask frame is invalid")
 // consumer. Pixels must contain exactly Width*Height tightly packed RGB bytes;
 // callers must not reuse or inspect the buffer after forwarding it.
 type RGB24Frame struct {
-	CameraID string
-	Width    int
-	Height   int
-	Pixels   []byte
+	CameraID   string
+	Sequence   uint64
+	ObservedAt time.Time
+	Width      int
+	Height     int
+	Pixels     []byte
 }
 
 // MaskedFrameConsumer receives only a frame after the approved mask has been
