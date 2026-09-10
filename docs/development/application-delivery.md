@@ -223,3 +223,24 @@ Render TLS termination does not supply a verified edge client certificate to
 the current Go verifier: edge routes must remain fail-closed, not trust a
 client-supplied proxy header. Biometrics, model promotion, footage and evidence
 storage keep their existing approval gates. No paid resources are authorized.
+
+## T-0413 bootstrap completion and T-0414 edge runtime
+
+PR 143 merged as `4cbb632`; T-0413 is complete. The one-time initial operator
+bootstrap was separately executed and verified for the owner-approved account,
+then its temporary grant was removed. Those private receipts and identifiers
+remain outside Git, and MFA enrollment is still required before privileged live
+browser use.
+
+T-0414 composes the previously tested heartbeat, configuration, spool, decoder,
+and RTSP supervisors into the executable Go `edge-agent`. It uses mounted mTLS
+and camera secret files, bounded configuration and source parsing, atomic local
+configuration activation, desired-revision hints, credential-free JSON logs,
+and coordinated signal shutdown. See
+[the edge runtime guide](phase-2-edge-runtime.md).
+
+This closes the print-only command gap; it does not close the end-to-end vision
+gap. Decoded frames still terminate at FFmpeg's null sink, no model is loaded,
+and Render's current TLS proxy cannot satisfy the verified-client-certificate
+route. Hardware-in-loop camera tests, an approved mTLS ingress, frame handoff,
+person/vehicle inference, evaluation, and model promotion remain outstanding.
