@@ -945,8 +945,17 @@
       "phase": 12,
       "owner": "Edge and Security",
       "dependencies": ["T-0325", "T-0326", "T-0328", "T-0331", "T-0413"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "The Go edge-agent entrypoint fails closed on incomplete certificate, state, or RTSP source configuration; uses TLS 1.3 mutual authentication; supervises bounded FFmpeg pulls; polls and atomically applies configuration; reports uptime and spool depth; consumes authenticated desired-revision hints; emits credential-free JSON lifecycle events; and shuts down all loops together. Unit tests cover composition and source/config rejection. Frames still use the null sink, no model or inference is loaded, and hardware-in-loop plus an mTLS-capable public endpoint remain release gates."
+    },
+    {
+      "id": "T-0415",
+      "title": "Enforce approved privacy masks before analytics frame handoff",
+      "phase": 12,
+      "owner": "Edge, Security and Privacy",
+      "dependencies": ["T-0354", "T-0414"],
+      "status": "in_review",
+      "acceptance": "A bounded RGB24 frame boundary accepts only the camera bound into a validated two-approver mask candidate and matching HIL-gated hardware activation. It blackens the normalized polygon in place before synchronous downstream transfer, conservatively masks polygon boundaries, preserves declared holes, rejects malformed or mismatched frames before mutation, caches only the geometry bitmap, and never restores unmasked pixels after downstream failure. Synthetic pixel tests pass; physical HIL, runtime wiring, recording, inference, and model promotion remain separate gates."
     }
   ]
 }
