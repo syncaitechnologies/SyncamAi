@@ -35,3 +35,19 @@ service-role key.
 The routine refuses an absent Auth user or tenant, any existing membership for
 the user, and a tenant that already has an active Super Admin. It creates no
 site memberships.
+
+## Hosted Auth integrity (T-0413)
+
+The membership insert uses the validated, non-deferrable foreign key from
+`identity.user_tenant_memberships.user_id` to `auth.users.id` to enforce the
+existing-Auth-user requirement. A missing or concurrently deleted user fails
+with SQLSTATE `23503`; the membership and audit remain atomic. The bootstrap
+executor does not need direct Auth-table read access or additional permissions
+on Supabase's protected `auth` schema. Do not grant inherited browser or service
+roles to work around a schema-permission error.
+
+The migration verifies this foreign key before replacing the function and
+retains its restricted owner, empty search path and private execute permissions.
+CI executes positive, absent-user/tenant, repeated/foreign membership and
+audit-failure rollback tests using disposable synthetic fixtures only. MFA
+enrollment and real signed-in API verification remain separate release checks.
