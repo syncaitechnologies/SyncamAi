@@ -51,3 +51,9 @@ retains its restricted owner, empty search path and private execute permissions.
 CI executes positive, absent-user/tenant, repeated/foreign membership and
 audit-failure rollback tests using disposable synthetic fixtures only. MFA
 enrollment and real signed-in API verification remain separate release checks.
+
+Temporary operator role grants must be tracked by both member and grantor.
+PostgreSQL may create a second membership rather than update a platform-owned
+grant. Remove the temporary self-grant explicitly; merely restoring its
+`SET FALSE` option can leave inherited privileges behind. Postflight must
+check every grantor and preserve the original platform ADMIN-only membership.

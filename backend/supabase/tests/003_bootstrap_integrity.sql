@@ -1,12 +1,16 @@
 -- Disposable CI database only. Synthetic accounts have no passwords and every
 -- fixture, test-only grant and fault-injection trigger is rolled back.
 begin;
-select plan(18);
+select plan(19);
 
 select ok(not has_table_privilege('syncam_bootstrap_executor', 'auth.users', 'SELECT'),
   'bootstrap executor no longer reads Auth users directly');
 select ok(not has_schema_privilege('syncam_bootstrap_executor', 'identity', 'CREATE'),
   'migration restores executor schema-create restriction');
+select ok(not exists (
+  select 1 from pg_auth_members where roleid='syncam_bootstrap_executor'::regrole
+    and member='postgres'::regrole and (inherit_option or set_option)
+), 'operator has no inherited or switchable bootstrap grant from any grantor');
 select ok((select proowner = 'syncam_bootstrap_executor'::regrole and prosecdef
   and proconfig @> ARRAY['search_path=""']::text[] from pg_proc where oid =
   'identity.bootstrap_initial_super_admin(uuid,uuid,uuid,text)'::regprocedure),
