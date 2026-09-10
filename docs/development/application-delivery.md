@@ -244,3 +244,17 @@ gap. Decoded frames still terminate at FFmpeg's null sink, no model is loaded,
 and Render's current TLS proxy cannot satisfy the verified-client-certificate
 route. Hardware-in-loop camera tests, an approved mTLS ingress, frame handoff,
 person/vehicle inference, evaluation, and model promotion remain outstanding.
+
+## T-0415 pre-analytics pixel mask
+
+PR 144 merged as `46b7846`; T-0414 is complete. T-0415 adds a bounded
+RGB24 frame boundary that requires the matching HIL-gated hardware activation
+and applies its approved polygon before invoking a local analytics consumer.
+Malformed buffers and camera or candidate mismatches fail before mutation;
+consumer failure never restores unmasked pixels.
+
+Synthetic pixel tests cover polygon coverage, conservative boundaries, holes,
+buffer validation, activation binding, and failure behavior. See
+[the pre-analytics mask guide](phase-3-pre-analytics-mask.md). This is not
+physical HIL evidence, runtime wiring, recording, inference, model promotion,
+or permission to process customer footage.
