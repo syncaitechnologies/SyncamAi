@@ -1,12 +1,16 @@
 -- Disposable CI database only. Synthetic accounts have no passwords and every
 -- fixture, test-only grant and fault-injection trigger is rolled back.
 begin;
-select plan(18);
+select plan(19);
 
 select ok(not has_table_privilege('syncam_bootstrap_executor', 'auth.users', 'SELECT'),
   'bootstrap executor no longer reads Auth users directly');
 select ok(not has_schema_privilege('syncam_bootstrap_executor', 'identity', 'CREATE'),
   'migration restores executor schema-create restriction');
+select ok(not exists (
+  select 1 from pg_auth_members where roleid='syncam_bootstrap_executor'::regrole
+    and member='postgres'::regrole and (inherit_option or set_option)
+), 'operator has no inherited or switchable bootstrap grant from any grantor');
 select ok((select proowner = 'syncam_bootstrap_executor'::regrole and prosecdef
   and proconfig @> ARRAY['search_path=""']::text[] from pg_proc where oid =
   'identity.bootstrap_initial_super_admin(uuid,uuid,uuid,text)'::regprocedure),
@@ -23,8 +27,18 @@ insert into auth.users (id,email) values
 insert into identity.tenants (id,name,slug) values
  ('41300000-0000-4000-8000-000000000011','Bootstrap test A','bootstrap-test-a'),
  ('41300000-0000-4000-8000-000000000012','Bootstrap test B','bootstrap-test-b');
-do $$ begin
-  execute format('GRANT EXECUTE ON FUNCTION identity.bootstrap_initial_super_admin(uuid,uuid,uuid,text) TO %I',current_user);
+do $$
+declare runner text := current_user;
+begin
+  -- The test runner is deliberately no longer an inherited function owner.
+  -- Authorize the test invocation as the real owner, then drop temporary role
+  -- access. The invocation grant and all fixtures roll back at EOF.
+  execute format('GRANT syncam_bootstrap_executor TO %I WITH SET TRUE',runner);
+  execute format('GRANT syncam_bootstrap_executor TO %I WITH INHERIT FALSE',runner);
+  execute 'SET LOCAL ROLE syncam_bootstrap_executor';
+  execute format('GRANT EXECUTE ON FUNCTION identity.bootstrap_initial_super_admin(uuid,uuid,uuid,text) TO %I',runner);
+  execute format('SET LOCAL ROLE %I',runner);
+  execute format('REVOKE syncam_bootstrap_executor FROM %I GRANTED BY %I',runner,runner);
 end $$;
 
 select throws_ok($$select identity.bootstrap_initial_super_admin(
