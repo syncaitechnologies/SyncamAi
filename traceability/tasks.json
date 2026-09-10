@@ -936,8 +936,17 @@
       "phase": 12,
       "owner": "Engineering and Security",
       "dependencies": ["T-0412"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "The restricted bootstrap routine rejects nonexistent Auth users through the validated immediate membership foreign key without direct Auth reads. Disposable database tests exercise successful audited creation, missing users and tenants, duplicate and foreign memberships, and atomic rollback on audit failure. Runtime/browser execute grants, forced RLS, owner approval and MFA remain unchanged; live bootstrap and MFA verification are recorded separately."
+    },
+    {
+      "id": "T-0414",
+      "title": "Compose the executable edge control runtime",
+      "phase": 12,
+      "owner": "Edge and Security",
+      "dependencies": ["T-0325", "T-0326", "T-0328", "T-0331", "T-0413"],
+      "status": "in_review",
+      "acceptance": "The Go edge-agent entrypoint fails closed on incomplete certificate, state, or RTSP source configuration; uses TLS 1.3 mutual authentication; supervises bounded FFmpeg pulls; polls and atomically applies configuration; reports uptime and spool depth; consumes authenticated desired-revision hints; emits credential-free JSON lifecycle events; and shuts down all loops together. Unit tests cover composition and source/config rejection. Frames still use the null sink, no model or inference is loaded, and hardware-in-loop plus an mTLS-capable public endpoint remain release gates."
     }
   ]
 }

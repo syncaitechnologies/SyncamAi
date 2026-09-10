@@ -219,6 +219,7 @@ func (a AtomicFileApplier) ApplyAtomic(ctx context.Context, revision Configurati
 type ConfigurationSynchronizer struct {
 	client  *ConfigurationClient
 	applier AtomicApplier
+	syncMu  sync.Mutex
 	mu      sync.Mutex
 	applied int64
 }
@@ -237,6 +238,8 @@ func (s *ConfigurationSynchronizer) AppliedRevision() int64 {
 }
 
 func (s *ConfigurationSynchronizer) Sync(ctx context.Context) error {
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
 	s.mu.Lock()
 	after := s.applied
 	s.mu.Unlock()

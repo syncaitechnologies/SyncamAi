@@ -132,6 +132,21 @@ func TestHeartbeatClientMarksReplayAndRejectsMalformedPayload(t *testing.T) {
 	}
 }
 
+func TestHeartbeatClientRejectsNegativeDesiredConfigurationRevision(t *testing.T) {
+	result := HeartbeatResult{
+		Device: DeviceStatus{
+			ID:                    testDeviceID,
+			Status:                "active",
+			CertificateStatus:     "active",
+			DesiredConfigRevision: -1,
+		},
+		ObservedAt: time.Now().UTC(),
+	}
+	if err := validateHeartbeatResult(testDeviceID, result); !errors.Is(err, ErrMalformedHeartbeat) {
+		t.Fatalf("negative desired revision must fail: %v", err)
+	}
+}
+
 func TestHeartbeatClientRunReportsAttemptsUntilCanceled(t *testing.T) {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"data":{"device":{"id":"` + testDeviceID + `","status":"active","certificate_status":"active"},"observed_at":"2026-08-13T12:00:00Z"}}`))

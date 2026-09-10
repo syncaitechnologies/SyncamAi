@@ -46,14 +46,15 @@ type Telemetry struct {
 }
 
 type DeviceStatus struct {
-	ID                string           `json:"id"`
-	Status            string           `json:"status"`
-	CertificateStatus string           `json:"certificate_status"`
-	FirmwareVersion   string           `json:"firmware_version,omitempty"`
-	StoreForwardDepth int64            `json:"store_forward_depth"`
-	UptimeSeconds     int64            `json:"uptime_seconds"`
-	LastHeartbeat     time.Time        `json:"last_heartbeat"`
-	Health            *HealthTelemetry `json:"health,omitempty"`
+	ID                    string           `json:"id"`
+	Status                string           `json:"status"`
+	CertificateStatus     string           `json:"certificate_status"`
+	FirmwareVersion       string           `json:"firmware_version,omitempty"`
+	StoreForwardDepth     int64            `json:"store_forward_depth"`
+	UptimeSeconds         int64            `json:"uptime_seconds"`
+	DesiredConfigRevision int64            `json:"desired_config_revision,omitempty"`
+	LastHeartbeat         time.Time        `json:"last_heartbeat"`
+	Health                *HealthTelemetry `json:"health,omitempty"`
 }
 
 type HeartbeatResult struct {
@@ -225,7 +226,7 @@ func (c *HeartbeatClient) normalizeTelemetry(telemetry Telemetry) (Telemetry, er
 }
 
 func validateHeartbeatResult(deviceID string, result HeartbeatResult) error {
-	if result.Device.ID != deviceID || result.Device.Status == "" || result.Device.CertificateStatus == "" || result.ObservedAt.IsZero() || (result.Device.Health != nil && !validHealthTelemetry(*result.Device.Health)) {
+	if result.Device.ID != deviceID || result.Device.Status == "" || result.Device.CertificateStatus == "" || result.Device.DesiredConfigRevision < 0 || result.ObservedAt.IsZero() || (result.Device.Health != nil && !validHealthTelemetry(*result.Device.Health)) {
 		return ErrMalformedHeartbeat
 	}
 	return nil
