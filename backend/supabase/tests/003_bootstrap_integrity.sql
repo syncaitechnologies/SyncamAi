@@ -27,8 +27,18 @@ insert into auth.users (id,email) values
 insert into identity.tenants (id,name,slug) values
  ('41300000-0000-4000-8000-000000000011','Bootstrap test A','bootstrap-test-a'),
  ('41300000-0000-4000-8000-000000000012','Bootstrap test B','bootstrap-test-b');
-do $$ begin
-  execute format('GRANT EXECUTE ON FUNCTION identity.bootstrap_initial_super_admin(uuid,uuid,uuid,text) TO %I',current_user);
+do $$
+declare runner text := current_user;
+begin
+  -- The test runner is deliberately no longer an inherited function owner.
+  -- Authorize the test invocation as the real owner, then drop temporary role
+  -- access. The invocation grant and all fixtures roll back at EOF.
+  execute format('GRANT syncam_bootstrap_executor TO %I WITH SET TRUE',runner);
+  execute format('GRANT syncam_bootstrap_executor TO %I WITH INHERIT FALSE',runner);
+  execute 'SET LOCAL ROLE syncam_bootstrap_executor';
+  execute format('GRANT EXECUTE ON FUNCTION identity.bootstrap_initial_super_admin(uuid,uuid,uuid,text) TO %I',runner);
+  execute format('SET LOCAL ROLE %I',runner);
+  execute format('REVOKE syncam_bootstrap_executor FROM %I GRANTED BY %I',runner,runner);
 end $$;
 
 select throws_ok($$select identity.bootstrap_initial_super_admin(
