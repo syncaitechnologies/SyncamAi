@@ -48,6 +48,12 @@ The restricted operator procedure is documented in
 
 ## Consequences
 
+Implementation clarification (T-0413): the existing Auth-user requirement is
+enforced by the membership table's immediate, validated foreign key, not a
+direct Auth-table read by the executor. This preserves rejection of nonexistent
+users while avoiding extra access to Supabase's protected schema. The private
+routine, owner approval, audit transaction and MFA requirements do not change.
+
 - There is no automatic first-user promotion, self-service tenant claim, or
   fallback administrator account.
 - `syncam_app` remains non-superuser and does not gain membership-write access

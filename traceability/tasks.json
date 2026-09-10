@@ -927,8 +927,17 @@
       "phase": 12,
       "owner": "Engineering and Security",
       "dependencies": ["T-0411"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "Canonical migrations deploy with preserved history; a restricted runtime login passes certificate/hostname-verified TLS and permission checks. A free Go web service starts with only approved runtime secrets and the official CA. Public health, unauthenticated denial and exact-origin checks pass through HTTPS. No frontend live mode, real-account MFA, continuous worker delivery, footage, biometric or GA readiness is inferred."
+    },
+    {
+      "id": "T-0413",
+      "title": "Verify private bootstrap through Auth referential integrity",
+      "phase": 12,
+      "owner": "Engineering and Security",
+      "dependencies": ["T-0412"],
+      "status": "in_review",
+      "acceptance": "The restricted bootstrap routine rejects nonexistent Auth users through the validated immediate membership foreign key without direct Auth reads. Disposable database tests exercise successful audited creation, missing users and tenants, duplicate and foreign memberships, and atomic rollback on audit failure. Runtime/browser execute grants, forced RLS, owner approval and MFA remain unchanged; live bootstrap and MFA verification are recorded separately."
     }
   ]
 }
