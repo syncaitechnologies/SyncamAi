@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os/exec"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -16,6 +19,7 @@ const (
 	DefaultRTSPRetryMinimum   = time.Second
 	DefaultRTSPRetryMaximum   = 30 * time.Second
 	maxRTSPSourceIDLength     = 128
+	maxDecodedFrameBytes      = 64 << 20
 )
 
 var (
@@ -41,6 +45,9 @@ type RTSPIngestConfig struct {
 	RetryMinimum   time.Duration
 	RetryMaximum   time.Duration
 	Decode         *DecodeProfile
+	FrameWidth     int
+	FrameHeight    int
+	FramePipeline  *PreAnalyticsPrivacyMask
 }
 
 type RTSPState string
@@ -69,6 +76,12 @@ type CommandRunner interface {
 	Run(context.Context, string, []string, func()) error
 }
 
+// FrameCommandRunner is the bounded rawvideo process boundary. Each callback
+// receives ownership of exactly one complete RGB24 frame buffer.
+type FrameCommandRunner interface {
+	RunFrames(context.Context, string, []string, int, func(), func([]byte) error) error
+}
+
 type execCommandRunner struct{}
 
 func (execCommandRunner) Run(ctx context.Context, binary string, args []string, started func()) error {
@@ -86,15 +99,75 @@ func (execCommandRunner) Run(ctx context.Context, binary string, args []string, 
 	return nil
 }
 
-// RTSPIngest supervises a single camera pull. It intentionally emits decoded
-// frames to FFmpeg's null muxer in this slice; later decode and ring-buffer
-// tasks replace that sink without changing lifecycle and retry semantics.
+func (execCommandRunner) RunFrames(ctx context.Context, binary string, args []string, frameBytes int, started func(), consume func([]byte) error) error {
+	if frameBytes <= 0 || frameBytes > maxDecodedFrameBytes || started == nil || consume == nil {
+		return ErrInvalidRTSPConfig
+	}
+	commandContext, cancel := context.WithCancel(ctx)
+	defer cancel()
+	command := exec.CommandContext(commandContext, binary, args...)
+	stdout, err := command.StdoutPipe()
+	if err != nil {
+		return errors.New("ffmpeg frame output unavailable")
+	}
+	command.Stderr = io.Discard
+	if err := command.Start(); err != nil {
+		return errors.New("ffmpeg process failed to start")
+	}
+	started()
+	readErr := consumeFixedRGB24Frames(stdout, frameBytes, consume)
+	if readErr != nil {
+		cancel()
+	}
+	waitErr := command.Wait()
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if readErr != nil {
+		return readErr
+	}
+	if waitErr != nil {
+		return errors.New("ffmpeg process exited unsuccessfully")
+	}
+	return nil
+}
+
+func consumeFixedRGB24Frames(reader io.Reader, frameBytes int, consume func([]byte) error) error {
+	if reader == nil || frameBytes <= 0 || frameBytes > maxDecodedFrameBytes || consume == nil {
+		return ErrInvalidRTSPConfig
+	}
+	for {
+		pixels := make([]byte, frameBytes)
+		read, err := io.ReadFull(reader, pixels)
+		if err == nil {
+			if err := consume(pixels); err != nil {
+				return errors.New("decoded frame consumer failed")
+			}
+			continue
+		}
+		if read == 0 && errors.Is(err, io.EOF) {
+			return nil
+		}
+		if read > 0 {
+			return errors.New("ffmpeg emitted an incomplete decoded frame")
+		}
+		return errors.New("ffmpeg frame output failed")
+	}
+}
+
+// RTSPIngest supervises a single camera pull. Its default remains a null sink.
+// A rawvideo sink is enabled only with an explicit approved mask -> sampler
+// chain, preventing callers from wiring decoded pixels directly to inference.
 type RTSPIngest struct {
-	source  RTSPSource
-	config  RTSPIngestConfig
-	runner  CommandRunner
-	sleep   func(context.Context, time.Duration) error
-	decoder DecoderSelection
+	source            RTSPSource
+	config            RTSPIngestConfig
+	runner            CommandRunner
+	sleep             func(context.Context, time.Duration) error
+	decoder           DecoderSelection
+	frameBytes        int
+	now               func() time.Time
+	sequence          uint64
+	lastFrameObserved time.Time
 
 	mu     sync.RWMutex
 	status RTSPStatus
@@ -132,8 +205,17 @@ func NewRTSPIngest(source RTSPSource, config RTSPIngestConfig, runner CommandRun
 	if config.ConnectTimeout <= 0 || config.RetryMinimum <= 0 || config.RetryMaximum < config.RetryMinimum || strings.TrimSpace(config.Binary) == "" {
 		return nil, ErrInvalidRTSPConfig
 	}
+	frameBytes, frameErr := validateDecodedFrameConfig(source.ID, config)
+	if frameErr != nil {
+		return nil, frameErr
+	}
 	if runner == nil {
 		runner = execCommandRunner{}
+	}
+	if config.FramePipeline != nil {
+		if _, ok := runner.(FrameCommandRunner); !ok {
+			return nil, ErrInvalidRTSPConfig
+		}
 	}
 	var decoder DecoderSelection
 	if config.Decode != nil {
@@ -143,12 +225,14 @@ func NewRTSPIngest(source RTSPSource, config RTSPIngestConfig, runner CommandRun
 		}
 	}
 	return &RTSPIngest{
-		source:  source,
-		config:  config,
-		runner:  runner,
-		sleep:   sleepContext,
-		decoder: decoder,
-		status:  RTSPStatus{SourceID: source.ID, State: RTSPStopped, Codec: decoder.Codec, Decoder: decoder.Name, HardwareAccelerated: decoder.HardwareAccelerated},
+		source:     source,
+		config:     config,
+		runner:     runner,
+		sleep:      sleepContext,
+		decoder:    decoder,
+		frameBytes: frameBytes,
+		now:        time.Now,
+		status:     RTSPStatus{SourceID: source.ID, State: RTSPStopped, Codec: decoder.Codec, Decoder: decoder.Name, HardwareAccelerated: decoder.HardwareAccelerated},
 	}, nil
 }
 
@@ -173,9 +257,7 @@ func (i *RTSPIngest) Run(ctx context.Context, report func(RTSPStatus)) error {
 		}
 		attempt++
 		i.publish(report, i.newStatus(RTSPConnecting, attempt, nil))
-		err := i.runner.Run(ctx, i.config.Binary, i.arguments(), func() {
-			i.publish(report, i.newStatus(RTSPStreaming, attempt, nil))
-		})
+		err := i.runAttempt(ctx, attempt, report)
 		if ctx.Err() != nil {
 			i.publish(report, i.newStatus(RTSPStopped, attempt, nil))
 			return ctx.Err()
@@ -192,6 +274,29 @@ func (i *RTSPIngest) Run(ctx context.Context, report func(RTSPStatus)) error {
 	}
 }
 
+func (i *RTSPIngest) runAttempt(ctx context.Context, attempt int, report func(RTSPStatus)) error {
+	started := func() { i.publish(report, i.newStatus(RTSPStreaming, attempt, nil)) }
+	if i.config.FramePipeline == nil {
+		return i.runner.Run(ctx, i.config.Binary, i.arguments(), started)
+	}
+	runner, ok := i.runner.(FrameCommandRunner)
+	if !ok {
+		return ErrInvalidRTSPConfig
+	}
+	return runner.RunFrames(ctx, i.config.Binary, i.arguments(), i.frameBytes, started, func(pixels []byte) error {
+		observedAt := i.now().UTC()
+		if !observedAt.After(i.lastFrameObserved) {
+			observedAt = i.lastFrameObserved.Add(time.Nanosecond)
+		}
+		i.sequence++
+		i.lastFrameObserved = observedAt
+		return i.config.FramePipeline.Forward(ctx, RGB24Frame{
+			CameraID: i.source.ID, Sequence: i.sequence, ObservedAt: observedAt,
+			Width: i.config.FrameWidth, Height: i.config.FrameHeight, Pixels: pixels,
+		})
+	})
+}
+
 func (i *RTSPIngest) arguments() []string {
 	timeoutMicros := i.config.ConnectTimeout.Microseconds()
 	args := []string{
@@ -202,7 +307,27 @@ func (i *RTSPIngest) arguments() []string {
 	if i.decoder.Name != "" {
 		args = append(args, "-c:v", i.decoder.Name)
 	}
-	return append(args, "-i", i.source.URL, "-map", "0:v:0", "-an", "-f", "null", "-")
+	args = append(args, "-i", i.source.URL, "-map", "0:v:0", "-an")
+	if i.config.FramePipeline == nil {
+		return append(args, "-f", "null", "-")
+	}
+	dimensions := fmt.Sprintf("%dx%d", i.config.FrameWidth, i.config.FrameHeight)
+	return append(args, "-s:v", dimensions, "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1")
+}
+
+func validateDecodedFrameConfig(sourceID string, config RTSPIngestConfig) (int, error) {
+	if config.FramePipeline == nil && config.FrameWidth == 0 && config.FrameHeight == 0 {
+		return 0, nil
+	}
+	parsed, err := uuid.Parse(sourceID)
+	if config.FramePipeline == nil || !config.FramePipeline.isMaskSamplerChain(sourceID) || err != nil || parsed.Version() != 4 || config.FrameWidth <= 0 || config.FrameWidth > maxMaskFrameDimension || config.FrameHeight <= 0 || config.FrameHeight > maxMaskFrameDimension {
+		return 0, ErrInvalidRTSPConfig
+	}
+	frameBytes := int64(config.FrameWidth) * int64(config.FrameHeight) * 3
+	if frameBytes <= 0 || frameBytes > maxDecodedFrameBytes {
+		return 0, ErrInvalidRTSPConfig
+	}
+	return int(frameBytes), nil
 }
 
 func (i *RTSPIngest) newStatus(state RTSPState, attempt int, err error) RTSPStatus {
