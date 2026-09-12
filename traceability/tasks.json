@@ -981,8 +981,17 @@
       "phase": 12,
       "owner": "AI, Edge and Security",
       "dependencies": ["T-0091", "T-0333", "T-0417"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A deterministic camera-local association layer validates same-scope ordered batches of at most 256 normalized detections for only the seven existing person/vehicle rule classes. It uses bounded same-class IoU association, never-reused local track IDs, atomic capacity and ordering failure, at most 30 missed frames, at most 2,048 active states, and payload-free counters, then emits the existing identity-free TrackFrame contract. Synthetic integration proves a stable associated person can traverse sampled ingress and an active intrusion rule without leaking track IDs or coordinates in the event. No pixels, detector inference, model artifact, dataset, customer footage, ByteTrack or production-tracker claim, evaluation evidence, release, activation, or promotion is added."
+    },
+    {
+      "id": "T-0419",
+      "title": "Confirm camera-local vehicle tracks before review events",
+      "phase": 12,
+      "owner": "AI, Platform and Security",
+      "dependencies": ["T-0307", "T-0418"],
+      "status": "in_review",
+      "acceptance": "A tenant/site/camera/zone-bound confirmation layer accepts only strictly timestamp-ordered identity-free TrackFrame metadata, ignores person observations, and emits one existing FR-103a review-required vehicle_activity event after a configured two through ten consecutive observations of the same local vehicle track. Gaps restart an unconfirmed streak; minimum streak confidence and stable class/model provenance are enforced; at most 30 missed frames and 2,048 states are retained; replay, malformed metadata, provenance change and capacity failure are atomic. Synthetic association-to-event tests prove no track ID, coordinate, plate, speed, ReID, embedding, risk, or theft claim is emitted. No detector, model artifact, dataset, customer footage, evaluation, activation, deployment, or promotion is added."
     }
   ]
 }
