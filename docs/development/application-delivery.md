@@ -315,3 +315,17 @@ event and assert that track IDs, coordinates, plates, speed, ReID, embeddings,
 risk and theft conclusions remain absent. See
 [the vehicle confirmation guide](phase-6-vehicle-track-confirmation.md). No
 detector, model, footage, evaluation, activation, or deployment is added.
+
+## T-0420 weapon-review confirmation boundary
+
+PR 149 merged as `b980e3c`; T-0419 is complete. T-0420 adds a metadata-only
+three-frame confirmation layer for future knife/firearm detector candidates.
+It requires stable class, model version and spatial overlap, uses minimum
+streak confidence, expires interrupted unconfirmed state, bounds emitted
+cooldown state, and returns only the existing pending-human-review event.
+
+Synthetic tests cover confirmation, reset, replay, scope, malformed input and
+atomic capacity failure. See
+[the weapon-review confirmation guide](phase-4-weapon-review-confirmation.md).
+No detector, image, evidence, autonomous response, model artifact, dataset,
+evaluation, activation, promotion or deployment is introduced.
