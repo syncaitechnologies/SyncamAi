@@ -300,3 +300,18 @@ zone rules, and canonical intrusion event output. See
 [the detection-track association guide](phase-6-detection-track-association.md).
 No detector, model artifact, pixel transport, customer footage, benchmark,
 production tracker claim, activation, or promotion is introduced.
+
+## T-0419 vehicle track confirmation
+
+PR 148 merged as `65f656a`; T-0418 is complete. T-0419 composes stable
+camera-local tracks into the existing FR-103a event-only vehicle boundary.
+Two through ten consecutive sampled observations are required before the
+first review-required event; gaps reset an unconfirmed streak, provenance
+cannot change, minimum streak confidence is retained, and bounded expired
+state cannot duplicate an active track event.
+
+Synthetic tests connect detection association to one human-review vehicle
+event and assert that track IDs, coordinates, plates, speed, ReID, embeddings,
+risk and theft conclusions remain absent. See
+[the vehicle confirmation guide](phase-6-vehicle-track-confirmation.md). No
+detector, model, footage, evaluation, activation, or deployment is added.
