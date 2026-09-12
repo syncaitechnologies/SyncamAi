@@ -972,8 +972,17 @@
       "phase": 12,
       "owner": "Edge, Security and AI",
       "dependencies": ["T-0326", "T-0415", "T-0416"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "The supervised RTSP library can opt into fixed-dimension RGB24 stdout only when configured with a concrete camera-matched PreAnalyticsPrivacyMask backed by AnalyticsFrameSampler. UUID identity, a 64 MiB frame cap, exact full-frame reads, ownership transfer, monotonic sequence/timestamps across restarts, child cancellation on downstream rejection, and credential-safe bounded retry fail closed. Synthetic integration proves FFmpeg output reaches analytics only after masking and sampling. The executable remains on its null sink until controlled release loading and a real allowlisted hardware executor exist; no customer footage, model, inference, evaluation, activation, or promotion is added."
+    },
+    {
+      "id": "T-0418",
+      "title": "Associate bounded detector metadata into camera-local tracks",
+      "phase": 12,
+      "owner": "AI, Edge and Security",
+      "dependencies": ["T-0091", "T-0333", "T-0417"],
+      "status": "in_review",
+      "acceptance": "A deterministic camera-local association layer validates same-scope ordered batches of at most 256 normalized detections for only the seven existing person/vehicle rule classes. It uses bounded same-class IoU association, never-reused local track IDs, atomic capacity and ordering failure, at most 30 missed frames, at most 2,048 active states, and payload-free counters, then emits the existing identity-free TrackFrame contract. Synthetic integration proves a stable associated person can traverse sampled ingress and an active intrusion rule without leaking track IDs or coordinates in the event. No pixels, detector inference, model artifact, dataset, customer footage, ByteTrack or production-tracker claim, evaluation evidence, release, activation, or promotion is added."
     }
   ]
 }
