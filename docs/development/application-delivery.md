@@ -271,3 +271,18 @@ The integration test composes the HIL-gated pixel mask directly into the
 sampler and proves the analytics consumer receives blackened pixels. See
 [the frame-sampling guide](phase-4-frame-sampling.md). FFmpeg still uses its
 null sink in the executable, and there is still no detector or model artifact.
+
+## T-0417 bounded FFmpeg frame handoff
+
+PR 146 merged as `5f353ec`; T-0416 is complete. T-0417 adds an opt-in RGB24
+stdout adapter to the supervised RTSP library. Framed mode accepts only the
+concrete approved privacy mask backed by the same camera's bounded sampler;
+generic callbacks, invalid frame bounds, partial frames, and runners without a
+framed-output contract fail before unmasked pixels can reach analytics.
+
+The integration test proves synthetic FFmpeg output traverses mask then
+sampler, with monotonic sequence/timestamp metadata and credential-safe retry
+semantics. See [the FFmpeg frame-handoff guide](phase-5-ffmpeg-frame-handoff.md).
+The executable keeps its null sink until trusted controlled-release loading and
+a real allowlisted hardware executor are available. No production camera,
+model, inference, or approval claim is introduced.

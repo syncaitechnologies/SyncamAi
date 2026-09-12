@@ -963,8 +963,17 @@
       "phase": 12,
       "owner": "Edge and AI",
       "dependencies": ["T-0160", "T-0415"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A camera-local consumer accepts only complete, ordered, already-masked RGB24 frames; enforces the canonical 5--10 FPS analytics range; suppresses frames arriving inside the sampling interval and identical consecutive sampled frames; retains only ordering metadata and a SHA-256 digest; reports payload-free counters and downstream backpressure; and forwards frames synchronously. Tests prove mask-before-sampling composition, rate and duplicate suppression, fail-closed ordering and buffer validation, and downstream failure accounting. FFmpeg wiring, inference, model artifacts, evaluation, and promotion remain separate gates."
+    },
+    {
+      "id": "T-0417",
+      "title": "Connect bounded FFmpeg frames to the approved mask and sampler",
+      "phase": 12,
+      "owner": "Edge, Security and AI",
+      "dependencies": ["T-0326", "T-0415", "T-0416"],
+      "status": "in_review",
+      "acceptance": "The supervised RTSP library can opt into fixed-dimension RGB24 stdout only when configured with a concrete camera-matched PreAnalyticsPrivacyMask backed by AnalyticsFrameSampler. UUID identity, a 64 MiB frame cap, exact full-frame reads, ownership transfer, monotonic sequence/timestamps across restarts, child cancellation on downstream rejection, and credential-safe bounded retry fail closed. Synthetic integration proves FFmpeg output reaches analytics only after masking and sampling. The executable remains on its null sink until controlled release loading and a real allowlisted hardware executor exist; no customer footage, model, inference, evaluation, activation, or promotion is added."
     }
   ]
 }

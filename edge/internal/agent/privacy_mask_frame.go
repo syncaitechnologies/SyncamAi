@@ -147,6 +147,14 @@ func (m *PreAnalyticsPrivacyMask) CandidateHash() string {
 	return m.candidateHash
 }
 
+func (m *PreAnalyticsPrivacyMask) isMaskSamplerChain(cameraID string) bool {
+	if m == nil || m.cameraID != cameraID {
+		return false
+	}
+	sampler, ok := m.consumer.(*AnalyticsFrameSampler)
+	return ok && sampler != nil && sampler.cameraID == cameraID
+}
+
 func validateRGB24Frame(frame RGB24Frame) error {
 	parsed, err := uuid.Parse(frame.CameraID)
 	if err != nil || parsed.Version() != 4 || frame.Width <= 0 || frame.Width > maxMaskFrameDimension || frame.Height <= 0 || frame.Height > maxMaskFrameDimension {
