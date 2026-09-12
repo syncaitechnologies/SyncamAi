@@ -286,3 +286,17 @@ semantics. See [the FFmpeg frame-handoff guide](phase-5-ffmpeg-frame-handoff.md)
 The executable keeps its null sink until trusted controlled-release loading and
 a real allowlisted hardware executor are available. No production camera,
 model, inference, or approval claim is introduced.
+
+## T-0418 bounded detection-to-track association
+
+PR 147 merged as `99f92cc`; T-0417 is complete. T-0418 adds a deterministic
+camera-local metadata association layer for the seven existing person/vehicle
+rule classes. It validates ordered detector batches, normalized boxes,
+confidence and opaque model-version metadata; matches same-class boxes with
+bounded IoU state; and emits the existing identity-free `TrackFrame` contract.
+
+Synthetic integration composes association, sampled track ingress, active
+zone rules, and canonical intrusion event output. See
+[the detection-track association guide](phase-6-detection-track-association.md).
+No detector, model artifact, pixel transport, customer footage, benchmark,
+production tracker claim, activation, or promotion is introduced.
