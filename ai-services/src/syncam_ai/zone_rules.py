@@ -301,8 +301,6 @@ def _event(rule: _CompiledRule, observation: TrackObservation, behavior: str, st
         "evidence_refs": list(observation.evidence_refs),
         "requires_human_review": True,
         "review_state": "pending",
-        "observed_behavior": behavior,
-        "subject_class": observation.subject_class,
     }
 
 

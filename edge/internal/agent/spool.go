@@ -28,6 +28,7 @@ var (
 	ErrInvalidSpoolConfig = errors.New("store-and-forward configuration is invalid")
 	ErrInvalidSpoolItem   = errors.New("store-and-forward item is invalid")
 	ErrSpoolConflict      = errors.New("store-and-forward item conflicts with an existing id")
+	ErrSpoolCapacity      = errors.New("store-and-forward capacity is exhausted")
 	ErrCorruptSpool       = errors.New("store-and-forward data is corrupt")
 	ErrSpoolEmpty         = errors.New("store-and-forward queue is empty")
 	ErrSpoolItemNotFound  = errors.New("store-and-forward item was not found")
@@ -126,6 +127,18 @@ func NewDurableSpool(root string, maxBytes, maxItemBytes int64) (*DurableSpool, 
 // Enqueue durably stores one opaque payload. Repeating the same ID, priority,
 // and payload is idempotent; reusing an ID for different data fails closed.
 func (s *DurableSpool) Enqueue(id string, priority SpoolPriority, payload []byte) (SpoolItem, error) {
+	return s.enqueue(id, priority, payload, true)
+}
+
+// EnqueueRetained durably stores one opaque payload without evicting an older
+// item. It returns ErrSpoolCapacity before changing the queue when the record
+// would exceed the configured quota. This is the backpressure-preserving path
+// for pending human-review metadata, which must not be silently displaced.
+func (s *DurableSpool) EnqueueRetained(id string, priority SpoolPriority, payload []byte) (SpoolItem, error) {
+	return s.enqueue(id, priority, payload, false)
+}
+
+func (s *DurableSpool) enqueue(id string, priority SpoolPriority, payload []byte, allowEviction bool) (SpoolItem, error) {
 	if s == nil {
 		return SpoolItem{}, ErrInvalidSpoolConfig
 	}
@@ -157,6 +170,9 @@ func (s *DurableSpool) Enqueue(id string, priority SpoolPriority, payload []byte
 	if err != nil || int64(len(record)) > s.maxBytes {
 		return SpoolItem{}, ErrInvalidSpoolItem
 	}
+	if !allowEviction && s.metrics.Bytes+int64(len(record)) > s.maxBytes {
+		return SpoolItem{}, ErrSpoolCapacity
+	}
 	path := filepath.Join(s.root, spoolFilename(createdAt, id))
 	if err := writeSpoolFileAtomic(s.root, path, record); err != nil {
 		return SpoolItem{}, err
@@ -171,8 +187,10 @@ func (s *DurableSpool) Enqueue(id string, priority SpoolPriority, payload []byte
 	s.metrics.Depth++
 	s.metrics.Bytes += entry.fileBytes
 	s.metrics.EnqueuedTotal++
-	if err := s.enforceQuota(id); err != nil {
-		return SpoolItem{}, err
+	if allowEviction {
+		if err := s.enforceQuota(id); err != nil {
+			return SpoolItem{}, err
+		}
 	}
 	return entry.item, nil
 }
@@ -195,6 +213,31 @@ func (s *DurableSpool) Next() (SpoolMessage, error) {
 		return SpoolMessage{}, ErrCorruptSpool
 	}
 	return SpoolMessage{SpoolItem: entries[0].item, Payload: payload}, nil
+}
+
+// NextPriority returns the oldest verified item for one priority without
+// removing it or consuming items owned by another delivery path.
+func (s *DurableSpool) NextPriority(priority SpoolPriority) (SpoolMessage, error) {
+	if s == nil {
+		return SpoolMessage{}, ErrInvalidSpoolConfig
+	}
+	if !validSpoolPriority(priority) {
+		return SpoolMessage{}, ErrInvalidSpoolItem
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entries := s.sortedEntries(false)
+	for _, entry := range entries {
+		if entry.item.Priority != priority {
+			continue
+		}
+		envelope, payload, _, err := readSpoolFile(entry.path, s.maxItemBytes)
+		if err != nil || envelope.ID != entry.item.ID || envelope.PayloadSHA256 != entry.payloadHash {
+			return SpoolMessage{}, ErrCorruptSpool
+		}
+		return SpoolMessage{SpoolItem: entry.item, Payload: payload}, nil
+	}
+	return SpoolMessage{}, ErrSpoolEmpty
 }
 
 // Ack removes an item only after its upstream consumer has acknowledged it.

@@ -136,6 +136,41 @@ func TestDurableSpoolEvictsOldestToEnforceQuota(t *testing.T) {
 	}
 }
 
+func TestDurableSpoolRetainedEnqueueBackpressuresAndFiltersPriority(t *testing.T) {
+	probe, err := NewDurableSpool(t.TempDir(), 4096, 256)
+	if err != nil {
+		t.Fatalf("new probe spool: %v", err)
+	}
+	if _, err := probe.EnqueueRetained("metadata-1", SpoolMetadata, []byte("metadata")); err != nil {
+		t.Fatalf("enqueue probe: %v", err)
+	}
+	recordBytes := probe.Metrics().Bytes
+
+	spool, err := NewDurableSpool(t.TempDir(), recordBytes+8, recordBytes+8)
+	if err != nil {
+		t.Fatalf("new retained spool: %v", err)
+	}
+	if _, err := spool.EnqueueRetained("metadata-1", SpoolMetadata, []byte("metadata")); err != nil {
+		t.Fatalf("enqueue retained item: %v", err)
+	}
+	before := spool.Metrics()
+	if _, err := spool.EnqueueRetained("metadata-2", SpoolMetadata, []byte("metadata")); !errors.Is(err, ErrSpoolCapacity) {
+		t.Fatalf("expected capacity error, got %v", err)
+	}
+	if after := spool.Metrics(); after.Depth != before.Depth || after.Bytes != before.Bytes ||
+		after.EnqueuedTotal != before.EnqueuedTotal || after.AckedTotal != before.AckedTotal ||
+		after.EvictedTotal != before.EvictedTotal || after.EvictedTotal != 0 {
+		t.Fatalf("retained enqueue mutated the queue: before=%+v after=%+v", before, after)
+	}
+	if _, err := spool.NextPriority(SpoolEvidence); !errors.Is(err, ErrSpoolEmpty) {
+		t.Fatalf("expected empty evidence priority, got %v", err)
+	}
+	message, err := spool.NextPriority(SpoolMetadata)
+	if err != nil || message.ID != "metadata-1" {
+		t.Fatalf("unexpected retained item: %+v err=%v", message, err)
+	}
+}
+
 func TestDurableSpoolFailsClosedOnCorruption(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "00000000000000000001-corrupt.msg"), []byte("not-json\npayload"), 0o600); err != nil {

@@ -64,6 +64,7 @@ class VehicleActivityTest(unittest.TestCase):
     def test_retries_are_stable_and_classes_are_bounded(self) -> None:
         first = build_vehicle_activity_event(observation())
         self.assertEqual(first, build_vehicle_activity_event(observation()))
+        self.assertEqual(first["dedupe_key"], f"vehicle_activity:{first['event_id']}")
         for subject_class in VEHICLE_CLASSES:
             event = build_vehicle_activity_event(
                 replace(observation(), subject_class=subject_class)
