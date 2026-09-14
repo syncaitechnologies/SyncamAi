@@ -283,10 +283,14 @@ def _event(rule: _CompiledRule, observation: TrackObservation, behavior: str, st
     start = _timestamp(started_at)
     occurred = _timestamp(observation.observed_at)
     source_key = f"{observation.camera_id}:{rule.id}:{observation.track_id}:{behavior}:{start}"
+    event_id = str(uuid5(_EVENT_NAMESPACE, f"{observation.tenant_id}:{source_key}"))
     return {
-        "event_id": str(uuid5(_EVENT_NAMESPACE, f"{observation.tenant_id}:{source_key}")),
+        "event_id": event_id,
         "tenant_id": observation.tenant_id,
-        "dedupe_key": f"{rule.kind}:{source_key}",
+        # The local track identifier remains an event-ID input so retries are
+        # deterministic, but it must not cross the camera-local boundary in a
+        # reversible payload field.
+        "dedupe_key": f"{rule.kind}:{event_id}",
         "occurred_at": occurred,
         "site_id": observation.site_id,
         "camera_id": observation.camera_id,

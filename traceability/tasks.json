@@ -999,8 +999,17 @@
       "phase": 12,
       "owner": "AI, Safety and Security",
       "dependencies": ["T-0095", "T-0363", "T-0417"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A tenant/site/camera/zone-local boundary accepts ordered batches of at most 64 normalized knife or firearm candidates and emits one existing weapon_review event only after three class-, model-version- and spatially consistent observations no more than one second apart. Same-class IoU association, minimum streak confidence, a 256-state cap, bounded emitted cooldown, payload-free metrics, and atomic scope, replay, malformed-input and capacity rejection fail closed. Events require pending human review and omit class, candidate ID, bounding box, identity and autonomous action. Tests are synthetic. No detector, model weight, dataset, pixel, crop, customer footage, evidence object, benchmark, hard-negative result, activation, promotion, alarm, dispatch or deployment is added."
+    },
+    {
+      "id": "T-0421",
+      "title": "Compose bounded loitering tracks into review events",
+      "phase": 12,
+      "owner": "AI, Edge and Security",
+      "dependencies": ["T-0336", "T-0418"],
+      "status": "in_review",
+      "acceptance": "The existing bounded camera-local detection association, 5--10 FPS sampled TrackFrame ingress and verified ZoneRuntime compose into exactly one canonical pending-human-review loitering event after a stable permitted person or vehicle track remains inside an enabled same-scope zone for the configured 30--600 second dwell window. Entry, threshold, early exit, re-entry, retry-stable opaque IDs, replay, scope and ordering, malformed metadata, atomic capacity failure and configuration rejection are covered with synthetic metadata. Event payloads omit raw track IDs, coordinates, boxes, pixels, images, identity, biometrics, plates, embeddings, ReID and autonomous-action instructions. No detector, model artifact, dataset, customer footage, evaluation, activation, promotion or deployment is added."
     }
   ]
 }
