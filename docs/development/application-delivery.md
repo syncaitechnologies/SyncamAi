@@ -348,7 +348,7 @@ promotion, or deployment is introduced.
 
 ## T-0422 fire/smoke review confirmation
 
-PR 151 merged as `73d561a`; T-0421 is complete. T-0422 adds a metadata-only
+PR 152 merged as `cf42dd3`; T-0421 is complete. T-0422 adds a metadata-only
 temporal boundary for future FR-113 fire and smoke candidates. Fire requires
 three spatially and provenance-consistent observations; smoke requires five
 and positive upward movement throughout the unconfirmed streak. Both enforce
@@ -362,3 +362,34 @@ scope, configuration, and capacity. See
 No detector, model, image, sensor integration, alarm action, evidence,
 evaluation, activation, promotion, or deployment is introduced. Vision remains
 complementary to certified fire systems.
+
+## T-0423 pending-review event delivery composition
+
+T-0422 is complete. T-0423 adds a bounded edge composition for the existing
+canonical non-biometric review-event JSON. The tenant and site are fixed when
+the boundary is constructed; every event also carries validated camera and zone
+UUIDs. Strict decoding rejects missing or unknown fields, including attempted
+alarm, dispatch, access-control or other autonomous-action instructions.
+`attendance_review` remains unavailable.
+
+Events are canonicalized, assigned only the opaque `<event_type>:<event_id>`
+dedupe form and stored at metadata priority. Identical replay is idempotent and
+changed replay conflicts. The retained enqueue path returns backpressure before
+mutation when capacity is exhausted, so a new pending-review event cannot evict
+an older one. Replay is FIFO and restart-safe. Delivery selects only metadata,
+retains an event on downstream error, and acknowledges local storage only after
+an injected sender reports durable upstream acceptance.
+
+The Python vehicle and abandoned-object producers now use the same opaque
+event-ID dedupe form. Non-vehicle zone events no longer emit the vehicle-only
+`observed_behavior` or `subject_class` properties rejected by the canonical
+backend contract.
+
+See [the pending-review delivery guide](phase-2-review-event-delivery.md).
+Tests use synthetic metadata and cover malformed/unknown fields, biometric and
+scope rejection, deterministic replay, changed duplicates, capacity exhaustion,
+restart recovery, ordering, priority isolation and downstream failure. No live
+sender, credential, endpoint, model, footage, evidence object, notification,
+alarm, dispatch, safety decision, activation or deployment is added. Runtime
+wiring remains blocked on verified mTLS ingress and the existing privacy,
+hardware, licensing, promotion, evaluation and human-approval gates.

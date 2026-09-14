@@ -342,7 +342,7 @@ def build_vehicle_activity_event(observation: VehicleTrackObservation) -> dict[s
     timestamp = occurred_at.isoformat(timespec="microseconds").replace("+00:00", "Z")
     source_key = f"{camera_id}:{observation.track_id}:{timestamp}"
     event_id = str(uuid5(_EVENT_NAMESPACE, f"{tenant_id}:{source_key}"))
-    dedupe_key = f"vehicle_activity:{source_key}"
+    dedupe_key = f"vehicle_activity:{event_id}"
 
     return {
         "event_id": event_id,

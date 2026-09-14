@@ -261,10 +261,11 @@ def _build_event(observation: AbandonedObjectObservation, static_since: datetime
     static_timestamp = static_since.isoformat(timespec="microseconds").replace("+00:00", "Z")
     occurred_at = observation.observed_at.isoformat(timespec="microseconds").replace("+00:00", "Z")
     source_key = f"{observation.camera_id}:{observation.object_track_id}:{static_timestamp}"
+    event_id = str(uuid5(_EVENT_NAMESPACE, f"{observation.tenant_id}:{source_key}"))
     return {
-        "event_id": str(uuid5(_EVENT_NAMESPACE, f"{observation.tenant_id}:{source_key}")),
+        "event_id": event_id,
         "tenant_id": observation.tenant_id,
-        "dedupe_key": f"abandoned_object:{source_key}",
+        "dedupe_key": f"abandoned_object_review:{event_id}",
         "occurred_at": occurred_at,
         "site_id": observation.site_id,
         "camera_id": observation.camera_id,

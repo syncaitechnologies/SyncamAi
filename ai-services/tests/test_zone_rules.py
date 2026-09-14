@@ -71,7 +71,8 @@ class ZoneRuleEngineTest(unittest.TestCase):
                 events = engine.observe(observation(1, 5, 5))
                 self.assertEqual(len(events), 1)
                 self.assertEqual(events[0]["event_type"], kind)
-                self.assertEqual(events[0]["observed_behavior"], "entered")
+                self.assertNotIn("observed_behavior", events[0])
+                self.assertNotIn("subject_class", events[0])
                 self.assertEqual(engine.observe(observation(2, 6, 5)), [])
 
     def test_subject_class_gate_ignores_unconfigured_local_tracks(self) -> None:
@@ -123,7 +124,8 @@ class ZoneRuleEngineTest(unittest.TestCase):
         events = engine.observe(observation(31, 5, 5))
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["event_type"], "loitering")
-        self.assertEqual(events[0]["observed_behavior"], "dwell_exceeded")
+        self.assertNotIn("observed_behavior", events[0])
+        self.assertNotIn("subject_class", events[0])
         self.assertEqual(engine.observe(observation(62, 5, 5)), [])
         self.assertEqual(engine.observe(observation(63, -1, 5)), [])
 
@@ -133,7 +135,8 @@ class ZoneRuleEngineTest(unittest.TestCase):
         events = engine.observe(observation(1, 7, 5))
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["event_type"], "tripwire")
-        self.assertEqual(events[0]["observed_behavior"], "crossed")
+        self.assertNotIn("observed_behavior", events[0])
+        self.assertNotIn("subject_class", events[0])
         self.assertEqual(engine.observe(observation(2, 8, 5)), [])
 
     def test_events_are_retry_stable_and_do_not_leak_track_geometry_or_identity(self) -> None:

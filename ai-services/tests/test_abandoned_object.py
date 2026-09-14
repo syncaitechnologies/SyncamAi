@@ -61,6 +61,9 @@ class AbandonedObjectEngineTest(unittest.TestCase):
         self.assertEqual(event["evidence_refs"], ["evidence://object-42"])
         self.assertIs(event["requires_human_review"], True)
         self.assertEqual(event["review_state"], "pending")
+        self.assertEqual(
+            event["dedupe_key"], f"abandoned_object_review:{event['event_id']}"
+        )
         serialized = json.dumps(event, sort_keys=True).lower()
         for prohibited in (
             "owner_track",
