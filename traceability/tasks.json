@@ -1008,8 +1008,17 @@
       "phase": 12,
       "owner": "AI, Edge and Security",
       "dependencies": ["T-0336", "T-0418"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "The existing bounded camera-local detection association, 5--10 FPS sampled TrackFrame ingress and verified ZoneRuntime compose into exactly one canonical pending-human-review loitering event after a stable permitted person or vehicle track remains inside an enabled same-scope zone for the configured 30--600 second dwell window. Entry, threshold, early exit, re-entry, retry-stable opaque IDs, replay, scope and ordering, malformed metadata, atomic capacity failure and configuration rejection are covered with synthetic metadata. Event payloads omit raw track IDs, coordinates, boxes, pixels, images, identity, biometrics, plates, embeddings, ReID and autonomous-action instructions. No detector, model artifact, dataset, customer footage, evaluation, activation, promotion or deployment is added."
+    },
+    {
+      "id": "T-0422",
+      "title": "Confirm bounded fire and rising-smoke metadata before human review",
+      "phase": 12,
+      "owner": "AI, Safety and Security",
+      "dependencies": ["T-0096", "T-0363", "T-0417"],
+      "status": "in_review",
+      "acceptance": "A tenant/site/camera/zone-local boundary accepts ordered batches of at most 64 normalized fire or smoke candidates. It emits one existing pending-human-review fire_review event after three class-, model-version- and spatially consistent observations, or one smoke_review event after five such observations with consistent positive upward movement, with gaps no longer than one second. Minimum streak confidence, a 256-state cap, bounded emitted cooldown, payload-free metrics, retry-stable opaque IDs, and atomic scope, replay, malformed-input and capacity rejection fail closed. Events omit candidate IDs, boxes, coordinates, pixels, images, identity, biometrics, plates, embeddings, alarm, evacuation, dispatch, access-control and autonomous-action instructions. Tests are synthetic. No detector, model weight, dataset, customer footage, evidence object, benchmark, activation, promotion, sensor integration, alarm integration or deployment is added; certified fire systems remain mandatory."
     }
   ]
 }

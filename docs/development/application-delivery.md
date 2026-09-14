@@ -345,3 +345,20 @@ opaque rather than exposing the raw local track number. See
 [the loitering composition guide](phase-6-loitering-composition.md). No model,
 image, identity, biometric, plate, autonomous response, evaluation, activation,
 promotion, or deployment is introduced.
+
+## T-0422 fire/smoke review confirmation
+
+PR 151 merged as `73d561a`; T-0421 is complete. T-0422 adds a metadata-only
+temporal boundary for future FR-113 fire and smoke candidates. Fire requires
+three spatially and provenance-consistent observations; smoke requires five
+and positive upward movement throughout the unconfirmed streak. Both enforce
+one-second gaps, bounded state, minimum streak confidence, deterministic IDs,
+and pending human review.
+
+Synthetic tests cover both confirmation paths, smoke direction, duplicate
+suppression, timing and provenance reset, retry, replay, malformed input,
+scope, configuration, and capacity. See
+[the fire/smoke confirmation guide](phase-4-fire-smoke-review-confirmation.md).
+No detector, model, image, sensor integration, alarm action, evidence,
+evaluation, activation, promotion, or deployment is introduced. Vision remains
+complementary to certified fire systems.
