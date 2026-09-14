@@ -416,3 +416,28 @@ duplicates, malformed metadata, atomic capacity failure, cooldown expiry and
 reconfirmation. No detector, association/attachment model, image, evidence,
 notification, alarm, dispatch, access-control action, model artifact, dataset,
 evaluation, activation, promotion or deployment is introduced.
+
+## T-0425 fall-review temporal confirmation boundary
+
+T-0424 is complete. T-0425 adds a metadata-only temporal boundary for future
+FR-111 posture and motion output. Each ordered frame contains at most 64
+already-associated camera-local tracks and is fixed to one tenant, site,
+camera and zone. A track must first be stably upright, then carry unambiguous
+downward transition metadata, and finally remain stably lying until at least
+1.5 seconds have elapsed since the transition began.
+
+Sitting, lying without the ordered transition, unknown posture or motion,
+missing observations, more than a one-second tracking gap, model-provenance
+changes, ambiguous motion and reversed stages do not confirm or reset the
+candidate. The event uses minimum confidence across the entire qualifying
+sequence and contains only an opaque deterministic ID, scope, provenance,
+confidence and mandatory pending-review state. Track IDs, posture/motion
+details and medical or safety conclusions stay local.
+
+See [the fall review confirmation guide](phase-8-fall-review-confirmation.md).
+Synthetic tests cover the exact duration boundary, non-confirming conditions,
+reset and recovery, provenance, deterministic ordering and retry, replay,
+duplicates, malformed metadata, atomic capacity failure and bounded emitted
+state. No model, pose source, pixel, image, footage, evidence, notification,
+emergency action, alarm, dispatch, access-control action, dataset, evaluation,
+activation, promotion or deployment is introduced.

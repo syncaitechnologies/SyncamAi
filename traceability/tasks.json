@@ -1035,8 +1035,17 @@
       "phase": 12,
       "owner": "AI, Safety and Security",
       "dependencies": ["T-0099", "T-0363", "T-0417", "T-0423"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A tenant/site/camera/zone-local boundary accepts ordered batches of at most 64 already-associated, identity-free track metadata records for the six bounded PPE items and an explicit non-empty per-zone required-item matrix. Unknown, incomplete or fully present metadata does not confirm. Exactly one opaque ppe_review event is emitted only after three same-track, same-missing-set and model-version-consistent observations no more than one second apart. Minimum absence-confidence, a 256-state cap, bounded emitted cooldown, payload-free metrics, retry-stable IDs, deterministic ordering, and atomic scope, replay, malformed-input, duplicate and capacity rejection fail closed. Events require pending human review and omit track IDs, PPE item/state details, boxes, coordinates, pixels, images, identity, biometrics, faces, plates, embeddings, compliance/safety conclusions and autonomous-action instructions. Tests are synthetic. No detector, attachment model, model weight, dataset, customer footage, evidence object, benchmark, notification, alarm, dispatch, access-control action, activation, promotion or deployment is added."
+    },
+    {
+      "id": "T-0425",
+      "title": "Confirm bounded fall metadata before human review",
+      "phase": 12,
+      "owner": "AI, Safety and Security",
+      "dependencies": ["T-0100", "T-0363", "T-0417", "T-0423", "T-0424"],
+      "status": "in_review",
+      "acceptance": "A tenant/site/camera/zone-local boundary accepts ordered batches of at most 64 already-associated, identity-free posture and motion metadata records. It emits exactly one opaque fall_review event only after the same camera-local track moves through stable upright, downward transition and stable lying stages with consistent model provenance, gaps no longer than one second and at least 1.5 seconds from transition start to confirmation. Sitting, lying without a qualifying transition, unknown posture, missing observations, gaps, provenance changes, ambiguous motion and reversed stage order do not confirm or reset state. Minimum transition confidence, a 256-state cap, bounded emitted cooldown, payload-free metrics, retry-stable IDs, deterministic ordering, duplicate suppression, and atomic scope, replay, malformed-input and capacity rejection fail closed. Events require pending human review and omit track IDs, posture/motion details, pixels, images, identity, biometrics, faces, plates, embeddings, medical or safety conclusions and autonomous-action instructions. Tests are synthetic. No model, weight, dataset, customer footage, evidence object, benchmark, notification, emergency action, alarm, dispatch, access-control action, activation, promotion or deployment is added."
     }
   ]
 }
