@@ -329,3 +329,19 @@ atomic capacity failure. See
 [the weapon-review confirmation guide](phase-4-weapon-review-confirmation.md).
 No detector, image, evidence, autonomous response, model artifact, dataset,
 evaluation, activation, promotion or deployment is introduced.
+
+## T-0421 loitering composition
+
+PR 150 merged as `079e039`; T-0420 is complete. T-0421 composes the existing
+camera-local detection association, sampled `TrackFrame` ingress and verified
+`ZoneRuntime` into the FR-108 loitering path. A stable permitted person or
+vehicle track must remain inside the same enabled zone for the configured
+minimum 30-second dwell before exactly one pending-human-review event appears.
+
+Synthetic tests cover entry, the dwell boundary, early exit and re-entry,
+retry-stable output, replay, scope and ordering, malformed input, atomic
+capacity failure, and invalid configuration. The canonical dedupe key is now
+opaque rather than exposing the raw local track number. See
+[the loitering composition guide](phase-6-loitering-composition.md). No model,
+image, identity, biometric, plate, autonomous response, evaluation, activation,
+promotion, or deployment is introduced.
