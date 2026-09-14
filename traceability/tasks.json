@@ -1026,8 +1026,17 @@
       "phase": 12,
       "owner": "Edge, Platform and Security",
       "dependencies": ["T-0316", "T-0328", "T-0422"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A tenant/site-bound edge boundary strictly decodes, validates, canonicalizes and durably queues only existing non-biometric pending-human-review event JSON. Event IDs and opaque event-ID dedupe keys are deterministic; tenant/site/camera/zone scope, event type, model metadata, confidence, evidence-reference bounds and vehicle-only metadata rules match the backend contract. Identical replay is idempotent, changed replay fails closed, metadata ordering survives restart, and capacity exhaustion returns backpressure without evicting a pending review event. An injected authenticated sender removes an item only after durable upstream acknowledgement; downstream failure retains it for safe retry, and other spool priorities are not consumed. Synthetic tests cover malformed and autonomous-action fields, biometric event rejection, scope mismatch, replay, duplicates, capacity, recovery and downstream failure. No live transport, credential, model, dataset, footage, evidence object, notification, alarm, dispatch, access-control action, safety conclusion, activation, deployment or readiness claim is added; verified mTLS ingress remains mandatory before runtime wiring."
+    },
+    {
+      "id": "T-0424",
+      "title": "Confirm bounded PPE metadata before human review",
+      "phase": 12,
+      "owner": "AI, Safety and Security",
+      "dependencies": ["T-0099", "T-0363", "T-0417", "T-0423"],
+      "status": "in_review",
+      "acceptance": "A tenant/site/camera/zone-local boundary accepts ordered batches of at most 64 already-associated, identity-free track metadata records for the six bounded PPE items and an explicit non-empty per-zone required-item matrix. Unknown, incomplete or fully present metadata does not confirm. Exactly one opaque ppe_review event is emitted only after three same-track, same-missing-set and model-version-consistent observations no more than one second apart. Minimum absence-confidence, a 256-state cap, bounded emitted cooldown, payload-free metrics, retry-stable IDs, deterministic ordering, and atomic scope, replay, malformed-input, duplicate and capacity rejection fail closed. Events require pending human review and omit track IDs, PPE item/state details, boxes, coordinates, pixels, images, identity, biometrics, faces, plates, embeddings, compliance/safety conclusions and autonomous-action instructions. Tests are synthetic. No detector, attachment model, model weight, dataset, customer footage, evidence object, benchmark, notification, alarm, dispatch, access-control action, activation, promotion or deployment is added."
     }
   ]
 }
