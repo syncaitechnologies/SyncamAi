@@ -441,3 +441,28 @@ duplicates, malformed metadata, atomic capacity failure and bounded emitted
 state. No model, pose source, pixel, image, footage, evidence, notification,
 emergency action, alarm, dispatch, access-control action, dataset, evaluation,
 activation, promotion or deployment is introduced.
+
+## T-0426 fight-review temporal confirmation boundary
+
+T-0425 is complete. T-0426 adds a metadata-only temporal boundary for future
+FR-112 camera-local track-cluster motion output. Each ordered frame contains at
+most 64 already-associated tracks and is fixed to one tenant, site, camera and
+zone. At least two tracks in one stable cluster must carry explicit aggressive
+motion for one sustained second with the same participant set and model
+provenance and no observation gap longer than one second.
+
+Ordinary crowd movement, hugging, jostling, unknown motion, missing tracks or
+clusters, participant changes, mixed or changed model provenance and excessive
+gaps do not confirm or reset the candidate. The event uses minimum confidence
+across the qualifying cluster window and contains only an opaque deterministic
+ID, scope, provenance, confidence and mandatory pending-review state. Track and
+cluster IDs, motion details and intent, violence, injury or safety conclusions
+stay local.
+
+See [the fight review confirmation guide](phase-8-fight-review-confirmation.md).
+Synthetic tests cover the exact duration and participant boundaries,
+non-confirming motion, resets, deterministic ordering and retry, replay,
+duplicates, malformed metadata, atomic capacity failure and bounded emitted
+state. No model, pose source, pixel, image, footage, evidence, notification,
+alarm, dispatch, access-control action, dataset, evaluation, activation,
+promotion or deployment is introduced.
