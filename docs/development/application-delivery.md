@@ -365,7 +365,7 @@ complementary to certified fire systems.
 
 ## T-0423 pending-review event delivery composition
 
-T-0422 is complete. T-0423 adds a bounded edge composition for the existing
+PR 153 merged as `ff6c240`; T-0422 is complete. T-0423 adds a bounded edge composition for the existing
 canonical non-biometric review-event JSON. The tenant and site are fixed when
 the boundary is constructed; every event also carries validated camera and zone
 UUIDs. Strict decoding rejects missing or unknown fields, including attempted
@@ -393,3 +393,26 @@ sender, credential, endpoint, model, footage, evidence object, notification,
 alarm, dispatch, safety decision, activation or deployment is added. Runtime
 wiring remains blocked on verified mTLS ingress and the existing privacy,
 hardware, licensing, promotion, evaluation and human-approval gates.
+
+## T-0424 PPE review confirmation boundary
+
+T-0423 is complete. T-0424 adds a metadata-only temporal confirmation layer
+for future FR-106 PPE candidate output. A strict per-zone matrix selects one or
+more of the six bounded PPE items: helmet, vest, mask, gloves, glasses and
+boots. Each ordered frame contains at most 64 already-associated camera-local
+tracks with explicit `present`, `absent` or `unknown` item states.
+
+Unknown, incomplete and fully present metadata never confirms. A potential
+absence must remain on the same local track with the same missing-item set and
+model version for three observations no more than one second apart. The event
+uses the minimum absence confidence and contains only an opaque deterministic
+ID, scope, provenance, confidence and mandatory pending-review state. Track IDs,
+item names/states and safety or compliance conclusions stay local.
+
+See [the PPE review confirmation guide](phase-8-ppe-review-confirmation.md).
+Synthetic tests cover the matrix, unknown and incomplete observations, timing,
+missing-set and provenance resets, deterministic ordering and retry, replay,
+duplicates, malformed metadata, atomic capacity failure, cooldown expiry and
+reconfirmation. No detector, association/attachment model, image, evidence,
+notification, alarm, dispatch, access-control action, model artifact, dataset,
+evaluation, activation, promotion or deployment is introduced.
