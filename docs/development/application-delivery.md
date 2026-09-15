@@ -466,3 +466,28 @@ duplicates, malformed metadata, atomic capacity failure and bounded emitted
 state. No model, pose source, pixel, image, footage, evidence, notification,
 alarm, dispatch, access-control action, dataset, evaluation, activation,
 promotion or deployment is introduced.
+
+## T-0427 bounded privacy-release artifact loader
+
+T-0426 is complete. T-0427 adds a strict metadata-only boundary for loading one
+locally provisioned privacy-release artifact before it can reach the existing
+controlled release gate. The artifact is capped at 128 KiB, must use schema
+version 1, and fails closed on malformed JSON, duplicate or unknown fields, or
+trailing content.
+
+The loader requires exact caller-configured tenant, site, camera, device,
+hardware-profile and HIL-harness scope. It recomputes the approved dual-review
+candidate hash, enforces the closed `decode -> mask -> encode` pipeline, and
+verifies the signed physical-HIL attestation with an injected Ed25519 public
+key. A successful load returns a defensive metadata copy plus deterministic
+candidate and evidence hashes; it does not accept the release, mutate state,
+call hardware, handle frames, or wire the executable.
+
+See [the privacy-release loader guide](phase-3-privacy-release-loader.md).
+Synthetic tests cover deterministic reload, mutation isolation, input bounds,
+ambiguous JSON, scope and profile drift, simulated evidence, invalid release
+metadata and signature tampering. No secret, private key, credential, customer
+footage, evidence object, pixel, model, dataset, activation, promotion or
+deployment is introduced. OS-backed trust provisioning, executable composition,
+a real allowlisted hardware executor and physical signed-mask HIL remain
+mandatory production blockers.
