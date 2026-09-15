@@ -1053,8 +1053,17 @@
       "phase": 12,
       "owner": "AI, Safety and Security",
       "dependencies": ["T-0101", "T-0363", "T-0417", "T-0423", "T-0425"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A tenant/site/camera/zone-local boundary accepts ordered batches of at most 64 already-associated, identity-free motion metadata records grouped by bounded local cluster IDs. It emits exactly one opaque fight_review event only after at least two same-cluster camera-local tracks carry unambiguous aggressive-motion metadata for at least one second with an unchanged participant set, consistent model provenance and gaps no longer than one second. Ordinary crowd movement, hugs, jostling, unknown motion, missing tracks or clusters, excessive gaps, participant changes and provenance changes do not confirm or reset state. Minimum cluster confidence, a 256-state cap, bounded emitted cooldown, payload-free metrics, retry-stable IDs, deterministic ordering, duplicate suppression, and atomic scope, replay, malformed-input and capacity rejection fail closed. Events require pending human review and omit track IDs, cluster IDs, motion details, pixels, images, identity, biometrics, faces, plates, embeddings, intent, violence, injury or safety conclusions and autonomous-action instructions. Tests are synthetic. No model, weight, dataset, customer footage, evidence object, benchmark, notification, alarm, dispatch, access-control action, activation, promotion or deployment is added."
+    },
+    {
+      "id": "T-0427",
+      "title": "Load bounded privacy-release artifacts before activation",
+      "phase": 12,
+      "owner": "Edge and Security",
+      "dependencies": ["T-0354", "T-0417", "T-0426"],
+      "status": "in_review",
+      "acceptance": "A metadata-only local loader consumes exactly one privacy-release JSON artifact capped at 128 KiB, rejects malformed, duplicate, unknown and trailing fields, and requires schema version 1. The artifact is bound to caller-configured tenant, site, camera, device, hardware-profile and physical-HIL harness scope; its approved dual-review candidate, strict decode-mask-encode pipeline, release UUID/version, candidate hash and signed HIL attestation are reverified against an injected Ed25519 public key before a defensive copy is returned. Loading performs no acceptance, state mutation, hardware execution, frame processing or runtime wiring. Synthetic tests cover deterministic reload, mutation isolation, malformed and oversized input, scope drift, invalid release metadata, simulated evidence and signature tampering. No private key, secret, credential, customer footage, evidence object, pixel, model, dataset, activation, promotion or deployment is added; OS-backed trust provisioning, executable composition, a real allowlisted hardware executor and physical signed-mask HIL remain mandatory."
     }
   ]
 }

@@ -93,5 +93,25 @@ exponential delay bounded by a configured maximum. The worker's supervisor
 never interprets or stores releases and does not fall back to generic
 configuration delivery. Cancellation always terminates the loop.
 
+## T-0427 bounded local release loader
+
+The local loader accepts exactly one metadata-only JSON bundle of at most
+128 KiB. It rejects duplicate or unknown fields, trailing documents and
+unsupported schema versions. Scope is not taken on trust from the bundle: a
+caller must supply the expected tenant, site, camera and allowlisted hardware
+profile, and the bundle must match that tenant/site/camera/device/profile/HIL
+harness boundary exactly.
+
+Before returning anything, the loader repeats candidate and strict pipeline
+verification and authenticates the physical-HIL attestation with a caller-
+injected Ed25519 public key. It never accepts or activates a release, invokes a
+hardware executor, reads a camera stream, or processes frames. Key acquisition,
+artifact file ownership/permissions and atomic provisioning are intentionally
+outside this library contract and require an approved OS-backed trust design.
+
+Synthetic tests do not constitute physical HIL. Executable composition, the
+real allowlisted hardware executor, a physically executed signed-mask result,
+and production review remain separate mandatory gates.
+
 
 
