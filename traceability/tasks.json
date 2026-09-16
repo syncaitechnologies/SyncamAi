@@ -1062,7 +1062,7 @@
       "phase": 12,
       "owner": "Edge and Security",
       "dependencies": ["T-0354", "T-0417", "T-0426"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A metadata-only local loader consumes exactly one privacy-release JSON artifact capped at 128 KiB, rejects malformed, duplicate, unknown and trailing fields, and requires schema version 1. The artifact is bound to caller-configured tenant, site, camera, device, hardware-profile and physical-HIL harness scope; its approved dual-review candidate, strict decode-mask-encode pipeline, release UUID/version, candidate hash and signed HIL attestation are reverified against an injected Ed25519 public key before a defensive copy is returned. Loading performs no acceptance, state mutation, hardware execution, frame processing or runtime wiring. Synthetic tests cover deterministic reload, mutation isolation, malformed and oversized input, scope drift, invalid release metadata, simulated evidence and signature tampering. No private key, secret, credential, customer footage, evidence object, pixel, model, dataset, activation, promotion or deployment is added; OS-backed trust provisioning, executable composition, a real allowlisted hardware executor and physical signed-mask HIL remain mandatory."
     },
     {
@@ -1071,7 +1071,7 @@
       "phase": 12,
       "owner": "Edge and Security",
       "dependencies": ["T-0414", "T-0427"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "An explicitly injected raw-bundle source, T-0427 loader and controlled release gate compose through the existing worker and supervisor into an optional cancellable edge-runtime loop. The source receives only the last accepted version; a nil source result is inert, and source, parse, verification, apply or cancellation failure cannot bypass the loader or replace the prior accepted metadata release. Synthetic runtime tests cover verified acceptance, empty polling, invalid composition, tampered artifacts, cancellation and safe lifecycle observability. No existing edge command, wire contract, filesystem provisioning, OS trust store, credential, private key, device, frame, model, media path, hardware executor, activation, deployment or production-readiness claim is changed."
     }
   ]
