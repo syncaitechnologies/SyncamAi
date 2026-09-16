@@ -76,4 +76,3 @@ func nextPrivacyMaskReleaseRetryDelay(delay, maximum time.Duration) time.Duratio
 	}
 	return delay * 2
 }
-

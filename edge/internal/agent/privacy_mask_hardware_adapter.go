@@ -179,4 +179,3 @@ func equalHardwarePrivacyMaskActivation(left, right HardwarePrivacyMaskActivatio
 	}
 	return true
 }
-

@@ -60,6 +60,14 @@ type runtimeSpoolFake struct{ depth int64 }
 
 func (f runtimeSpoolFake) Metrics() SpoolMetrics { return SpoolMetrics{Depth: f.depth} }
 
+type runtimePrivacyMaskReleaseFake struct{ started chan struct{} }
+
+func (f *runtimePrivacyMaskReleaseFake) Run(ctx context.Context) error {
+	close(f.started)
+	<-ctx.Done()
+	return ctx.Err()
+}
+
 func TestEdgeRuntimeComposesHeartbeatConfigurationSpoolAndRTSP(t *testing.T) {
 	heartbeat := &runtimeHeartbeatFake{desired: 7}
 	configuration := &runtimeConfigurationFake{applied: 3, started: make(chan struct{})}
@@ -110,5 +118,38 @@ func TestEdgeRuntimeRejectsIncompleteComposition(t *testing.T) {
 	valid.FirmwareVersion = ""
 	if _, err := NewEdgeRuntime(valid, &runtimeHeartbeatFake{}, configuration, runtimeSpoolFake{}); !errors.Is(err, ErrInvalidRuntime) {
 		t.Fatalf("missing firmware must fail: %v", err)
+	}
+	if _, err := NewEdgeRuntimeWithPrivacyMaskRelease(EdgeRuntimeConfig{FirmwareVersion: "1", HeartbeatInterval: time.Second, ConfigurationInterval: time.Second}, &runtimeHeartbeatFake{}, configuration, runtimeSpoolFake{}, nil); !errors.Is(err, ErrInvalidRuntime) {
+		t.Fatalf("missing privacy release loop must fail: %v", err)
+	}
+}
+
+func TestEdgeRuntimeComposesOptionalPrivacyMaskReleaseLoop(t *testing.T) {
+	heartbeat := &runtimeHeartbeatFake{}
+	configuration := &runtimeConfigurationFake{started: make(chan struct{})}
+	privacyRelease := &runtimePrivacyMaskReleaseFake{started: make(chan struct{})}
+	runtime, err := NewEdgeRuntimeWithPrivacyMaskRelease(EdgeRuntimeConfig{FirmwareVersion: "1.0.0", HeartbeatInterval: time.Millisecond, ConfigurationInterval: time.Millisecond}, heartbeat, configuration, runtimeSpoolFake{}, privacyRelease)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	events := make(chan RuntimeEvent, 8)
+	done := make(chan error, 1)
+	go func() { done <- runtime.Run(ctx, func(event RuntimeEvent) { events <- event }) }()
+	<-configuration.started
+	<-privacyRelease.started
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("runtime cancellation: %v", err)
+	}
+	close(events)
+	started := false
+	for event := range events {
+		if event.Component == "privacy_mask_release" && event.State == "started" {
+			started = true
+		}
+	}
+	if !started {
+		t.Fatal("privacy release loop start must be observable without exposing release data")
 	}
 }

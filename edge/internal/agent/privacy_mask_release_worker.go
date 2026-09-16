@@ -55,4 +55,3 @@ func (w *PrivacyMaskReleaseWorker) Run(ctx context.Context) error {
 		}
 	}
 }
-

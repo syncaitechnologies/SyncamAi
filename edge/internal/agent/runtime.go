@@ -20,6 +20,10 @@ type configurationLoop interface {
 	SyncIfDesired(context.Context, int64) error
 }
 
+type privacyMaskReleaseLoop interface {
+	Run(context.Context) error
+}
+
 type IngestLoop interface {
 	Run(context.Context, func(RTSPStatus)) error
 }
@@ -50,15 +54,32 @@ type EdgeRuntimeConfig struct {
 // and RTSP lifecycle boundaries into one cancellable process. It does not
 // retain frames or perform inference.
 type EdgeRuntime struct {
-	config        EdgeRuntimeConfig
-	heartbeat     heartbeatLoop
-	configuration configurationLoop
-	spool         spoolMetrics
-	ingests       []IngestLoop
-	now           func() time.Time
+	config         EdgeRuntimeConfig
+	heartbeat      heartbeatLoop
+	configuration  configurationLoop
+	privacyRelease privacyMaskReleaseLoop
+	spool          spoolMetrics
+	ingests        []IngestLoop
+	now            func() time.Time
 }
 
 func NewEdgeRuntime(config EdgeRuntimeConfig, heartbeat heartbeatLoop, configuration configurationLoop, spool spoolMetrics, ingests ...IngestLoop) (*EdgeRuntime, error) {
+	return newEdgeRuntime(config, heartbeat, configuration, spool, nil, ingests...)
+}
+
+// NewEdgeRuntimeWithPrivacyMaskRelease composes an already-verified dedicated
+// privacy-release loop into the cancellable edge process. The loop is injected:
+// this constructor neither reads trust material nor creates a transport or
+// hardware executor. Callers must therefore provide an independently reviewed
+// source, loader, gate, and executor before they can opt in.
+func NewEdgeRuntimeWithPrivacyMaskRelease(config EdgeRuntimeConfig, heartbeat heartbeatLoop, configuration configurationLoop, spool spoolMetrics, privacyRelease privacyMaskReleaseLoop, ingests ...IngestLoop) (*EdgeRuntime, error) {
+	if privacyRelease == nil {
+		return nil, ErrInvalidRuntime
+	}
+	return newEdgeRuntime(config, heartbeat, configuration, spool, privacyRelease, ingests...)
+}
+
+func newEdgeRuntime(config EdgeRuntimeConfig, heartbeat heartbeatLoop, configuration configurationLoop, spool spoolMetrics, privacyRelease privacyMaskReleaseLoop, ingests ...IngestLoop) (*EdgeRuntime, error) {
 	config.FirmwareVersion = strings.TrimSpace(config.FirmwareVersion)
 	if config.FirmwareVersion == "" || len(config.FirmwareVersion) > maxFirmwareVersionSize || config.HeartbeatInterval <= 0 || config.HeartbeatInterval > HeartbeatInterval || config.ConfigurationInterval <= 0 || config.ConfigurationInterval > ConfigPollInterval || heartbeat == nil || configuration == nil || spool == nil {
 		return nil, ErrInvalidRuntime
@@ -69,12 +90,13 @@ func NewEdgeRuntime(config EdgeRuntimeConfig, heartbeat heartbeatLoop, configura
 		}
 	}
 	return &EdgeRuntime{
-		config:        config,
-		heartbeat:     heartbeat,
-		configuration: configuration,
-		spool:         spool,
-		ingests:       append([]IngestLoop(nil), ingests...),
-		now:           func() time.Time { return time.Now().UTC() },
+		config:         config,
+		heartbeat:      heartbeat,
+		configuration:  configuration,
+		privacyRelease: privacyRelease,
+		spool:          spool,
+		ingests:        append([]IngestLoop(nil), ingests...),
+		now:            func() time.Time { return time.Now().UTC() },
 	}, nil
 }
 
@@ -88,7 +110,7 @@ func (r *EdgeRuntime) Run(ctx context.Context, report func(RuntimeEvent)) error 
 	report(r.event("runtime", "started"))
 
 	var wait sync.WaitGroup
-	errorsOut := make(chan error, len(r.ingests)+2)
+	errorsOut := make(chan error, len(r.ingests)+3)
 	launch := func(run func() error) {
 		wait.Add(1)
 		go func() {
@@ -100,6 +122,12 @@ func (r *EdgeRuntime) Run(ctx context.Context, report func(RuntimeEvent)) error 
 	launch(func() error {
 		return r.configuration.Run(runContext, r.config.ConfigurationInterval)
 	})
+	if r.privacyRelease != nil {
+		report(r.event("privacy_mask_release", "started"))
+		launch(func() error {
+			return r.privacyRelease.Run(runContext)
+		})
+	}
 	for _, ingest := range r.ingests {
 		ingest := ingest
 		launch(func() error {
