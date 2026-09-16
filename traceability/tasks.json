@@ -1089,8 +1089,17 @@
       "phase": 12,
       "owner": "Engineering, Privacy and Legal",
       "dependencies": ["T-0429"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A pure in-memory test-only transition boundary advances a valid metadata-only privacy-rights draft only from verification_pending to under_review or rejected, under_review to fulfillment_pending or rejected, and fulfillment_pending to completed or partially_fulfilled. It revalidates matching caller-injected test-only policy metadata, preserves opaque identifiers and receipt/due data, returns a copied next version with a strictly later UTC update timestamp, and fails closed for skipped, repeated, terminal, stale, policy-mismatched, malformed or non-test transitions. Tests cover the ordered path, documented terminal outcomes and negative cases. No persistence, API, UI, queue, audit/outbox, identity verification, owner assignment, legal determination, real deadline, consent/withdrawal effect, deletion, hold, store access, fulfillment, external communication, personal payload, biometric data or production claim is added."
+    },
+    {
+      "id": "T-0431",
+      "title": "Serialize test-only privacy-rights transitions idempotently",
+      "phase": 12,
+      "owner": "Engineering, Privacy and Legal",
+      "dependencies": ["T-0430"],
+      "status": "in_review",
+      "acceptance": "A process-local, single-case test-only store accepts a bounded metadata-only transition command with an opaque UUIDv4 request identifier, expected version, next state and UTC transition time. It serializes concurrent callers; exact replay returns the original copied result; reused request identifiers with different details conflict; stale expected versions fail; and all rejected commands preserve state. Tests cover replay after a later transition, request conflicts, stale versions, concurrent callers and malformed input. No persistence, API, UI, queue, audit/outbox, identity verification, owner assignment, legal determination, real deadline, consent/withdrawal effect, deletion, hold, store access, fulfillment, external communication, personal payload, biometric data or production claim is added."
     }
   ]
 }
