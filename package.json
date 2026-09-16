@@ -10,6 +10,6 @@
     "supabase:reset": "supabase db reset --workdir backend"
   },
   "devDependencies": {
-    "supabase": "2.116.0"
+    "supabase": "2.117.0"
   }
 }
