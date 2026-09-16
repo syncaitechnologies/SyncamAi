@@ -37,6 +37,11 @@ const (
 	RequestLimitation  RequestKind = "limitation"
 
 	VerificationPending = "verification_pending"
+	UnderReview         = "under_review"
+	FulfillmentPending  = "fulfillment_pending"
+	Completed           = "completed"
+	Rejected            = "rejected"
+	PartiallyFulfilled  = "partially_fulfilled"
 )
 
 // TestPolicy is caller-supplied synthetic policy metadata. The production
@@ -74,6 +79,7 @@ type CaseDraft struct {
 	State          string
 	Version        int64
 	ReceivedAt     time.Time
+	UpdatedAt      time.Time
 	DueAt          time.Time
 	JurisdictionID string
 	PurposeID      string
@@ -97,6 +103,7 @@ func CreateTestDraft(input DraftInput, policy TestPolicy, receivedAt time.Time) 
 		State:          VerificationPending,
 		Version:        1,
 		ReceivedAt:     receivedAt,
+		UpdatedAt:      receivedAt,
 		DueAt:          receivedAt.Add(policy.DeadlineInterval),
 		JurisdictionID: policy.JurisdictionID,
 		PurposeID:      policy.PurposeID,
