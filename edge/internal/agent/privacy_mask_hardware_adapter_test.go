@@ -158,4 +158,3 @@ func TestHardwareBoundPrivacyMaskAdapterRejectsInvalidProfiles(t *testing.T) {
 		t.Fatalf("missing executor must fail closed: %v", err)
 	}
 }
-

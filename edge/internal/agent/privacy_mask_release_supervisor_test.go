@@ -99,4 +99,3 @@ func TestNextPrivacyMaskReleaseRetryDelayNeverExceedsMaximum(t *testing.T) {
 		}
 	}
 }
-

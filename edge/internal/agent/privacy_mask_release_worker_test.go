@@ -113,4 +113,3 @@ func TestPrivacyMaskReleaseWorkerRepeatsOnlyAfterItsConfiguredInterval(t *testin
 		t.Fatal("worker did not stop after cancellation")
 	}
 }
-
