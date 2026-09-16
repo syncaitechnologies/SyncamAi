@@ -1080,8 +1080,17 @@
       "phase": 12,
       "owner": "Engineering, Privacy and Legal",
       "dependencies": ["T-0405", "T-0407"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A pure in-memory test-only boundary accepts only opaque UUIDv4 case, tenant and subject references; an optional opaque requester reference; one bounded request kind from the draft individual privacy-request procedure; and caller-injected synthetic jurisdiction, purpose, policy-version and legal-clock identifiers plus a bounded synthetic deadline. It returns only a verification_pending draft and fails closed for invalid identifiers, request kinds, timestamps or non-test policy configuration. Tests cover every permitted request kind, non-account requester intake and invalid metadata. No HTTP, browser route, database, migration, RLS, audit, outbox, queue, worker, identity/authority verification, staff assignment, legal calculation, consent change, deletion, hold, store inspection, fulfillment, external contact, biometric payload, actual request or production claim is added."
+    },
+    {
+      "id": "T-0430",
+      "title": "Validate test-only privacy-rights case transitions",
+      "phase": 12,
+      "owner": "Engineering, Privacy and Legal",
+      "dependencies": ["T-0429"],
+      "status": "in_review",
+      "acceptance": "A pure in-memory test-only transition boundary advances a valid metadata-only privacy-rights draft only from verification_pending to under_review or rejected, under_review to fulfillment_pending or rejected, and fulfillment_pending to completed or partially_fulfilled. It revalidates matching caller-injected test-only policy metadata, preserves opaque identifiers and receipt/due data, returns a copied next version with a strictly later UTC update timestamp, and fails closed for skipped, repeated, terminal, stale, policy-mismatched, malformed or non-test transitions. Tests cover the ordered path, documented terminal outcomes and negative cases. No persistence, API, UI, queue, audit/outbox, identity verification, owner assignment, legal determination, real deadline, consent/withdrawal effect, deletion, hold, store access, fulfillment, external communication, personal payload, biometric data or production claim is added."
     }
   ]
 }

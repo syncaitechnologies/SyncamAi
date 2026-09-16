@@ -36,7 +36,7 @@ func TestCreateTestDraftBuildsOnlyVerificationPendingMetadata(t *testing.T) {
 	if draft.CaseID != "11111111-1111-4111-8111-111111111111" || draft.TenantID != "22222222-2222-4222-8222-222222222222" || draft.SubjectID != "33333333-3333-4333-8333-333333333333" || draft.RequesterID != "44444444-4444-4444-8444-444444444444" {
 		t.Fatalf("unexpected opaque identifiers: %#v", draft)
 	}
-	if draft.Kind != RequestErasure || draft.State != VerificationPending || draft.Version != 1 || !draft.ReceivedAt.Equal(receivedAt) || !draft.DueAt.Equal(receivedAt.Add(48*time.Hour)) {
+	if draft.Kind != RequestErasure || draft.State != VerificationPending || draft.Version != 1 || !draft.ReceivedAt.Equal(receivedAt) || !draft.UpdatedAt.Equal(receivedAt) || !draft.DueAt.Equal(receivedAt.Add(48*time.Hour)) {
 		t.Fatalf("draft must remain verification pending: %#v", draft)
 	}
 	if draft.JurisdictionID != "synthetic-jurisdiction" || draft.PurposeID != "synthetic-purpose" || draft.PolicyVersion != "test-1.0" || draft.LegalClockID != "synthetic-clock" {
