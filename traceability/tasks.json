@@ -1073,6 +1073,15 @@
       "dependencies": ["T-0414", "T-0427"],
       "status": "complete",
       "acceptance": "An explicitly injected raw-bundle source, T-0427 loader and controlled release gate compose through the existing worker and supervisor into an optional cancellable edge-runtime loop. The source receives only the last accepted version; a nil source result is inert, and source, parse, verification, apply or cancellation failure cannot bypass the loader or replace the prior accepted metadata release. Synthetic runtime tests cover verified acceptance, empty polling, invalid composition, tampered artifacts, cancellation and safe lifecycle observability. No existing edge command, wire contract, filesystem provisioning, OS trust store, credential, private key, device, frame, model, media path, hardware executor, activation, deployment or production-readiness claim is changed."
+    },
+    {
+      "id": "T-0429",
+      "title": "Validate test-only non-biometric privacy-rights intake drafts",
+      "phase": 12,
+      "owner": "Engineering, Privacy and Legal",
+      "dependencies": ["T-0405", "T-0407"],
+      "status": "in_review",
+      "acceptance": "A pure in-memory test-only boundary accepts only opaque UUIDv4 case, tenant and subject references; an optional opaque requester reference; one bounded request kind from the draft individual privacy-request procedure; and caller-injected synthetic jurisdiction, purpose, policy-version and legal-clock identifiers plus a bounded synthetic deadline. It returns only a verification_pending draft and fails closed for invalid identifiers, request kinds, timestamps or non-test policy configuration. Tests cover every permitted request kind, non-account requester intake and invalid metadata. No HTTP, browser route, database, migration, RLS, audit, outbox, queue, worker, identity/authority verification, staff assignment, legal calculation, consent change, deletion, hold, store inspection, fulfillment, external contact, biometric payload, actual request or production claim is added."
     }
   ]
 }
