@@ -8,9 +8,11 @@ import { OrganizationOnboarding } from "./OrganizationOnboarding";
 import { OperationsDashboard } from "./OperationsDashboard";
 import { useAlertFeed } from "./use-alert-feed";
 import { ZoneBuilder } from "./ZoneBuilder";
+import { VisionDemo } from "./VisionDemo";
+import { initialDemoView } from "./vision-demo-model";
 
 type Filter = "all" | "critical" | "unacknowledged" | "acknowledged";
-type View = "dashboard" | "alerts" | "cameras" | "zones" | "models" | "onboarding";
+type View = "dashboard" | "alerts" | "cameras" | "zones" | "models" | "onboarding" | "vision";
 
 const seedAlerts: AlertItem[] = [
   {
@@ -190,7 +192,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
     queueLoaded,
     dataMode,
   } = useAlertFeed(seedAlerts);
-  const [activeView, setActiveView] = useState<View>("dashboard");
+  const [activeView, setActiveView] = useState<View>(() => initialDemoView(window.location.search, dataMode));
   const [now, setNow] = useState(() => new Date());
   const [selectedId, setSelectedId] = useState(firstAlert.id);
   const [filter, setFilter] = useState<Filter>("all");
@@ -392,7 +394,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
     setToast(`Alert dismissed · ${reason}`);
   }
   return (
-    <div className="app-shell">
+    <div className={activeView === "vision" ? "app-shell vision-shell" : "app-shell"}>
       <aside className="sidebar" aria-label="Primary navigation">
         <div className="brand-lockup">
           <div className="brand-mark">
@@ -416,6 +418,16 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
         </div>
         <nav className="nav-list">
           <span className="nav-label">Monitor</span>
+          <button
+            className={activeView === "vision" ? "nav-item vision-entry active" : "nav-item vision-entry"}
+            type="button"
+            onClick={() => setActiveView("vision")}
+            aria-label="Open AI walkthrough"
+            aria-current={activeView === "vision" ? "page" : undefined}
+          >
+            <Icon name="play" />
+            <span>AI walkthrough</span>
+          </button>
           <button
             className={activeView === "dashboard" ? "nav-item active" : "nav-item"}
             type="button"
@@ -515,7 +527,9 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
             <span>Monitor</span>
             <Icon name="chevron" size={14} />
             <strong>
-              {activeView === "dashboard"
+              {activeView === "vision"
+                ? "AI walkthrough"
+                : activeView === "dashboard"
                 ? "Operations overview"
                 : activeView === "cameras"
                   ? "Camera Wall"
@@ -553,7 +567,9 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
             </time>
           </div>
         </header>
-        {activeView === "dashboard" ? (
+        {activeView === "vision" ? (
+          <VisionDemo dataMode={dataMode} onOpenOverview={() => setActiveView("dashboard")} />
+        ) : activeView === "dashboard" ? (
           <OperationsDashboard
             alerts={alerts}
             connectionLabel={connectionLabel}

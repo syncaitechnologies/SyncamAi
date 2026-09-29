@@ -18,6 +18,12 @@ Phase 1 local persistence uses Postgres 16 with separate `syncam_admin` migratio
 
 ## Web authentication (temporary Supabase MVP)
 
+For the phone-friendly client presentation, open **AI walkthrough** or append
+`?demo=vision` to a demo-mode frontend URL. It presents person detection,
+weapon review and fictional face-attendance workflows with clearly labelled
+scripted observations. See the [presentation guide and live blockers](docs/development/three-feature-client-demo.md).
+This walkthrough does not run AI models or process camera feeds or faces.
+
 The web app stays in synthetic demo mode until its Supabase configuration is deliberately enabled. For a live development login, copy [`frontend/apps/web/.env.example`](frontend/apps/web/.env.example) to an ignored `frontend/apps/web/.env.local`, set `VITE_SYNCAM_DATA_MODE=live`, and enter only the development project's URL and **publishable** key. Also add the local and deployed web origins to Supabase Auth's Redirect URLs before testing a redirect-based SSO provider. The browser uses PKCE and maintains its own session; it supplies only the short-lived access token to the existing Go API. Authorization remains server-side and uses trusted `app_metadata.syncam`, never browser-controlled user metadata. Do not place service-role keys, database passwords, access tokens, or refresh tokens in Vite or Vercel environment configuration.
 
 The FR-103a event-only vehicle adapter converts confirmed camera-local tracks into review-required events without LPR, ReID, speed, risk scoring, or theft claims. See the [vehicle-activity development guide](docs/development/phase-6-vehicle-activity.md).

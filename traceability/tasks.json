@@ -1098,8 +1098,17 @@
       "phase": 12,
       "owner": "Engineering, Privacy and Legal",
       "dependencies": ["T-0430"],
-      "status": "in_review",
+      "status": "complete",
       "acceptance": "A process-local, single-case test-only store accepts a bounded metadata-only transition command with an opaque UUIDv4 request identifier, expected version, next state and UTC transition time. It serializes concurrent callers; exact replay returns the original copied result; reused request identifiers with different details conflict; stale expected versions fail; and all rejected commands preserve state. Tests cover replay after a later transition, request conflicts, stale versions, concurrent callers and malformed input. No persistence, API, UI, queue, audit/outbox, identity verification, owner assignment, legal determination, real deadline, consent/withdrawal effect, deletion, hold, store access, fulfillment, external communication, personal payload, biometric data or production claim is added."
+    },
+    {
+      "id": "T-0432",
+      "title": "Deliver a mobile synthetic walkthrough for the first three AI workflows",
+      "phase": 12,
+      "owner": "Web and Product",
+      "dependencies": ["T-0319", "T-0360", "T-0392", "T-0420"],
+      "status": "in_review",
+      "acceptance": "A phone-friendly React walkthrough opens from navigation or the demo-only query entry and presents explicitly scripted person-zone, three-observation weapon and fictional opted-in/liveness-gated attendance scenarios. Negative scenes, thresholds, prerequisites, replay, reset and human-review states have focused tests. No camera permission, upload, pixel inference, biometric processing, consent collection, real attendance, backend mutation, model activation or production claim is introduced. Live mode cannot display simulated outcomes. A client presentation guide identifies existing code and missing inference/runtime/model/biometric prerequisites; the full verification gate and browser checks precede draft PR publication."
     }
   ]
 }
