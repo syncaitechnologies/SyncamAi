@@ -16,5 +16,6 @@ Architecture decisions are immutable records: supersede an accepted ADR with a n
 | [ADR-010](ADR-010-initial-super-admin-bootstrap.md) | Initial Super Admin bootstrap | Accepted |
 | [ADR-011](ADR-011-identity-provider-lifecycle-delivery.md) | Identity-provider lifecycle delivery | Accepted |
 | [ADR-012](ADR-012-free-prototype-runtime-access.md) | Restricted free prototype runtime access | Engineering decision; not GA approval |
+| [ADR-013](ADR-013-mobile-three-feature-demo.md) | Mobile walkthrough for three AI workflows | Engineering decision; synthetic only |
 
 Every ADR must state its operational and security consequences. ADR-001 remains a release blocker until legal approval is recorded.
