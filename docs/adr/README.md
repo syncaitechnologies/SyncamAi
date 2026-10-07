@@ -4,7 +4,7 @@ Architecture decisions are immutable records: supersede an accepted ADR with a n
 
 | ADR | Decision | Status |
 |---|---|---|
-| [ADR-001](ADR-001-model-license.md) | Model and code licensing | Proposed; legal gate |
+| [ADR-001](ADR-001-model-license.md) | Model and code licensing | Accepted for Apache-only development; legal gate for production |
 | [ADR-002](ADR-002-monorepo.md) | Monorepo | Accepted |
 | [ADR-003](ADR-003-event-backbone.md) | Event backbone taxonomy | Accepted |
 | [ADR-004](ADR-004-edge-agent-go.md) | Go edge agent | Accepted |
@@ -19,3 +19,4 @@ Architecture decisions are immutable records: supersede an accepted ADR with a n
 | [ADR-013](ADR-013-mobile-three-feature-demo.md) | Mobile walkthrough for three AI workflows | Engineering decision; synthetic only |
 
 Every ADR must state its operational and security consequences. ADR-001 remains a release blocker until legal approval is recorded.
+
