@@ -9,6 +9,12 @@ description = "SyncCam AI Python 3.12 service scaffolds"
 requires-python = ">=3.12,<3.13"
 license = { text = "Proprietary" }
 
+[project.optional-dependencies]
+person-detector = [
+  "numpy>=1.26,<3",
+  "openvino>=2025.0,<2026.0",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
@@ -19,3 +25,4 @@ line-length = 100
 [tool.mypy]
 python_version = "3.12"
 strict = true
+
