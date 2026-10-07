@@ -14,6 +14,10 @@
     "typescript",
     "vite"
   ],
+  "python_package_allowlist": [
+    "numpy",
+    "openvino"
+  ],
   "go_module_allowlist": [
     "github.com/coder/websocket",
     "github.com/coreos/go-oidc/v3",
@@ -25,3 +29,4 @@
   ],
   "notes": "Transitive licenses are checked by dependency review/SBOM tooling. Any new direct dependency requires explicit review. The pinned supabase CLI 2.116.0 is MIT-licensed and is approved solely for local development, migration and CI verification. The pinned @supabase/supabase-js 2.113.0 browser client is MIT-licensed and approved solely for the temporary Supabase PKCE authentication boundary; it must never receive privileged Supabase keys."
 }
+
