@@ -15,7 +15,9 @@
       "title": "Repair source contradictions and record ADR-001 through ADR-008",
       "phase": 0,
       "owner": "Architecture",
-      "dependencies": ["T-0301"],
+      "dependencies": [
+        "T-0301"
+      ],
       "status": "complete",
       "acceptance": "Blocker and major decisions are consistent across canonical documents and ADRs."
     },
@@ -24,7 +26,9 @@
       "title": "Add executable requirements and task traceability",
       "phase": 0,
       "owner": "Architecture",
-      "dependencies": ["T-0302"],
+      "dependencies": [
+        "T-0302"
+      ],
       "status": "complete",
       "acceptance": "Every MVP FR has an owner, phase, task, contract, test placeholder, and release gate."
     },
@@ -33,7 +37,9 @@
       "title": "Scaffold Go, Python 3.12, React Vite, contracts, and local development",
       "phase": 0,
       "owner": "Engineering",
-      "dependencies": ["T-0302"],
+      "dependencies": [
+        "T-0302"
+      ],
       "status": "complete",
       "acceptance": "All language scaffolds compile and their smoke tests pass without product behavior."
     },
@@ -42,7 +48,10 @@
       "title": "Add documentation, task, contract, license, and traceability validation",
       "phase": 0,
       "owner": "QA",
-      "dependencies": ["T-0303", "T-0304"],
+      "dependencies": [
+        "T-0303",
+        "T-0304"
+      ],
       "status": "complete",
       "acceptance": "Invalid local links, task IDs, contract invariants, licenses, and traceability entries fail verification."
     },
@@ -51,7 +60,9 @@
       "title": "Add CI, dependency scanning, secret scanning, and changed-line coverage policy",
       "phase": 0,
       "owner": "DevOps",
-      "dependencies": ["T-0305"],
+      "dependencies": [
+        "T-0305"
+      ],
       "status": "complete",
       "acceptance": "A clean pull request runs make verify, gitleaks, and dependency review."
     },
@@ -60,7 +71,10 @@
       "title": "Implement FR-103a event-only vehicle activity",
       "phase": 6,
       "owner": "AI and Platform",
-      "dependencies": ["T-0107", "T-0303"],
+      "dependencies": [
+        "T-0107",
+        "T-0303"
+      ],
       "status": "complete",
       "acceptance": "Confirmed camera-local vehicle tracks produce deterministic, bounded vehicle_activity events with detected behavior, a canonical shared-detector class, model provenance, and pending human-review state; AI and platform validation exclude LPR, ReID, speed, identity, risk scoring, and theft claims."
     },
@@ -69,16 +83,30 @@
       "title": "Implement abandoned-object temporal logic and evaluation",
       "phase": 8,
       "owner": "AI",
-      "dependencies": ["T-0098", "T-0107"],
+      "dependencies": [
+        "T-0098",
+        "T-0107"
+      ],
       "status": "complete",
       "acceptance": "Camera-local track-separation and configurable 30--60 second dwell rules emit deterministic, review-required abandoned-object alerts; synthetic temporal evaluation passes and production promotion remains gated on held-out per-zone evaluation."
+    },
+    {
+      "id": "T-0256",
+      "title": "Execute Apache-only model license decision",
+      "phase": 0,
+      "owner": "Architecture and AI",
+      "dependencies": [],
+      "status": "complete",
+      "acceptance": "ADR-001 records the Apache-only development decision. Direct JavaScript, Go and Python dependencies are allowlisted, the Intel Open Model Zoo person-detector artifact is checksum-verified outside Git for isolated developer-machine integration, and no model artifact, dataset, customer footage, event emission, model promotion or production claim is added. Exact artifact, dataset provenance, deployment terms, signature, evaluation and Legal approval remain mandatory before production promotion."
     },
     {
       "id": "T-0309",
       "title": "Approve public source publication policy",
       "phase": 0,
       "owner": "Owner and Legal",
-      "dependencies": ["T-0256"],
+      "dependencies": [
+        "T-0256"
+      ],
       "status": "in_progress",
       "acceptance": "Owner authorized temporary public implementation publication without an open-source license on 2026-08-12. Default copyright applies and no LICENSE file is added. Legal review and the final public/private policy remain outstanding before GA."
     },
@@ -87,7 +115,10 @@
       "title": "Implement provider-neutral OIDC token verification boundary",
       "phase": 1,
       "owner": "Security and Platform",
-      "dependencies": ["T-0306", "T-0001"],
+      "dependencies": [
+        "T-0306",
+        "T-0001"
+      ],
       "status": "complete",
       "acceptance": "Signed tokens require exact issuer, audience, expiry, subject, tenant, role, and canonical authorization claims; invalid tokens fail closed."
     },
@@ -96,7 +127,10 @@
       "title": "Implement five seed roles and deny-by-default authorization",
       "phase": 1,
       "owner": "Security and Platform",
-      "dependencies": ["T-0310", "T-0004"],
+      "dependencies": [
+        "T-0310",
+        "T-0004"
+      ],
       "status": "complete",
       "acceptance": "Role grant, explicit scope, MFA, tenant, and site checks are server-enforced with negative tests."
     },
@@ -105,7 +139,11 @@
       "title": "Expose tenant-safe current-user and site read APIs",
       "phase": 1,
       "owner": "Platform",
-      "dependencies": ["T-0311", "T-0003", "T-0042"],
+      "dependencies": [
+        "T-0311",
+        "T-0003",
+        "T-0042"
+      ],
       "status": "complete",
       "acceptance": "Authenticated users can read their own context and visible sites; cross-tenant and cross-site rows are never returned."
     },
@@ -114,7 +152,11 @@
       "title": "Add tenant and site Postgres migrations with row-level security",
       "phase": 1,
       "owner": "Security and Platform",
-      "dependencies": ["T-0312", "T-0042", "T-0223"],
+      "dependencies": [
+        "T-0312",
+        "T-0042",
+        "T-0223"
+      ],
       "status": "complete",
       "acceptance": "Tenant, site, idempotency, and audit tables migrate idempotently; the non-superuser application role fails closed without a verified transaction-local tenant and cannot read another tenant."
     },
@@ -123,7 +165,10 @@
       "title": "Implement idempotent audited site creation",
       "phase": 1,
       "owner": "Platform",
-      "dependencies": ["T-0313", "T-0085"],
+      "dependencies": [
+        "T-0313",
+        "T-0085"
+      ],
       "status": "complete",
       "acceptance": "POST /v1/sites requires tenant-manager authorization, UUIDv4 correlation, and a tenant-scoped idempotency key; product state, replay response, and append-only hash-chained audit event commit atomically."
     },
@@ -132,7 +177,11 @@
       "title": "Add tenant event and transactional outbox persistence",
       "phase": 1,
       "owner": "Security and Platform",
-      "dependencies": ["T-0313", "T-0012", "T-0053"],
+      "dependencies": [
+        "T-0313",
+        "T-0012",
+        "T-0053"
+      ],
       "status": "complete",
       "acceptance": "Event and outbox tables migrate idempotently, enforce transaction-local tenant RLS, and fail closed for the non-superuser application role."
     },
@@ -141,7 +190,11 @@
       "title": "Implement authenticated idempotent event ingestion",
       "phase": 1,
       "owner": "Platform",
-      "dependencies": ["T-0315", "T-0311", "T-0085"],
+      "dependencies": [
+        "T-0315",
+        "T-0311",
+        "T-0085"
+      ],
       "status": "complete",
       "acceptance": "POST /v1/events validates the canonical event contract and site scope; one event, outbox message, and audit record commit atomically, while duplicate delivery produces one logical event."
     },
@@ -150,7 +203,10 @@
       "title": "Implement leased local outbox dispatch",
       "phase": 1,
       "owner": "Platform",
-      "dependencies": ["T-0315", "T-0053"],
+      "dependencies": [
+        "T-0315",
+        "T-0053"
+      ],
       "status": "complete",
       "acceptance": "A tenant-scoped worker leases unpublished messages with SKIP LOCKED, records attempts, releases failed leases, and marks only successfully published messages complete."
     },
@@ -159,7 +215,10 @@
       "title": "Project events idempotently into the alert queue",
       "phase": 1,
       "owner": "Platform",
-      "dependencies": ["T-0317", "T-0013"],
+      "dependencies": [
+        "T-0317",
+        "T-0013"
+      ],
       "status": "complete",
       "acceptance": "Each accepted event produces at most one tenant- and site-scoped alert and consumer receipt; GET /v1/alerts returns only authorized queue rows in priority order."
     },
@@ -168,7 +227,11 @@
       "title": "Connect Alert Center to audited REST and resumable realtime alerts",
       "phase": 1,
       "owner": "Frontend",
-      "dependencies": ["T-0318", "T-0044", "T-0206"],
+      "dependencies": [
+        "T-0318",
+        "T-0044",
+        "T-0206"
+      ],
       "status": "complete",
       "acceptance": "The React Alert Center validates v1 alert envelopes, lists the tenant queue, acknowledges with idempotency and correlation headers, consumes site-ticketed WebSocket snapshots and events, resumes from the last sequence after reconnect, resyncs on gaps, and retains an explicit credential-free demo mode."
     },
@@ -177,7 +240,10 @@
       "title": "Build an alert-derived operations dashboard foundation",
       "phase": 1,
       "owner": "Frontend",
-      "dependencies": ["T-0319", "T-0195"],
+      "dependencies": [
+        "T-0319",
+        "T-0195"
+      ],
       "status": "complete",
       "acceptance": "The responsive operations dashboard derives queue KPIs, module and severity distributions, and incident drill-downs from the tenant-scoped alert feed; labels every synthetic or unavailable analytics and camera-health value; and exposes chart data in accessible tables."
     },
@@ -186,7 +252,10 @@
       "title": "Build a privacy-safe Camera Wall foundation",
       "phase": 2,
       "owner": "Frontend",
-      "dependencies": ["T-0319", "T-0320"],
+      "dependencies": [
+        "T-0319",
+        "T-0320"
+      ],
       "status": "complete",
       "acceptance": "The responsive Camera Wall provides searchable and filterable camera metadata, 1/4/9/16/25 layouts, keyboard tile navigation, alert-linked spotlight and queue views, synthetic-only demo scenes, and an explicit unavailable state until tenant-scoped audited streaming APIs exist."
     },
@@ -195,7 +264,12 @@
       "title": "Implement the tenant-scoped camera registry foundation",
       "phase": 2,
       "owner": "Platform and Frontend",
-      "dependencies": ["T-0313", "T-0314", "T-0321", "T-0007"],
+      "dependencies": [
+        "T-0313",
+        "T-0314",
+        "T-0321",
+        "T-0007"
+      ],
       "status": "complete",
       "acceptance": "Camera CRUD enforces tenant and site authorization, transaction-local RLS, per-tenant serial uniqueness, optimistic configuration versions, allowed lifecycle transitions, idempotent creation, soft retirement, and atomic append-only auditing; Camera Wall validates and renders metadata-only live inventory without exposing credentials or footage."
     },
@@ -204,7 +278,10 @@
       "title": "Implement one-time edge-device claim and activation",
       "phase": 2,
       "owner": "Edge and Platform",
-      "dependencies": ["T-0322", "T-0008"],
+      "dependencies": [
+        "T-0322",
+        "T-0008"
+      ],
       "status": "complete",
       "acceptance": "An authorized administrator issues an idempotent 24-hour device claim whose bearer token is never persisted in plaintext; activation validates the signed tenant and serial, atomically consumes the token once, binds the edge device to its tenant and site under RLS, and appends audit records without secrets."
     },
@@ -213,7 +290,10 @@
       "title": "Implement certificate-authenticated device heartbeat and fleet status",
       "phase": 2,
       "owner": "Edge and Platform",
-      "dependencies": ["T-0323", "T-0009"],
+      "dependencies": [
+        "T-0323",
+        "T-0009"
+      ],
       "status": "complete",
       "acceptance": "An active registry device submits bounded idempotent telemetry only when its verified client-certificate UUID matches the route; tenant/site-scoped fleet reads derive offline after the canonical 90-second heartbeat age, and RLS plus the guarded heartbeat function prevent cross-tenant table access."
     },
@@ -222,7 +302,10 @@
       "title": "Connect the Go edge agent to certificate-authenticated heartbeat transport",
       "phase": 2,
       "owner": "Edge",
-      "dependencies": ["T-0324", "T-0151"],
+      "dependencies": [
+        "T-0324",
+        "T-0151"
+      ],
       "status": "complete",
       "acceptance": "The edge agent sends bounded telemetry over a caller-configured TLS 1.3/mTLS client to the documented heartbeat route, generates correlation and heartbeat UUIDv4 values, preserves replay identity, rejects malformed responses, and schedules attempts no slower than the canonical 30-second interval without tenant or user credentials."
     },
@@ -231,7 +314,10 @@
       "title": "Add supervised FFmpeg RTSP ingest transport",
       "phase": 2,
       "owner": "Edge",
-      "dependencies": ["T-0325", "T-0152"],
+      "dependencies": [
+        "T-0325",
+        "T-0152"
+      ],
       "status": "complete",
       "acceptance": "The Go edge agent validates RTSP/RTSPS camera sources, starts a TCP-by-default FFmpeg pull with bounded connection timeouts, reports credential-safe lifecycle state, and restarts unexpected exits with bounded exponential backoff; fake-runner tests cover command construction, cancellation, retries, and secret-safe errors."
     },
@@ -240,7 +326,10 @@
       "title": "Add codec-aware H.264 and H.265 decode selection",
       "phase": 2,
       "owner": "Edge",
-      "dependencies": ["T-0326", "T-0153"],
+      "dependencies": [
+        "T-0326",
+        "T-0153"
+      ],
       "status": "complete",
       "acceptance": "The edge RTSP supervisor selects normalized H.264/H.265 FFmpeg decoders, prefers allowlisted Jetson or CUDA hardware paths in auto mode, falls back deterministically to software, fails closed for unavailable forced hardware, and reports only credential-safe codec capability state."
     },
@@ -249,7 +338,10 @@
       "title": "Add durable bounded edge store-and-forward spool",
       "phase": 2,
       "owner": "Edge",
-      "dependencies": ["T-0327", "T-0154"],
+      "dependencies": [
+        "T-0327",
+        "T-0154"
+      ],
       "status": "complete",
       "acceptance": "Opaque payloads persist atomically across restart with integrity verification; replay prioritizes metadata, evidence, then archive video and removes items only after acknowledgement; quota pressure evicts the globally oldest item first; queue depth, bytes, oldest age, enqueue, acknowledgement, and eviction metrics are available for telemetry."
     },
@@ -258,7 +350,10 @@
       "title": "Extend edge heartbeat with bounded health telemetry",
       "phase": 2,
       "owner": "Edge and Platform",
-      "dependencies": ["T-0325", "T-0155"],
+      "dependencies": [
+        "T-0325",
+        "T-0155"
+      ],
       "status": "complete",
       "acceptance": "The edge health monitor reports bounded CPU, GPU, temperature, and inference-latency samples no slower than every 30 seconds, derives thermal warnings at canonical thresholds, and transports optional backward-compatible health through the certificate-authenticated heartbeat into tenant-scoped persisted fleet status."
     },
@@ -267,7 +362,11 @@
       "title": "Implement Phase 3 zone registry and rule-builder foundation",
       "phase": 3,
       "owner": "Platform and Web",
-      "dependencies": ["T-0322", "T-0006", "T-0214"],
+      "dependencies": [
+        "T-0322",
+        "T-0006",
+        "T-0214"
+      ],
       "status": "complete",
       "acceptance": "Tenant/site-scoped GeoJSON intrusion, restricted-zone, loitering, abandoned-object, and tripwire configuration has versioned, idempotent, audited REST persistence under RLS; the responsive console exposes a clearly synthetic rule-builder workspace without claiming live footage, edge push, simulation, or mask-zone dual approval."
     },
@@ -276,7 +375,10 @@
       "title": "Deliver versioned zone configuration to edge devices",
       "phase": 3,
       "owner": "Edge and Platform",
-      "dependencies": ["T-0330", "T-0156"],
+      "dependencies": [
+        "T-0330",
+        "T-0156"
+      ],
       "status": "complete",
       "acceptance": "Publishing an authorized zone creates an immutable tenant/site revision under RLS and audit; mTLS edge clients receive heartbeat revision hints, pull only newer snapshots, apply them atomically, retain the last known-good revision after any apply failure, and report applied or failed status without leaking credentials or pixels. Privacy mask zones remain excluded pending their separate security-reviewed dual-approval slice."
     },
@@ -285,7 +387,11 @@
       "title": "Add deterministic camera-local zone-rule runtime foundation",
       "phase": 3,
       "owner": "AI and Edge",
-      "dependencies": ["T-0331", "T-0097", "T-0102"],
+      "dependencies": [
+        "T-0331",
+        "T-0097",
+        "T-0102"
+      ],
       "status": "complete",
       "acceptance": "A bounded deterministic runtime evaluates enabled camera-bound intrusion, restricted-zone, loitering, and tripwire GeoJSON rules against timestamp-ordered local tracks; it emits retry-stable canonical human-review events without coordinates, track IDs, pixels, identities, embeddings, plate data, or cross-camera linkage. Malformed geometry and all privacy-mask configuration fail closed. Production release remains gated on tracker/detector integration, privacy validation, and hardware-in-loop testing."
     },
@@ -294,7 +400,10 @@
       "title": "Atomically activate verified zone configuration in the local rule runtime",
       "phase": 3,
       "owner": "AI and Edge",
-      "dependencies": ["T-0331", "T-0332"],
+      "dependencies": [
+        "T-0331",
+        "T-0332"
+      ],
       "status": "complete",
       "acceptance": "The local zone-rule runtime accepts only a strictly newer configuration revision already validated by the mTLS/hash/atomic-file edge path, compiles it before activation, rejects stale or malformed candidates, and preserves the last known-good in-memory runtime on failure. It emits no events until a valid rule configuration is active and continues to reject privacy-mask zones."
     },
@@ -303,7 +412,11 @@
       "title": "Add bounded camera-local tracker metadata sampling for zone rules",
       "phase": 3,
       "owner": "AI and Edge",
-      "dependencies": ["T-0333", "T-0091", "T-0160"],
+      "dependencies": [
+        "T-0333",
+        "T-0091",
+        "T-0160"
+      ],
       "status": "complete",
       "acceptance": "A metadata-only local ingress accepts bounded timestamp-ordered batches of same-camera tracks at configured 5--10 FPS, suppresses excess samples deterministically, only passes sampled tracks to the active zone runtime, and reports safe counters. It carries no frames, pixels, credentials, identities, embeddings, or plates; it does not do detector inference or external event transport; and it fails closed on mixed-scope, duplicate, or out-of-order batches."
     },
@@ -312,7 +425,11 @@
       "title": "Add local tenant and device admission limits for sampled tracker metadata",
       "phase": 3,
       "owner": "AI and Edge",
-      "dependencies": ["T-0334", "T-0091", "T-0160"],
+      "dependencies": [
+        "T-0334",
+        "T-0091",
+        "T-0160"
+      ],
       "status": "complete",
       "acceptance": "Sampled camera-local tracker batches require explicit bounded per-tenant/device frame and per-tenant track limits. The ingress admits or rejects a whole sampled batch deterministically, reports credential- and payload-free remaining-capacity pressure, resets the accounting at the next UTC second, and fails closed on invalid limits or timestamp regressions. No raw frames, detector inference, cloud quota service, network transport, or privacy-mask processing is added."
     },
@@ -321,7 +438,11 @@
       "title": "Deliver versioned bounded loitering dwell configuration",
       "phase": 3,
       "owner": "Platform and AI",
-      "dependencies": ["T-0331", "T-0332", "T-0335"],
+      "dependencies": [
+        "T-0331",
+        "T-0332",
+        "T-0335"
+      ],
       "status": "complete",
       "acceptance": "Tenant/site-scoped loitering zones support an audited, idempotent, optimistic-versioned dwell duration from 30 through 600 seconds. The value is rejected for other zone kinds, persisted under RLS, included in immutable edge configuration snapshots, and validated by the camera-local runtime before activation. No detector, raw-frame, privacy-mask, or autonomous-action capability is added."
     },
@@ -330,7 +451,11 @@
       "title": "Deliver bounded subject-class gates for zone rules",
       "phase": 3,
       "owner": "Platform and AI",
-      "dependencies": ["T-0331", "T-0332", "T-0336"],
+      "dependencies": [
+        "T-0331",
+        "T-0332",
+        "T-0336"
+      ],
       "status": "complete",
       "acceptance": "Tenant/site-scoped zone configuration supports an optional normalized allowlist of the seven canonical local subject classes. The field is idempotent, audited, optimistic-versioned, RLS-persisted, and delivered in immutable edge snapshots; unconfigured tracker classes do not update rule state or emit events. Unknown, duplicate, identity, biometric, plate, ReID, and animal classes fail closed, and no detector or raw-frame capability is added."
     },
@@ -339,7 +464,11 @@
       "title": "Bound camera-local zone runtime state",
       "phase": 3,
       "owner": "AI and Edge",
-      "dependencies": ["T-0333", "T-0334", "T-0337"],
+      "dependencies": [
+        "T-0333",
+        "T-0334",
+        "T-0337"
+      ],
       "status": "complete",
       "acceptance": "The deterministic camera-local zone runtime caps rule-track state at 10,000 entries, evicts only state older than a 15-minute retention window, and rejects any observation that would exceed capacity before mutating state. The retention window never shortens the maximum 10-minute loiter duration; status exposes only aggregate counts. No frames, pixels, detector inference, identities, biometrics, plates, ReID, cross-camera linkage, or privacy-mask processing is added."
     },
@@ -348,7 +477,11 @@
       "title": "Canonicalize local zone observation classes",
       "phase": 3,
       "owner": "AI and Edge",
-      "dependencies": ["T-0334", "T-0337", "T-0338"],
+      "dependencies": [
+        "T-0334",
+        "T-0337",
+        "T-0338"
+      ],
       "status": "complete",
       "acceptance": "Before a camera-local zone observation can update state or emit an event, its class must be one of person, bicycle, bus, car, motorcycle, truck, or van. Animal, identity, biometric, plate, embedding, ReID, unknown, and malformed labels fail closed. Empty rule allowlists continue to evaluate every permitted local class; no detector, frame, pixel, or external transport capability is added."
     },
@@ -357,7 +490,10 @@
       "title": "Reserve Super Admin privacy-mask approval capability",
       "phase": 3,
       "owner": "Security and Platform",
-      "dependencies": ["T-0311", "T-0339"],
+      "dependencies": [
+        "T-0311",
+        "T-0339"
+      ],
       "status": "complete",
       "acceptance": "The privacy_masks:approve capability is granted only to MFA-authenticated Super Admins. It is explicitly separate from ordinary configuration write and does not by itself create, approve, deliver, or activate any privacy mask. The subsequent dedicated workflow must add distinct dual approval, immutable auditing, pre-encode edge verification, and hardware-in-loop release evidence."
     },
@@ -366,7 +502,9 @@
       "title": "Add privacy-mask dual-approval workflow foundation",
       "phase": 3,
       "owner": "Security and Platform",
-      "dependencies": ["T-0340"],
+      "dependencies": [
+        "T-0340"
+      ],
       "status": "complete",
       "acceptance": "MFA-authorized Super Admins can create metadata-only privacy-mask requests. The requester cannot approve; exactly two distinct Super Admin approvals are required before status becomes approved, and duplicates are idempotent. The request remains excluded from zones and edge delivery until the following immutable-audit and pre-encode verification slices."
     },
@@ -375,7 +513,10 @@
       "title": "Add immutable privacy-mask approval ledger schema",
       "phase": 3,
       "owner": "Security and Platform",
-      "dependencies": ["T-0313", "T-0341"],
+      "dependencies": [
+        "T-0313",
+        "T-0341"
+      ],
       "status": "complete",
       "acceptance": "Postgres stores tenant-RLS privacy-mask request metadata and immutable approval rows. Approval rows cannot be modified or deleted by the application role; only insert/select is granted. Generic zones and edge delivery continue to exclude privacy masks. The next repository slice must atomically append hash-chained audit events."
     },
@@ -384,7 +525,9 @@
       "title": "Atomically audit privacy-mask approval ledger transitions",
       "phase": 3,
       "owner": "Security and Platform",
-      "dependencies": ["T-0342"],
+      "dependencies": [
+        "T-0342"
+      ],
       "status": "complete",
       "acceptance": "Production privacy-mask request creation and each distinct approval use tenant-scoped Postgres transactions that write the governed state and an append-only hash-chained audit event together. Requesters cannot approve, exactly two distinct Super Admin approvals are required, duplicate approvals remain idempotent, and all failures roll back. Privacy masks remain excluded from generic zones and edge delivery pending pre-encode verification and hardware-in-loop release evidence."
     },
@@ -393,7 +536,9 @@
       "title": "Verify privacy-mask plans before edge encoding",
       "phase": 3,
       "owner": "Security and Edge",
-      "dependencies": ["T-0343"],
+      "dependencies": [
+        "T-0343"
+      ],
       "status": "complete",
       "acceptance": "A bounded camera-local verifier accepts only metadata for a UUID-scoped request with exactly two distinct non-requester approvers, normalized closed Polygon geometry, and the strict decode-mask-encode pipeline order. It emits deterministic metadata-only verification evidence and fails closed on any mismatch. It neither receives pixels nor activates or delivers masks; hardware-in-loop proof of actual pre-encode enforcement remains required."
     },
@@ -402,7 +547,9 @@
       "title": "Verify signed physical HIL evidence for privacy-mask release",
       "phase": 3,
       "owner": "Security and Edge",
-      "dependencies": ["T-0344"],
+      "dependencies": [
+        "T-0344"
+      ],
       "status": "complete",
       "acceptance": "A release-evidence boundary accepts only a signed attestation from an allowlisted physical camera/encoder HIL harness for a verified pre-encode candidate hash. It requires masking-before-encoding, denied encoder bypass, no raw-frame retention, UUID-scoped device/test identities, and opaque SHA-256 build/probe hashes; it rejects simulation, malformed, tampered, or untrusted evidence. This code does not fabricate physical test results, activate masks, or deliver them to edge devices."
     },
@@ -411,7 +558,9 @@
       "title": "Gate controlled privacy-mask release at the edge",
       "phase": 3,
       "owner": "Security and Edge",
-      "dependencies": ["T-0345"],
+      "dependencies": [
+        "T-0345"
+      ],
       "status": "complete",
       "acceptance": "A separate privacy-only edge controller accepts a strictly newer release manifest only when UUID-scoped device metadata, strict pre-encode verification, and signed allowlisted physical HIL evidence agree on the same candidate hash. It invokes a metadata-only atomic release-slot applier, preserves the prior accepted release after stale, verification, or apply failure, and reports only safe accepted/failed status. Generic zone delivery, frames, pixels, encoder execution, and a platform transport are excluded."
     },
@@ -420,7 +569,10 @@
       "title": "Add durable privacy-mask release delivery schema",
       "phase": 3,
       "owner": "Security and Platform",
-      "dependencies": ["T-0313", "T-0346"],
+      "dependencies": [
+        "T-0313",
+        "T-0346"
+      ],
       "status": "complete",
       "acceptance": "Postgres stores tenant-RLS privacy-only release manifests and the latest safe per-device release status. Release manifests are immutable and versioned per tenant/device; the application role cannot delete release or status records. Generic zone/configuration delivery continues to exclude masks. The following repository/transport must authorize releases against an approved request plus verified HIL evidence and append audit events atomically."
     },
@@ -429,7 +581,9 @@
       "title": "Authorize and audit privacy-mask release manifests",
       "phase": 3,
       "owner": "Security and Platform",
-      "dependencies": ["T-0347"],
+      "dependencies": [
+        "T-0347"
+      ],
       "status": "complete",
       "acceptance": "A tenant-scoped Postgres repository recomputes strict pre-encode metadata, verifies signed physical-HIL evidence against an injected trusted-harness allowlist, and requires the approved request, its two recorded approvals, and an active mTLS-ready same-site device before atomically inserting a privacy-only manifest and hash-chained audit event. It fails closed and does not register keys, expose HTTP, deliver to a device, process media, or execute masking."
     },
@@ -438,7 +592,9 @@
       "title": "Add device-scoped privacy-mask transport procedures",
       "phase": 3,
       "owner": "Security and Platform",
-      "dependencies": ["T-0348"],
+      "dependencies": [
+        "T-0348"
+      ],
       "status": "complete",
       "acceptance": "Dedicated Postgres procedures allow only an active certificate-authorized device to pull its own privacy-only manifest or report a fixed safe status for its exact release/version. Cross-device, unavailable, invalid, and stale outcomes fail closed. No HTTP route, key registration, generic configuration path, media, or masking execution is added."
     },
@@ -447,7 +603,9 @@
       "title": "Synchronize controlled privacy releases at the edge",
       "phase": 3,
       "owner": "Security and Edge",
-      "dependencies": ["T-0349"],
+      "dependencies": [
+        "T-0349"
+      ],
       "status": "complete",
       "acceptance": "The edge agent uses only its dedicated mTLS privacy-release client to pull one newer manifest and hand it to the controlled local verifier/applier. It reports only the gate's fixed safe state, preserves the prior accepted release on failure, and remains excluded from generic configuration synchronization, media processing, and masking execution."
     },
@@ -456,7 +614,9 @@
       "title": "Implement a hardware-bound pre-encode privacy-mask enforcement adapter",
       "phase": 3,
       "owner": "Security, Edge, and Hardware",
-      "dependencies": ["T-0350"],
+      "dependencies": [
+        "T-0350"
+      ],
       "status": "complete",
       "acceptance": "For one owner-approved, allowlisted physical camera/encoder profile, a dedicated edge adapter accepts only an already-gated privacy release and enforces the documented decode-to-mask-to-encode order with no encoder-bypass path. It preserves the prior safe release on any activation failure, emits only bounded safe status categories, never persists raw frames or stream credentials, and requires a signed physical hardware-in-loop result before a release is treated as production-valid. Simulation may exercise the adapter contract but cannot satisfy the production hardware evidence gate."
     },
@@ -465,7 +625,9 @@
       "title": "Reconcile exact hardware-bound privacy releases after edge reconnect",
       "phase": 3,
       "owner": "Security and Edge",
-      "dependencies": ["T-0351"],
+      "dependencies": [
+        "T-0351"
+      ],
       "status": "complete",
       "acceptance": "The hardware-bound adapter treats only an exact replay of its already-active independently verified release as a no-op, preventing duplicate hardware activation during reconnect reconciliation. Older releases and same-version releases that differ in release, profile, device, candidate hash, or pipeline fail closed and preserve the active release. This slice neither persists nor claims recovery of physical hardware state, stores no frames or credentials, and still requires signed physical HIL evidence for production validity."
     },
@@ -474,7 +636,9 @@
       "title": "Run dedicated privacy-release synchronization under supervision",
       "phase": 3,
       "owner": "Security and Edge",
-      "dependencies": ["T-0352"],
+      "dependencies": [
+        "T-0352"
+      ],
       "status": "complete",
       "acceptance": "A cancellable edge worker invokes only the dedicated privacy-release synchronizer once immediately and then serially at a caller-configured positive interval. It returns any synchronization failure to its supervisor and never falls back to generic configuration delivery. The worker carries no frames, pixels, stream credentials, encoder handles, or privacy-mask geometry, and does not claim physical-hardware recovery or production validity without the existing signed HIL evidence gate."
     },
@@ -483,7 +647,9 @@
       "title": "Supervise dedicated privacy-release synchronization retries",
       "phase": 3,
       "owner": "Security and Edge",
-      "dependencies": ["T-0353"],
+      "dependencies": [
+        "T-0353"
+      ],
       "status": "complete",
       "acceptance": "A cancellable supervisor restarts only the dedicated privacy-release worker after failure using an explicit positive exponential retry policy bounded by a configured maximum delay. Cancellation terminates promptly, and successful worker completion ends supervision. No generic configuration fallback, release interpretation, frames, pixels, stream credentials, encoder handles, privacy-mask geometry, physical-hardware recovery, or production-validity claim is added."
     },
@@ -501,7 +667,9 @@
       "title": "Define planned-only evaluation gates for the Phase 4 AI registry",
       "phase": 4,
       "owner": "AI and Platform",
-      "dependencies": ["T-0355"],
+      "dependencies": [
+        "T-0355"
+      ],
       "status": "complete",
       "acceptance": "Immutable planned-only evaluation metadata maps one-to-one to all 23 canonical AI modules plus Camera Health, records evaluation categories and the canonical architecture reference, and preserves the licensed held-out evaluation, safety-review, and human-oversight release gates. It contains no dataset, metric, benchmark result, evaluation-card publication, model artifact, inference, promotion decision, or production-enablement claim."
     },
@@ -510,7 +678,9 @@
       "title": "Define planned-only model release provenance boundaries",
       "phase": 4,
       "owner": "AI, Platform, and Legal",
-      "dependencies": ["T-0356"],
+      "dependencies": [
+        "T-0356"
+      ],
       "status": "complete",
       "acceptance": "Immutable metadata maps one-to-one to every Phase 4 registry capability, references ADR-001, requires only the Apache-2.0 allowlist plus license, weight provenance, model card, signature, rollback metadata, and Legal approval, and blocks external-model promotion pending that approval. It accepts no evidence and adds no model artifact, dataset, signing, distribution, inference, evaluation, staging, promotion, or production-enablement claim."
     },
@@ -519,7 +689,9 @@
       "title": "Add a read-only Phase 4 model-registry workspace",
       "phase": 4,
       "owner": "Web, AI, and Platform",
-      "dependencies": ["T-0357"],
+      "dependencies": [
+        "T-0357"
+      ],
       "status": "complete",
       "acceptance": "A read-only synthetic frontend workspace shows the resolved 23 AI modules plus Camera Health, permits local metadata search, and visibly states that external-model promotion is blocked pending ADR-001 Legal approval. It exposes no model artifacts, evidence, evaluation result, activation, release, promotion, or production-enablement control and invents no live API response."
     },
@@ -587,7 +759,12 @@
       "title": "Adopt Supabase and Cloudflare as the temporary MVP backend boundary",
       "phase": 1,
       "owner": "Architecture, Security, and Platform",
-      "dependencies": ["T-0310", "T-0311", "T-0313", "T-0315"],
+      "dependencies": [
+        "T-0310",
+        "T-0311",
+        "T-0313",
+        "T-0315"
+      ],
       "status": "complete",
       "acceptance": "ADR-009 records Supabase Auth/Postgres/RLS, Cloudflare queue-worker boundary, Go mutation boundary, Vercel deployment boundary, and a portable later AWS migration path. It explicitly defers datasets/DVC, R2, AI models, streaming, footage, and production evidence storage."
     },
@@ -596,7 +773,13 @@
       "title": "Add Supabase local development and tenant-safe Postgres/RLS migrations",
       "phase": 1,
       "owner": "Security and Platform",
-      "dependencies": ["T-0310", "T-0311", "T-0313", "T-0315", "T-0364"],
+      "dependencies": [
+        "T-0310",
+        "T-0311",
+        "T-0313",
+        "T-0315",
+        "T-0364"
+      ],
       "status": "complete",
       "acceptance": "Pinned Supabase CLI migrations own schema history, preserve legacy provenance, reserve only syncam_realtime for application realtime data, use auth.users-backed memberships and trusted app_metadata.syncam claims, and fail closed for anonymous, unprovisioned, cross-tenant, cross-site, browser-write, audit/outbox, and missing transaction-tenant access."
     },
@@ -605,7 +788,11 @@
       "title": "Add Supabase PKCE web authentication foundation",
       "phase": 1,
       "owner": "Web and Security",
-      "dependencies": ["T-0310", "T-0311", "T-0365"],
+      "dependencies": [
+        "T-0310",
+        "T-0311",
+        "T-0365"
+      ],
       "status": "complete",
       "acceptance": "The Vite web app supports Supabase PKCE session restoration, refresh, logout, redirect-based SSO initiation, and password sign-in in explicitly configured live mode. It fails closed when live public configuration is absent, keeps demo mode credential-free, exposes no privileged key, and copies only the short-lived access token to the existing Go API bridge. Browser code makes no authorization decision from user_metadata or app_metadata; Go remains the authorization boundary."
     },
@@ -614,7 +801,11 @@
       "title": "Add a safe organization onboarding shell",
       "phase": 1,
       "owner": "Web and Security",
-      "dependencies": ["T-0183", "T-0365", "T-0366"],
+      "dependencies": [
+        "T-0183",
+        "T-0365",
+        "T-0366"
+      ],
       "status": "complete",
       "acceptance": "A browser-only onboarding shell validates organization, first-site, and first-team-member request details with accessible step, navigation, review, and error states. It makes no remote database/Auth write, role assignment, invitation, tenant claim, or provisioning decision, and explicitly requires a future audited Go provisioning API for those business mutations."
     },
@@ -623,7 +814,9 @@
       "title": "Add isolated Supabase invitation delivery worker",
       "phase": 1,
       "owner": "Security and Platform",
-      "dependencies": ["T-0365"],
+      "dependencies": [
+        "T-0365"
+      ],
       "status": "complete",
       "acceptance": "A separately deployable, tenant-scoped Go worker holds the Supabase secret only at runtime, leases invitation delivery requests, invokes the server-only invitation provider, and records safe delivery state. It creates no deployment configuration, browser secret, or production activation claim."
     },
@@ -632,7 +825,9 @@
       "title": "Queue durable user disablement",
       "phase": 1,
       "owner": "Security and Platform",
-      "dependencies": ["T-0365"],
+      "dependencies": [
+        "T-0365"
+      ],
       "status": "complete",
       "acceptance": "A tenant-scoped transaction prevents self-disablement and loss of the last active Super Admin, suspends local tenant and site memberships, writes the hash-chained audit event, and queues provider session revocation atomically. The HTTP API and browser remain unable to initiate the transition, and no provider session is claimed revoked until a separately reviewed worker delivers it."
     },
@@ -641,7 +836,10 @@
       "title": "Scope lifecycle-delivery workers to their explicit provider actions",
       "phase": 1,
       "owner": "Security and Platform",
-      "dependencies": ["T-0379", "T-0380"],
+      "dependencies": [
+        "T-0379",
+        "T-0380"
+      ],
       "status": "complete",
       "acceptance": "A lifecycle worker validates and claims only the bounded action set its injected provider explicitly supports. The existing Supabase invitation worker claims invitation intents only; queued disablement remains unclaimed until a separately reviewed session-revocation provider is available. Unsupported, empty, and duplicate action declarations fail closed, and no browser route, provider secret exposure, live deployment, or claim of completed session revocation is added."
     },
@@ -650,7 +848,9 @@
       "title": "Expose lifecycle-delivery target identity to action-scoped providers",
       "phase": 1,
       "owner": "Security and Platform",
-      "dependencies": ["T-0381"],
+      "dependencies": [
+        "T-0381"
+      ],
       "status": "complete",
       "acceptance": "A leased lifecycle delivery request exposes the existing target Auth-user UUID only for actions that carry one, while invitations retain an empty target. The Postgres delivery store preserves the tenant-scoped target identity and action-specific workers receive it only through their server-side provider boundary. It adds no browser route, secret, session token, provider API call, session-revocation claim, deployment, or provider identity lookup."
     },
@@ -659,7 +859,9 @@
       "title": "Validate action-scoped lifecycle delivery targets before provider invocation",
       "phase": 1,
       "owner": "Security and Platform",
-      "dependencies": ["T-0382"],
+      "dependencies": [
+        "T-0382"
+      ],
       "status": "complete",
       "acceptance": "Before calling a server-side lifecycle provider, the worker rejects a request whose action is not explicitly claimed by that provider, whose invitation carries a target user, or whose disablement lacks a valid target Auth-user UUID. Rejected requests fail closed through the existing durable failure state without exposing the target identity. It adds no provider API call, session revocation, browser route, secret, deployment, or activation."
     },
@@ -668,7 +870,9 @@
       "title": "Bound lifecycle reconciliation holds to safe reason codes",
       "phase": 1,
       "owner": "Security and Platform",
-      "dependencies": ["T-0383"],
+      "dependencies": [
+        "T-0383"
+      ],
       "status": "complete",
       "acceptance": "A lifecycle worker records a reconciliation hold only with an allowlisted safe reason code, replacing every unrecognised provider-supplied detail with a generic code before persistence. The bounded reason path is tested without recording a provider response, target identity, credential, session token, or error body. It adds no provider API call, session revocation, browser route, secret, deployment, or activation."
     },
@@ -677,7 +881,9 @@
       "title": "Prepare session-revocation approval checklist",
       "phase": 1,
       "owner": "Owner, Security and Platform",
-      "dependencies": ["T-0384"],
+      "dependencies": [
+        "T-0384"
+      ],
       "status": "complete",
       "acceptance": "A checklist records the required product-owner, security, and infrastructure decisions and evidence before a session-revocation provider can be implemented, configured, or deployed. It keeps the browser and HTTP API outside the provider boundary and makes no approval, secret, provider API call, session-revocation, deployment, or activation claim."
     },
@@ -686,7 +892,10 @@
       "title": "Define consent-first attendance and liveness delivery boundary",
       "phase": 5,
       "owner": "Product, AI, Security, Privacy, and Platform",
-      "dependencies": ["T-0357", "T-0363"],
+      "dependencies": [
+        "T-0357",
+        "T-0363"
+      ],
       "status": "complete",
       "acceptance": "A planning-only boundary defines the approval order, consent, retention, human-oversight, and fail-closed requirements for future face attendance and liveness. It explicitly excludes enrollment, biometric templates, matching, liveness inference, customer footage, datasets, model artifacts, evaluation results, API changes, activation, promotion, and production enablement until biometric legal/privacy approval and ADR-001 model-release evidence are complete."
     },
@@ -695,7 +904,9 @@
       "title": "Prepare biometric attendance approval-evidence checklist",
       "phase": 5,
       "owner": "Product, Privacy, Legal, Security, AI, and Platform",
-      "dependencies": ["T-0386"],
+      "dependencies": [
+        "T-0386"
+      ],
       "status": "complete",
       "acceptance": "A planning-only checklist enumerates the decisions, sign-offs, and non-sensitive evidence references required before a future biometric attendance implementation task can be proposed. It grants no approval and adds no consent record, personal or biometric data, enrollment, template, matching, liveness inference, customer footage, dataset, model artifact, evaluation result, API, browser route, activation, promotion, deployment, or production-enablement claim."
     },
@@ -704,7 +915,9 @@
       "title": "Prepare biometric attendance threat-model review template",
       "phase": 5,
       "owner": "Security, Privacy, Product, AI, and Platform",
-      "dependencies": ["T-0387"],
+      "dependencies": [
+        "T-0387"
+      ],
       "status": "complete",
       "acceptance": "A planning-only template structures the future threat-model review for face attendance and liveness, including tenant isolation, consent withdrawal, retention/deletion, privileged access, presentation attacks, audit exposure, and fail-closed behavior. It records no actual threat-model decision or risk acceptance and adds no biometric or personal data, enrollment, template, matching, liveness inference, customer footage, dataset, model artifact, evaluation result, API, browser route, activation, promotion, deployment, or production-enablement claim."
     },
@@ -713,7 +926,9 @@
       "title": "Prepare biometric attendance human-oversight review template",
       "phase": 5,
       "owner": "Product, Privacy, Security, AI, and Platform",
-      "dependencies": ["T-0388"],
+      "dependencies": [
+        "T-0388"
+      ],
       "status": "complete",
       "acceptance": "A planning-only template structures the future human-review, correction, dispute, withdrawal, fairness-oversight, and safe-audit requirements for biometric attendance. It grants no approval, creates no review queue or attendance outcome, and adds no biometric or personal data, consent record, enrollment, template, matching, liveness inference, customer footage, dataset, model artifact, evaluation result, API, browser route, activation, promotion, deployment, or production-enablement claim."
     },
@@ -722,7 +937,9 @@
       "title": "Prepare biometric attendance data-lifecycle review template",
       "phase": 5,
       "owner": "Privacy, Legal, Security, Product, and Platform",
-      "dependencies": ["T-0389"],
+      "dependencies": [
+        "T-0389"
+      ],
       "status": "complete",
       "acceptance": "A planning-only template structures the future consent withdrawal, retention, deletion, backup, reconciliation, and safe-audit decisions for biometric attendance. It records no lifecycle decision, configuration, or evidence and adds no biometric or personal data, consent record, enrollment, template, matching, liveness inference, customer footage, dataset, model artifact, evaluation result, API, browser route, activation, promotion, deployment, or production-enablement claim."
     },
@@ -731,7 +948,9 @@
       "title": "Prepare biometric attendance evaluation and fairness review template",
       "phase": 5,
       "owner": "AI, Privacy, Product, Security, and Legal",
-      "dependencies": ["T-0390"],
+      "dependencies": [
+        "T-0390"
+      ],
       "status": "complete",
       "acceptance": "A planning-only template structures the future held-out evaluation, liveness-attack, demographic, site/lighting, withdrawal/deletion, human-oversight, and approval requirements for biometric attendance. It records no threshold, metric, dataset, model, evaluation result, or promotion decision and adds no biometric or personal data, enrollment, template, matching, liveness inference, customer footage, model artifact, API, browser route, activation, deployment, or production-enablement claim."
     },
@@ -740,7 +959,9 @@
       "title": "Prepare biometric attendance implementation-readiness review template",
       "phase": 5,
       "owner": "Product, Privacy, Legal, Security, AI, and Platform",
-      "dependencies": ["T-0391"],
+      "dependencies": [
+        "T-0391"
+      ],
       "status": "complete",
       "acceptance": "A planning-only template consolidates the Product, Privacy/Legal, Security, Platform, AI-release, dataset, evaluation, and human-oversight evidence required before a future biometric attendance implementation proposal may be considered. It grants no approval or readiness decision and adds no biometric or personal data, consent record, enrollment, template, matching, liveness inference, customer footage, dataset, model artifact, evaluation result, API, browser route, activation, promotion, deployment, or production-enablement claim."
     },
@@ -749,7 +970,9 @@
       "title": "Define Phase 7 billing delivery boundary",
       "phase": 7,
       "owner": "Product, Finance, Legal, Security, and Platform",
-      "dependencies": ["T-0016"],
+      "dependencies": [
+        "T-0016"
+      ],
       "status": "complete",
       "acceptance": "A planning-only boundary records the founder, Finance/Legal, Security, provider, metering, and tenant-isolation prerequisites for future billing delivery. It treats the canonical price tables as assumptions pending final approval and adds no plan entitlement, quota enforcement, usage meter, invoice, tax calculation, payment-provider account, credential, payment, refund, API, browser route, activation, deployment, or production-enablement claim."
     },
@@ -758,7 +981,10 @@
       "title": "Prepare Phase 7 pilot onboarding guide",
       "phase": 7,
       "owner": "Product, Customer Success, Security, and Platform",
-      "dependencies": ["T-0367", "T-0322"],
+      "dependencies": [
+        "T-0367",
+        "T-0322"
+      ],
       "status": "complete",
       "acceptance": "A pilot-readiness guide provides a customer-safe site setup checklist, camera readiness checklist, controlled-provisioning handoff, and FAQ. It records no customer, device, network, or credential data and makes no tenant provisioning, device activation, billing, entitlement, streaming, data-retention, or production-support claim."
     },
@@ -767,7 +993,9 @@
       "title": "Establish Phase 7 release-notes process",
       "phase": 7,
       "owner": "Product, Customer Success, Security, and Engineering",
-      "dependencies": ["T-0221"],
+      "dependencies": [
+        "T-0221"
+      ],
       "status": "complete",
       "acceptance": "A release-notes process and unreleased-only changelog define evidence, approval, security, privacy, and customer-communication checks before any note is published. They contain no release announcement, customer data, production version, deployment, feature-availability, billing, or capability-enablement claim."
     },
@@ -776,7 +1004,10 @@
       "title": "Prepare Phase 7 pilot provisioning approval checklist",
       "phase": 7,
       "owner": "Product, Customer Success, Security, Privacy, Legal, and Platform",
-      "dependencies": ["T-0393", "T-0394"],
+      "dependencies": [
+        "T-0393",
+        "T-0394"
+      ],
       "status": "complete",
       "acceptance": "A preparation-only checklist records the Product, customer, Privacy/Legal, Security, Platform, device, commercial, and support evidence required before a controlled pilot-provisioning procedure may be considered. It grants no approval and creates no tenant, site, user, role, invitation, device claim, camera integration, stream, billing record, entitlement, deployment, or production-support claim."
     },
@@ -785,7 +1016,10 @@
       "title": "Define Phase 9 data-path delivery boundary",
       "phase": 9,
       "owner": "Product, Privacy, Legal, Security, Finance, and Platform",
-      "dependencies": ["T-0308", "T-0396"],
+      "dependencies": [
+        "T-0308",
+        "T-0396"
+      ],
       "status": "complete",
       "acceptance": "A planning-only boundary records the data ownership, tenant isolation, retention/erasure, legal-hold, backup/restore, synthetic-workload, cost, and approval prerequisites for future Phase 9 data-path work. It adds no database, partition, retention rule, lifecycle policy, synthetic device, event, customer data, workload, benchmark, backup, restore, configuration, API, deployment, or production-enablement claim."
     },
@@ -794,7 +1028,9 @@
       "title": "Prepare Phase 9 retention, erasure, and recovery review template",
       "phase": 9,
       "owner": "Product, Privacy, Legal, Security, Finance, and Platform",
-      "dependencies": ["T-0397"],
+      "dependencies": [
+        "T-0397"
+      ],
       "status": "complete",
       "acceptance": "A preparation-only template structures the future retention, deletion, legal-hold, backup, restore, reconciliation, test-data, cost, and approval review for Phase 9 data-path work. It records no data, decision, approval, lifecycle configuration, backup, restore, test execution, benchmark result, API, deployment, or production-enablement claim."
     },
@@ -803,7 +1039,10 @@
       "title": "Prepare Phase 9 non-production scale-test review template",
       "phase": 9,
       "owner": "Product, Privacy, Legal, Security, Finance, and Platform",
-      "dependencies": ["T-0397", "T-0398"],
+      "dependencies": [
+        "T-0397",
+        "T-0398"
+      ],
       "status": "complete",
       "acceptance": "A preparation-only template structures the future isolated-environment, synthetic-data, workload, tenant-isolation, safety-stop, cleanup, cost, and approval review for Phase 9 scale testing. It records no test authorization, environment, workload, synthetic device, event, data, benchmark, result, capacity change, API, deployment, or production-enablement claim."
     },
@@ -812,7 +1051,9 @@
       "title": "Define Phase 10 security and compliance delivery boundary",
       "phase": 10,
       "owner": "Product, Security, Privacy, Legal, AI, and Platform",
-      "dependencies": ["T-0399"],
+      "dependencies": [
+        "T-0399"
+      ],
       "status": "complete",
       "acceptance": "A planning-only boundary records the Product, Security, Privacy, Legal, AI, Platform, external-assessment, staging-isolation, evidence, remediation, and approval prerequisites for future Phase 10 security and compliance work. It adds no scan, test, target, credential, finding, evidence artifact, remediation, compliance determination, API, deployment, or production-enablement claim."
     },
@@ -821,7 +1062,9 @@
       "title": "Prepare Phase 10 security and compliance review template",
       "phase": 10,
       "owner": "Product, Security, Privacy, Legal, AI, and Platform",
-      "dependencies": ["T-0400"],
+      "dependencies": [
+        "T-0400"
+      ],
       "status": "complete",
       "acceptance": "A preparation-only template structures the future assessment authority, staging isolation, access, evidence, finding, remediation, incident, jurisdiction, model-gate, and approval review for Phase 10 security and compliance work. It records no authorization, target, credential, finding, evidence artifact, decision, remediation, compliance determination, API, deployment, or production-enablement claim."
     },
@@ -830,7 +1073,9 @@
       "title": "Define Phase 11 operations and disaster-recovery delivery boundary",
       "phase": 11,
       "owner": "Product, Platform, SRE, Security, Privacy, Legal, and Finance",
-      "dependencies": ["T-0401"],
+      "dependencies": [
+        "T-0401"
+      ],
       "status": "complete",
       "acceptance": "A planning-only boundary records the Product, Platform, SRE, Security, Privacy, Legal, Finance, telemetry, on-call, backup, recovery, drill, evidence, cost, and approval prerequisites for future Phase 11 operations and DR work. It adds no metric, dashboard, alert, pager, runbook, backup, restore, drill, failover, incident, API, deployment, or production-enablement claim."
     },
@@ -839,7 +1084,9 @@
       "title": "Prepare Phase 11 operational-readiness and DR review template",
       "phase": 11,
       "owner": "Product, Platform, SRE, Security, Privacy, Legal, and Finance",
-      "dependencies": ["T-0402"],
+      "dependencies": [
+        "T-0402"
+      ],
       "status": "complete",
       "acceptance": "A preparation-only template structures the future service-ownership, telemetry, on-call, alerting, lifecycle, backup, restore, failover, drill, evidence, cost, and approval review for Phase 11 operations and DR work. It records no configuration, schedule, runbook, target, drill authority, result, incident, decision, deployment, or production-enablement claim."
     },
@@ -848,7 +1095,9 @@
       "title": "Define Sprint 12 GA-readiness delivery boundary",
       "phase": 12,
       "owner": "Founders, Product, Engineering, Platform, SRE, Security, Privacy, Legal, Finance, and Customer Success",
-      "dependencies": ["T-0403"],
+      "dependencies": [
+        "T-0403"
+      ],
       "status": "complete",
       "acceptance": "A planning-only boundary records the founder, Product, Engineering, Platform, SRE, Security, Privacy, Legal, Finance, Customer Success, commercial, release, and approval prerequisites for a future Sprint 12 GA-readiness proposal. It adds no checklist status, go/no-go decision, launch date, release, rollout, customer communication, deployment, or production-enablement claim."
     },
@@ -890,7 +1139,9 @@
       "title": "Consolidate compatible web runtime and build dependency upgrades",
       "phase": 12,
       "owner": "Engineering",
-      "dependencies": ["T-0407"],
+      "dependencies": [
+        "T-0407"
+      ],
       "status": "complete",
       "acceptance": "React and React DOM upgrade together with matching types, TypeScript and Vite tooling; existing contract tests, canonical verification, dependency scans and deployed browser smoke checks pass before superseding the older individual dependency PRs."
     },
@@ -899,7 +1150,9 @@
       "title": "Complete privileged browser MFA and safe session recovery",
       "phase": 12,
       "owner": "Engineering and Security",
-      "dependencies": ["T-0408"],
+      "dependencies": [
+        "T-0408"
+      ],
       "status": "complete",
       "acceptance": "Browser sign-in verifies Supabase claims, requires privileged MFA enrollment or registered-factor challenge, rejects untrusted membership and secret client keys, and recovers from provider failures without stale session resurrection. Regression tests pass; server authorization and gated capabilities remain unchanged. Live account verification is recorded separately from local fixture checks."
     },
@@ -908,7 +1161,9 @@
       "title": "Connect browser REST and realtime through an explicit origin boundary",
       "phase": 12,
       "owner": "Engineering and Security",
-      "dependencies": ["T-0409"],
+      "dependencies": [
+        "T-0409"
+      ],
       "status": "complete",
       "acceptance": "The Go entrypoint validates an exact browser-origin allowlist and handles restricted preflight requests. REST authentication and tenant isolation remain enforced; rejected WebSocket origins do not consume tickets and approved origins retain one-time-ticket checks. Tests reject wildcard, malformed, unapproved and duplicate origins. Deployment and live account verification are recorded separately."
     },
@@ -917,7 +1172,9 @@
       "title": "Define and verify restricted Render prototype database access",
       "phase": 12,
       "owner": "Engineering and Security",
-      "dependencies": ["T-0410"],
+      "dependencies": [
+        "T-0410"
+      ],
       "status": "complete",
       "acceptance": "A credential-free migration creates a disabled, connection-bounded runtime role inheriting only application privileges without role switching or delegation. Database tests verify forced RLS, inherited tenant isolation and denied administrator capabilities. Password provisioning, remote migration deployment and live runtime verification remain separate operations; no paid resource or gated feature is enabled."
     },
@@ -926,7 +1183,9 @@
       "title": "Deploy and verify the free Go control-plane prototype",
       "phase": 12,
       "owner": "Engineering and Security",
-      "dependencies": ["T-0411"],
+      "dependencies": [
+        "T-0411"
+      ],
       "status": "complete",
       "acceptance": "Canonical migrations deploy with preserved history; a restricted runtime login passes certificate/hostname-verified TLS and permission checks. A free Go web service starts with only approved runtime secrets and the official CA. Public health, unauthenticated denial and exact-origin checks pass through HTTPS. No frontend live mode, real-account MFA, continuous worker delivery, footage, biometric or GA readiness is inferred."
     },
@@ -935,7 +1194,9 @@
       "title": "Verify private bootstrap through Auth referential integrity",
       "phase": 12,
       "owner": "Engineering and Security",
-      "dependencies": ["T-0412"],
+      "dependencies": [
+        "T-0412"
+      ],
       "status": "complete",
       "acceptance": "The restricted bootstrap routine rejects nonexistent Auth users through the validated immediate membership foreign key without direct Auth reads. Disposable database tests exercise successful audited creation, missing users and tenants, duplicate and foreign memberships, and atomic rollback on audit failure. Runtime/browser execute grants, forced RLS, owner approval and MFA remain unchanged; live bootstrap and MFA verification are recorded separately."
     },
@@ -944,7 +1205,13 @@
       "title": "Compose the executable edge control runtime",
       "phase": 12,
       "owner": "Edge and Security",
-      "dependencies": ["T-0325", "T-0326", "T-0328", "T-0331", "T-0413"],
+      "dependencies": [
+        "T-0325",
+        "T-0326",
+        "T-0328",
+        "T-0331",
+        "T-0413"
+      ],
       "status": "complete",
       "acceptance": "The Go edge-agent entrypoint fails closed on incomplete certificate, state, or RTSP source configuration; uses TLS 1.3 mutual authentication; supervises bounded FFmpeg pulls; polls and atomically applies configuration; reports uptime and spool depth; consumes authenticated desired-revision hints; emits credential-free JSON lifecycle events; and shuts down all loops together. Unit tests cover composition and source/config rejection. Frames still use the null sink, no model or inference is loaded, and hardware-in-loop plus an mTLS-capable public endpoint remain release gates."
     },
@@ -953,7 +1220,10 @@
       "title": "Enforce approved privacy masks before analytics frame handoff",
       "phase": 12,
       "owner": "Edge, Security and Privacy",
-      "dependencies": ["T-0354", "T-0414"],
+      "dependencies": [
+        "T-0354",
+        "T-0414"
+      ],
       "status": "complete",
       "acceptance": "A bounded RGB24 frame boundary accepts only the camera bound into a validated two-approver mask candidate and matching HIL-gated hardware activation. It blackens the normalized polygon in place before synchronous downstream transfer, conservatively masks polygon boundaries, preserves declared holes, rejects malformed or mismatched frames before mutation, caches only the geometry bitmap, and never restores unmasked pixels after downstream failure. Synthetic pixel tests pass; physical HIL, runtime wiring, recording, inference, and model promotion remain separate gates."
     },
@@ -962,7 +1232,10 @@
       "title": "Enforce bounded post-mask analytics frame sampling",
       "phase": 12,
       "owner": "Edge and AI",
-      "dependencies": ["T-0160", "T-0415"],
+      "dependencies": [
+        "T-0160",
+        "T-0415"
+      ],
       "status": "complete",
       "acceptance": "A camera-local consumer accepts only complete, ordered, already-masked RGB24 frames; enforces the canonical 5--10 FPS analytics range; suppresses frames arriving inside the sampling interval and identical consecutive sampled frames; retains only ordering metadata and a SHA-256 digest; reports payload-free counters and downstream backpressure; and forwards frames synchronously. Tests prove mask-before-sampling composition, rate and duplicate suppression, fail-closed ordering and buffer validation, and downstream failure accounting. FFmpeg wiring, inference, model artifacts, evaluation, and promotion remain separate gates."
     },
@@ -971,7 +1244,11 @@
       "title": "Connect bounded FFmpeg frames to the approved mask and sampler",
       "phase": 12,
       "owner": "Edge, Security and AI",
-      "dependencies": ["T-0326", "T-0415", "T-0416"],
+      "dependencies": [
+        "T-0326",
+        "T-0415",
+        "T-0416"
+      ],
       "status": "complete",
       "acceptance": "The supervised RTSP library can opt into fixed-dimension RGB24 stdout only when configured with a concrete camera-matched PreAnalyticsPrivacyMask backed by AnalyticsFrameSampler. UUID identity, a 64 MiB frame cap, exact full-frame reads, ownership transfer, monotonic sequence/timestamps across restarts, child cancellation on downstream rejection, and credential-safe bounded retry fail closed. Synthetic integration proves FFmpeg output reaches analytics only after masking and sampling. The executable remains on its null sink until controlled release loading and a real allowlisted hardware executor exist; no customer footage, model, inference, evaluation, activation, or promotion is added."
     },
@@ -980,7 +1257,11 @@
       "title": "Associate bounded detector metadata into camera-local tracks",
       "phase": 12,
       "owner": "AI, Edge and Security",
-      "dependencies": ["T-0091", "T-0333", "T-0417"],
+      "dependencies": [
+        "T-0091",
+        "T-0333",
+        "T-0417"
+      ],
       "status": "complete",
       "acceptance": "A deterministic camera-local association layer validates same-scope ordered batches of at most 256 normalized detections for only the seven existing person/vehicle rule classes. It uses bounded same-class IoU association, never-reused local track IDs, atomic capacity and ordering failure, at most 30 missed frames, at most 2,048 active states, and payload-free counters, then emits the existing identity-free TrackFrame contract. Synthetic integration proves a stable associated person can traverse sampled ingress and an active intrusion rule without leaking track IDs or coordinates in the event. No pixels, detector inference, model artifact, dataset, customer footage, ByteTrack or production-tracker claim, evaluation evidence, release, activation, or promotion is added."
     },
@@ -989,7 +1270,10 @@
       "title": "Confirm camera-local vehicle tracks before review events",
       "phase": 12,
       "owner": "AI, Platform and Security",
-      "dependencies": ["T-0307", "T-0418"],
+      "dependencies": [
+        "T-0307",
+        "T-0418"
+      ],
       "status": "complete",
       "acceptance": "A tenant/site/camera/zone-bound confirmation layer accepts only strictly timestamp-ordered identity-free TrackFrame metadata, ignores person observations, and emits one existing FR-103a review-required vehicle_activity event after a configured two through ten consecutive observations of the same local vehicle track. Gaps restart an unconfirmed streak; minimum streak confidence and stable class/model provenance are enforced; at most 30 missed frames and 2,048 states are retained; replay, malformed metadata, provenance change and capacity failure are atomic. Synthetic association-to-event tests prove no track ID, coordinate, plate, speed, ReID, embedding, risk, or theft claim is emitted. No detector, model artifact, dataset, customer footage, evaluation, activation, deployment, or promotion is added."
     },
@@ -998,7 +1282,11 @@
       "title": "Confirm bounded weapon detector metadata before human review",
       "phase": 12,
       "owner": "AI, Safety and Security",
-      "dependencies": ["T-0095", "T-0363", "T-0417"],
+      "dependencies": [
+        "T-0095",
+        "T-0363",
+        "T-0417"
+      ],
       "status": "complete",
       "acceptance": "A tenant/site/camera/zone-local boundary accepts ordered batches of at most 64 normalized knife or firearm candidates and emits one existing weapon_review event only after three class-, model-version- and spatially consistent observations no more than one second apart. Same-class IoU association, minimum streak confidence, a 256-state cap, bounded emitted cooldown, payload-free metrics, and atomic scope, replay, malformed-input and capacity rejection fail closed. Events require pending human review and omit class, candidate ID, bounding box, identity and autonomous action. Tests are synthetic. No detector, model weight, dataset, pixel, crop, customer footage, evidence object, benchmark, hard-negative result, activation, promotion, alarm, dispatch or deployment is added."
     },
@@ -1007,7 +1295,10 @@
       "title": "Compose bounded loitering tracks into review events",
       "phase": 12,
       "owner": "AI, Edge and Security",
-      "dependencies": ["T-0336", "T-0418"],
+      "dependencies": [
+        "T-0336",
+        "T-0418"
+      ],
       "status": "complete",
       "acceptance": "The existing bounded camera-local detection association, 5--10 FPS sampled TrackFrame ingress and verified ZoneRuntime compose into exactly one canonical pending-human-review loitering event after a stable permitted person or vehicle track remains inside an enabled same-scope zone for the configured 30--600 second dwell window. Entry, threshold, early exit, re-entry, retry-stable opaque IDs, replay, scope and ordering, malformed metadata, atomic capacity failure and configuration rejection are covered with synthetic metadata. Event payloads omit raw track IDs, coordinates, boxes, pixels, images, identity, biometrics, plates, embeddings, ReID and autonomous-action instructions. No detector, model artifact, dataset, customer footage, evaluation, activation, promotion or deployment is added."
     },
@@ -1016,7 +1307,11 @@
       "title": "Confirm bounded fire and rising-smoke metadata before human review",
       "phase": 12,
       "owner": "AI, Safety and Security",
-      "dependencies": ["T-0096", "T-0363", "T-0417"],
+      "dependencies": [
+        "T-0096",
+        "T-0363",
+        "T-0417"
+      ],
       "status": "complete",
       "acceptance": "A tenant/site/camera/zone-local boundary accepts ordered batches of at most 64 normalized fire or smoke candidates. It emits one existing pending-human-review fire_review event after three class-, model-version- and spatially consistent observations, or one smoke_review event after five such observations with consistent positive upward movement, with gaps no longer than one second. Minimum streak confidence, a 256-state cap, bounded emitted cooldown, payload-free metrics, retry-stable opaque IDs, and atomic scope, replay, malformed-input and capacity rejection fail closed. Events omit candidate IDs, boxes, coordinates, pixels, images, identity, biometrics, plates, embeddings, alarm, evacuation, dispatch, access-control and autonomous-action instructions. Tests are synthetic. No detector, model weight, dataset, customer footage, evidence object, benchmark, activation, promotion, sensor integration, alarm integration or deployment is added; certified fire systems remain mandatory."
     },
@@ -1025,7 +1320,11 @@
       "title": "Compose bounded pending-review event delivery",
       "phase": 12,
       "owner": "Edge, Platform and Security",
-      "dependencies": ["T-0316", "T-0328", "T-0422"],
+      "dependencies": [
+        "T-0316",
+        "T-0328",
+        "T-0422"
+      ],
       "status": "complete",
       "acceptance": "A tenant/site-bound edge boundary strictly decodes, validates, canonicalizes and durably queues only existing non-biometric pending-human-review event JSON. Event IDs and opaque event-ID dedupe keys are deterministic; tenant/site/camera/zone scope, event type, model metadata, confidence, evidence-reference bounds and vehicle-only metadata rules match the backend contract. Identical replay is idempotent, changed replay fails closed, metadata ordering survives restart, and capacity exhaustion returns backpressure without evicting a pending review event. An injected authenticated sender removes an item only after durable upstream acknowledgement; downstream failure retains it for safe retry, and other spool priorities are not consumed. Synthetic tests cover malformed and autonomous-action fields, biometric event rejection, scope mismatch, replay, duplicates, capacity, recovery and downstream failure. No live transport, credential, model, dataset, footage, evidence object, notification, alarm, dispatch, access-control action, safety conclusion, activation, deployment or readiness claim is added; verified mTLS ingress remains mandatory before runtime wiring."
     },
@@ -1034,7 +1333,12 @@
       "title": "Confirm bounded PPE metadata before human review",
       "phase": 12,
       "owner": "AI, Safety and Security",
-      "dependencies": ["T-0099", "T-0363", "T-0417", "T-0423"],
+      "dependencies": [
+        "T-0099",
+        "T-0363",
+        "T-0417",
+        "T-0423"
+      ],
       "status": "complete",
       "acceptance": "A tenant/site/camera/zone-local boundary accepts ordered batches of at most 64 already-associated, identity-free track metadata records for the six bounded PPE items and an explicit non-empty per-zone required-item matrix. Unknown, incomplete or fully present metadata does not confirm. Exactly one opaque ppe_review event is emitted only after three same-track, same-missing-set and model-version-consistent observations no more than one second apart. Minimum absence-confidence, a 256-state cap, bounded emitted cooldown, payload-free metrics, retry-stable IDs, deterministic ordering, and atomic scope, replay, malformed-input, duplicate and capacity rejection fail closed. Events require pending human review and omit track IDs, PPE item/state details, boxes, coordinates, pixels, images, identity, biometrics, faces, plates, embeddings, compliance/safety conclusions and autonomous-action instructions. Tests are synthetic. No detector, attachment model, model weight, dataset, customer footage, evidence object, benchmark, notification, alarm, dispatch, access-control action, activation, promotion or deployment is added."
     },
@@ -1043,7 +1347,13 @@
       "title": "Confirm bounded fall metadata before human review",
       "phase": 12,
       "owner": "AI, Safety and Security",
-      "dependencies": ["T-0100", "T-0363", "T-0417", "T-0423", "T-0424"],
+      "dependencies": [
+        "T-0100",
+        "T-0363",
+        "T-0417",
+        "T-0423",
+        "T-0424"
+      ],
       "status": "complete",
       "acceptance": "A tenant/site/camera/zone-local boundary accepts ordered batches of at most 64 already-associated, identity-free posture and motion metadata records. It emits exactly one opaque fall_review event only after the same camera-local track moves through stable upright, downward transition and stable lying stages with consistent model provenance, gaps no longer than one second and at least 1.5 seconds from transition start to confirmation. Sitting, lying without a qualifying transition, unknown posture, missing observations, gaps, provenance changes, ambiguous motion and reversed stage order do not confirm or reset state. Minimum transition confidence, a 256-state cap, bounded emitted cooldown, payload-free metrics, retry-stable IDs, deterministic ordering, duplicate suppression, and atomic scope, replay, malformed-input and capacity rejection fail closed. Events require pending human review and omit track IDs, posture/motion details, pixels, images, identity, biometrics, faces, plates, embeddings, medical or safety conclusions and autonomous-action instructions. Tests are synthetic. No model, weight, dataset, customer footage, evidence object, benchmark, notification, emergency action, alarm, dispatch, access-control action, activation, promotion or deployment is added."
     },
@@ -1052,7 +1362,13 @@
       "title": "Confirm bounded fight metadata before human review",
       "phase": 12,
       "owner": "AI, Safety and Security",
-      "dependencies": ["T-0101", "T-0363", "T-0417", "T-0423", "T-0425"],
+      "dependencies": [
+        "T-0101",
+        "T-0363",
+        "T-0417",
+        "T-0423",
+        "T-0425"
+      ],
       "status": "complete",
       "acceptance": "A tenant/site/camera/zone-local boundary accepts ordered batches of at most 64 already-associated, identity-free motion metadata records grouped by bounded local cluster IDs. It emits exactly one opaque fight_review event only after at least two same-cluster camera-local tracks carry unambiguous aggressive-motion metadata for at least one second with an unchanged participant set, consistent model provenance and gaps no longer than one second. Ordinary crowd movement, hugs, jostling, unknown motion, missing tracks or clusters, excessive gaps, participant changes and provenance changes do not confirm or reset state. Minimum cluster confidence, a 256-state cap, bounded emitted cooldown, payload-free metrics, retry-stable IDs, deterministic ordering, duplicate suppression, and atomic scope, replay, malformed-input and capacity rejection fail closed. Events require pending human review and omit track IDs, cluster IDs, motion details, pixels, images, identity, biometrics, faces, plates, embeddings, intent, violence, injury or safety conclusions and autonomous-action instructions. Tests are synthetic. No model, weight, dataset, customer footage, evidence object, benchmark, notification, alarm, dispatch, access-control action, activation, promotion or deployment is added."
     },
@@ -1061,7 +1377,11 @@
       "title": "Load bounded privacy-release artifacts before activation",
       "phase": 12,
       "owner": "Edge and Security",
-      "dependencies": ["T-0354", "T-0417", "T-0426"],
+      "dependencies": [
+        "T-0354",
+        "T-0417",
+        "T-0426"
+      ],
       "status": "complete",
       "acceptance": "A metadata-only local loader consumes exactly one privacy-release JSON artifact capped at 128 KiB, rejects malformed, duplicate, unknown and trailing fields, and requires schema version 1. The artifact is bound to caller-configured tenant, site, camera, device, hardware-profile and physical-HIL harness scope; its approved dual-review candidate, strict decode-mask-encode pipeline, release UUID/version, candidate hash and signed HIL attestation are reverified against an injected Ed25519 public key before a defensive copy is returned. Loading performs no acceptance, state mutation, hardware execution, frame processing or runtime wiring. Synthetic tests cover deterministic reload, mutation isolation, malformed and oversized input, scope drift, invalid release metadata, simulated evidence and signature tampering. No private key, secret, credential, customer footage, evidence object, pixel, model, dataset, activation, promotion or deployment is added; OS-backed trust provisioning, executable composition, a real allowlisted hardware executor and physical signed-mask HIL remain mandatory."
     },
@@ -1070,7 +1390,10 @@
       "title": "Compose verified privacy-release bundles in the test edge runtime",
       "phase": 12,
       "owner": "Edge and Security",
-      "dependencies": ["T-0414", "T-0427"],
+      "dependencies": [
+        "T-0414",
+        "T-0427"
+      ],
       "status": "complete",
       "acceptance": "An explicitly injected raw-bundle source, T-0427 loader and controlled release gate compose through the existing worker and supervisor into an optional cancellable edge-runtime loop. The source receives only the last accepted version; a nil source result is inert, and source, parse, verification, apply or cancellation failure cannot bypass the loader or replace the prior accepted metadata release. Synthetic runtime tests cover verified acceptance, empty polling, invalid composition, tampered artifacts, cancellation and safe lifecycle observability. No existing edge command, wire contract, filesystem provisioning, OS trust store, credential, private key, device, frame, model, media path, hardware executor, activation, deployment or production-readiness claim is changed."
     },
@@ -1079,7 +1402,10 @@
       "title": "Validate test-only non-biometric privacy-rights intake drafts",
       "phase": 12,
       "owner": "Engineering, Privacy and Legal",
-      "dependencies": ["T-0405", "T-0407"],
+      "dependencies": [
+        "T-0405",
+        "T-0407"
+      ],
       "status": "complete",
       "acceptance": "A pure in-memory test-only boundary accepts only opaque UUIDv4 case, tenant and subject references; an optional opaque requester reference; one bounded request kind from the draft individual privacy-request procedure; and caller-injected synthetic jurisdiction, purpose, policy-version and legal-clock identifiers plus a bounded synthetic deadline. It returns only a verification_pending draft and fails closed for invalid identifiers, request kinds, timestamps or non-test policy configuration. Tests cover every permitted request kind, non-account requester intake and invalid metadata. No HTTP, browser route, database, migration, RLS, audit, outbox, queue, worker, identity/authority verification, staff assignment, legal calculation, consent change, deletion, hold, store inspection, fulfillment, external contact, biometric payload, actual request or production claim is added."
     },
@@ -1088,7 +1414,9 @@
       "title": "Validate test-only privacy-rights case transitions",
       "phase": 12,
       "owner": "Engineering, Privacy and Legal",
-      "dependencies": ["T-0429"],
+      "dependencies": [
+        "T-0429"
+      ],
       "status": "complete",
       "acceptance": "A pure in-memory test-only transition boundary advances a valid metadata-only privacy-rights draft only from verification_pending to under_review or rejected, under_review to fulfillment_pending or rejected, and fulfillment_pending to completed or partially_fulfilled. It revalidates matching caller-injected test-only policy metadata, preserves opaque identifiers and receipt/due data, returns a copied next version with a strictly later UTC update timestamp, and fails closed for skipped, repeated, terminal, stale, policy-mismatched, malformed or non-test transitions. Tests cover the ordered path, documented terminal outcomes and negative cases. No persistence, API, UI, queue, audit/outbox, identity verification, owner assignment, legal determination, real deadline, consent/withdrawal effect, deletion, hold, store access, fulfillment, external communication, personal payload, biometric data or production claim is added."
     },
@@ -1097,7 +1425,9 @@
       "title": "Serialize test-only privacy-rights transitions idempotently",
       "phase": 12,
       "owner": "Engineering, Privacy and Legal",
-      "dependencies": ["T-0430"],
+      "dependencies": [
+        "T-0430"
+      ],
       "status": "complete",
       "acceptance": "A process-local, single-case test-only store accepts a bounded metadata-only transition command with an opaque UUIDv4 request identifier, expected version, next state and UTC transition time. It serializes concurrent callers; exact replay returns the original copied result; reused request identifiers with different details conflict; stale expected versions fail; and all rejected commands preserve state. Tests cover replay after a later transition, request conflicts, stale versions, concurrent callers and malformed input. No persistence, API, UI, queue, audit/outbox, identity verification, owner assignment, legal determination, real deadline, consent/withdrawal effect, deletion, hold, store access, fulfillment, external communication, personal payload, biometric data or production claim is added."
     },
@@ -1106,14 +1436,14 @@
       "title": "Deliver a mobile synthetic walkthrough for the first three AI workflows",
       "phase": 12,
       "owner": "Web and Product",
-      "dependencies": ["T-0319", "T-0360", "T-0392", "T-0420"],
-      "status": "in_review",
+      "dependencies": [
+        "T-0319",
+        "T-0360",
+        "T-0392",
+        "T-0420"
+      ],
+      "status": "complete",
       "acceptance": "A phone-friendly React walkthrough opens from navigation or the demo-only query entry and presents explicitly scripted person-zone, three-observation weapon and fictional opted-in/liveness-gated attendance scenarios. Negative scenes, thresholds, prerequisites, replay, reset and human-review states have focused tests. No camera permission, upload, pixel inference, biometric processing, consent collection, real attendance, backend mutation, model activation or production claim is introduced. Live mode cannot display simulated outcomes. A client presentation guide identifies existing code and missing inference/runtime/model/biometric prerequisites; the full verification gate and browser checks precede draft PR publication."
     }
   ]
 }
-
-
-
-
-
