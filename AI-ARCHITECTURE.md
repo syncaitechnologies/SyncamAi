@@ -442,7 +442,7 @@ Event confidence = aggregated over the confirmation window (max + track-lifetime
 | **DeepSORT** | **AVOID on edge, USE at Phase-2 handoff** | Needs ReID on every track (3–5ms extra per frame, no benefit single-cam); keep for multi-camera ID continuity (FR-119) with OSNet |
 | **ByteTrack** | **USE — default tracker** | Model-free, 1–3ms CPU, robust in dense scenes, MOT17 MOTA ~80%; pairs with ReID only at handoff (D5) |
 | **ArcFace** | **USE** | The recognition standard; MobileFaceNet (4MB) at edge, R100 in cloud; no viable alternative that beats it at this size/accuracy |
-| **InsightFace** | **USE** | SCRFD detection + ArcFace + liveness models + ONNX/MTTK tooling, MIT license, active — saves ~3 months of face-stack work |
+| **InsightFace** | **CANDIDATE — weight licensing gate** | Library code is MIT; supplied pretrained weights are restricted to non-commercial research. Exact detection/recognition/liveness artifacts require separate rights and ADR-001 approval; no automatic model download for commercial demonstrations. See [publisher policy](https://github.com/deepinsight/insightface/blob/master/python-package/docs/model_zoo.md) and [ADR-014](docs/adr/ADR-014-real-phone-camera-prototype.md). |
 | **TensorRT** | **USE — mandatory (PRD §14)** | 2–5× over ONNX on Jetson; INT8 via PTQ+QAT; engine caching, multi-stream; the only way to hit 8–32 × 4K streams per box |
 | **ONNX** | **USE as interchange + CPU runtime** | Single artifact format across TRT/OpenVINO/onnxruntime; not the edge performance end-state on Jetson |
 | **DeepStream** | **DEFER to ≥16-stream boxes** | Zero-copy decode→infer pipeline is real, but adds plugin complexity and NVIDIA coupling; Triton+PyAV path covers MVP (ARCHITECTURE §7); revisit for Phase-3 64-stream boxes |

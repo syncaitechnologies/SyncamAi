@@ -1,0 +1,53 @@
+.local-camera-page { max-width: 1420px; margin: 0 auto; padding: 30px 32px 50px; color: #e8eff4; font-family: ui-sans-serif, system-ui, sans-serif; }
+.local-camera-page p { line-height: 1.6; }
+.local-camera-heading { display: flex; align-items: start; justify-content: space-between; gap: 18px; }
+.local-camera-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .09em; color: #97b9c8; }
+.local-camera-heading h1 { margin: 10px 0; font-size: clamp(26px, 3vw, 36px); line-height: 1.2; letter-spacing: -.035em; }
+.local-camera-heading p { margin: 0; color: #b3c7d3; font-size: 15px; }
+.local-camera-back { display: inline-flex; gap: 8px; align-items: center; min-height: 44px; padding: 10px; border: 0; background: transparent; color: #c4d8e4; font: inherit; cursor: pointer; }
+.local-camera-notice { display: flex; align-items: start; gap: 12px; padding: 14px 16px; margin: 22px 0; border: 1px solid #456477; border-radius: 10px; background: #172733; }
+.local-camera-notice .icon { flex: none; margin-top: 3px; color: #acd8ed; }
+.local-camera-notice p { font-size: 14px; margin: 0; color: #c3d7e1; }
+.local-camera-layout { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(310px, 1fr); align-items: start; gap: 22px; }
+.local-camera-monitor { overflow: hidden; border: 1px solid #405c6d; border-radius: 12px; background: #121e28; }
+.local-camera-monitor > header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 15px; font-size: 13px; }
+.local-camera-monitor > header > span:first-child { display: flex; align-items: center; gap: 8px; }
+.local-camera-status { padding: 5px 8px; border: 1px solid #526879; border-radius: 20px; color: #ccdde6; font-size: 11px; }
+.local-camera-status.live { border-color: #679f8b; background: #17352b; color: #b5edd7; }
+.local-camera-frame { position: relative; aspect-ratio: 4 / 3; background: #090f14; }
+.local-camera-frame video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.local-person-box { position: absolute; display: block; box-sizing: border-box; min-width: 64px; overflow: hidden; border: 2px solid #74dab4; background: #74dab4; color: #10251d; font-size: 11px; font-weight: 700; line-height: 20px; pointer-events: none; white-space: nowrap; }
+.local-camera-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; text-align: center; color: #b5cbd8; background: #101a23; }
+.local-camera-placeholder strong { color: #e6f1f7; font-size: 19px; }
+.local-camera-placeholder span { max-width: 320px; font-size: 14px; line-height: 1.5; }
+.local-camera-feedback { margin: 0; min-height: 64px; padding: 16px; border-top: 1px solid #405c6d; color: #c2d7e3; font-size: 14px; }
+.local-camera-feedback[data-phase="error"] { color: #ffd0c9; background: #352122; }
+.local-camera-controls { border: 1px solid #405c6d; background: #141f29; border-radius: 12px; padding: 22px; }
+.local-camera-controls h2 { margin: 10px 0 22px; font-size: 23px; letter-spacing: -.02em; }
+.local-camera-controls > label:not(.local-camera-authorization) { display: block; margin-bottom: 10px; font-size: 14px; }
+.local-camera-controls select { display: block; width: 100%; min-height: 46px; padding: 10px; border: 1px solid #607c8c; border-radius: 7px; background: #101d27; color: #e4eff5; font: inherit; font-size: 14px; }
+.local-camera-hint { font-size: 13px; color: #b3c8d5; margin: 12px 0; }
+.local-camera-authorization { display: flex; align-items: start; gap: 12px; padding: 16px 0 4px; font-size: 15px; line-height: 1.5; cursor: pointer; }
+.local-camera-authorization input { margin: 2px 0 0; width: 22px; height: 22px; flex: none; accent-color: #9be8c8; }
+.local-camera-buttons { display: flex; gap: 10px; margin: 24px 0 16px; }
+.local-camera-buttons button { display: inline-flex; justify-content: center; align-items: center; gap: 8px; min-height: 48px; padding: 10px 14px; font: inherit; font-size: 14px; font-weight: 700; border-radius: 7px; cursor: pointer; }
+.local-camera-start { flex: 1; color: #0c251d; background: #9be8c8; border: 1px solid #9be8c8; }
+.local-camera-stop { color: #e4eff5; background: #263844; border: 1px solid #698292; }
+.local-camera-buttons button:disabled, .local-camera-controls select:disabled { opacity: .6; cursor: default; }
+.local-camera-page button:focus-visible, .local-camera-page select:focus-visible, .local-camera-page input:focus-visible { outline: 3px solid #a6d9f1; outline-offset: 4px; }
+.local-camera-capabilities { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 24px; }
+.local-camera-capabilities article { padding: 18px; border: 1px solid #405c6d; border-radius: 10px; background: #141f29; }
+.local-camera-capabilities article > span { color: #dfbf90; font-size: 11px; font-weight: 700; letter-spacing: .06em; }
+.local-camera-capabilities h2 { margin: 12px 0 8px; font-size: 17px; line-height: 1.4; }
+.local-camera-capabilities p { color: #b3c8d5; font-size: 14px; margin: 0; }
+@media (max-width: 1100px) { .local-camera-layout { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .sidebar .nav-item.local-camera-entry { display: flex; }.local-camera-entry > span { display: none; } }
+@media (max-width: 700px) {
+  .camera-shell .sidebar, .camera-shell .topbar { display: none; }
+  .camera-shell .main-content { width: 100%; padding-bottom: 0; }
+  .local-camera-page { padding: 20px 14px 80px; }
+  .local-camera-heading { display: block; }
+  .local-camera-back { margin-top: 10px; padding-left: 0; }
+  .local-camera-controls { padding: 18px; }
+  .local-camera-capabilities { grid-template-columns: 1fr; }
+}

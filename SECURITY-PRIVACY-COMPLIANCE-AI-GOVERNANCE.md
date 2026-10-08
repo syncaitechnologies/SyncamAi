@@ -600,8 +600,8 @@ flowchart TD
 |---|---|---|---|---|---|
 | Person/vehicle detection | YOLOv8m/11m (shared backbone) | COCO + CrowdHuman + BDD100K FT | AP50 0.93–0.95 | Tiny/distant persons, occlusion, IR flare | AGPL→resolved per D6 |
 | Weapon | YOLOv8m FT + P2 + SAHI | Public weapon sets + hard negatives | mAP50 0.82–0.88, prec ≥0.90 | Small knives @40m, tool confusion, silhouettes | AGPL→resolved per D6 |
-| Face detection | SCRFD-500 | WIDER FACE | AP 0.90–0.93 | Masks, backlight, glasses glare, <20px | MIT (InsightFace) |
-| Face recognition | ArcFace MobileFaceNet (edge) / R100 (cloud) | MS1MV3/Glint360K pretrained (no raw faces shipped) | TAR ≥0.96 @ FAR 1e-4 | Age/clothing drift, twins, yaw >45°, mask | MIT |
+| Face detection | SCRFD-500 | WIDER FACE | AP 0.90–0.93 | Masks, backlight, glasses glare, <20px | InsightFace code: MIT; supplied pretrained weights: non-commercial research, separate approval required (ADR-001/ADR-014) |
+| Face recognition | ArcFace MobileFaceNet (edge) / R100 (cloud) | MS1MV3/Glint360K pretrained (no raw faces shipped) | TAR ≥0.96 @ FAR 1e-4 | Age/clothing drift, twins, yaw >45°, mask | InsightFace code: MIT; supplied pretrained weights: non-commercial research, separate approval required (ADR-001/ADR-014) |
 | Face liveness | miniFASNet-class | SiW/OULU/CelebA-Spoof/Replay | APCER ≤1.5% / BPCER ≤1% | Bright-screen replay, doll/mask attacks | MIT |
 | LPR (detect+OCR) | YOLOv8s + LPRNet / PP-OCRv4 | Synthetic-first + regional sets | mAP 0.95+ day; char acc 0.96+ | Muddy plates, IN font variance, night | Apache-2.0 |
 | Fire/Smoke | EfficientNet-B0 / D-Fire | DFire, FiSmo, hard negatives | prec 0.93/0.88 | Welding arcs, steam vents, IR profile | MIT |

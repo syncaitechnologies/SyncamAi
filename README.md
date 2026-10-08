@@ -18,7 +18,13 @@ Phase 1 local persistence uses Postgres 16 with separate `syncam_admin` migratio
 
 ## Web authentication (temporary Supabase MVP)
 
-For the phone-friendly client presentation, open **AI walkthrough** or append
+For actual local phone-camera input, open **Phone camera** or append
+`?camera=local` to a demo-mode frontend URL over HTTPS. This first slice connects
+real video locally, but no detection model is connected yet. It does not record,
+upload or identify people. See the [real-camera three-week plan](docs/development/real-camera-prototype-plan.md)
+for person, firearm/knife and enrolled-name milestones and approval blockers.
+
+The earlier synthetic presentation remains separate: open **AI walkthrough** or append
 `?demo=vision` to a demo-mode frontend URL. It presents person detection,
 weapon review and fictional face-attendance workflows with clearly labelled
 scripted observations. See the [presentation guide and live blockers](docs/development/three-feature-client-demo.md).
