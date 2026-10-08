@@ -64,6 +64,12 @@ class FailureFixtureTests(unittest.TestCase):
                 {"example.test/approved"},
             )
 
+    def test_python_dependency_parser_includes_optional_runtime_extra(self) -> None:
+        self.assertEqual(
+            validate_licenses.python_dependency_names(ROOT / "ai-services/pyproject.toml"),
+            {"numpy", "openvino"},
+        )
+
     def test_go_coverage_parser_weights_statements(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             profile = pathlib.Path(directory) / "coverage.out"
@@ -83,3 +89,4 @@ class FailureFixtureTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

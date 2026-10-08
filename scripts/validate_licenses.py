@@ -6,6 +6,7 @@ import json
 import pathlib
 import re
 import sys
+import tomllib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 POLICY = ROOT / "licenses/allowlist.json"
@@ -14,6 +15,19 @@ POLICY = ROOT / "licenses/allowlist.json"
 def dependency_names(package_file: pathlib.Path) -> set[str]:
     package = json.loads(package_file.read_text(encoding="utf-8"))
     return set(package.get("dependencies", {})) | set(package.get("devDependencies", {}))
+
+
+def python_dependency_names(pyproject_file: pathlib.Path) -> set[str]:
+    """Return normalized direct project and optional-extra dependency names."""
+
+    project = tomllib.loads(pyproject_file.read_text(encoding="utf-8")).get("project", {})
+    requirements = list(project.get("dependencies", []))
+    for dependencies in project.get("optional-dependencies", {}).values():
+        requirements.extend(dependencies)
+    return {
+        re.split(r"[<>=!~;[\\s]", requirement, maxsplit=1)[0].lower().replace("_", "-")
+        for requirement in requirements
+    }
 
 
 def go_module_names(go_mod: pathlib.Path) -> set[str]:
@@ -52,6 +66,14 @@ def main() -> int:
     unapproved = sorted(dependencies - permitted)
     if unapproved:
         errors.append(f"unapproved package dependencies: {', '.join(unapproved)}")
+    permitted_python = set(policy.get("python_package_allowlist", []))
+    python_dependencies: set[str] = set()
+    for pyproject_file in ROOT.rglob("pyproject.toml"):
+        if ".venv" not in pyproject_file.parts and ".git" not in pyproject_file.parts:
+            python_dependencies.update(python_dependency_names(pyproject_file))
+    unapproved_python = sorted(python_dependencies - permitted_python)
+    if unapproved_python:
+        errors.append(f"unapproved direct Python packages: {', '.join(unapproved_python)}")
     permitted_go = set(policy.get("go_module_allowlist", []))
     go_dependencies: set[str] = set()
     for go_mod in ROOT.rglob("go.mod"):
@@ -71,10 +93,12 @@ def main() -> int:
         return 1
     print(
         "licenses: ok "
-        f"({len(dependencies)} direct package dependencies, {len(go_dependencies)} direct Go modules)"
+        f"({len(dependencies)} direct package dependencies, "
+        f"{len(python_dependencies)} direct Python packages, {len(go_dependencies)} direct Go modules)"
     )
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
