@@ -5,6 +5,7 @@
   "model_licenses": ["Apache-2.0"],
   "package_allowlist": [
     "@supabase/supabase-js",
+    "@types/node",
     "@types/react",
     "@types/react-dom",
     "@vitejs/plugin-react",
