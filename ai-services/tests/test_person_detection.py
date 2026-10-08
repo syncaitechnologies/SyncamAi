@@ -7,8 +7,6 @@ from pathlib import Path
 import sys
 import unittest
 
-import numpy as np
-
 SRC = Path(__file__).parents[1] / "src"
 sys.path.insert(0, str(SRC))
 
@@ -48,9 +46,7 @@ class PersonDetectorArtifactTest(unittest.TestCase):
 
 class PersonDetectionParserTest(unittest.TestCase):
     def test_parses_and_scales_documented_person_output(self) -> None:
-        output = np.array(
-            [[[[0, 0, 0.95, 0.1, 0.2, 0.6, 0.8], [-1, 0, 0, 0, 0, 0, 0]]]], dtype=np.float32
-        )
+        output = [[[[0, 0, 0.95, 0.1, 0.2, 0.6, 0.8], [-1, 0, 0, 0, 0, 0, 0]]]]
 
         detections = parse_person_detections(
             output, frame_width=1000, frame_height=500, minimum_confidence=0.5
@@ -64,14 +60,14 @@ class PersonDetectionParserTest(unittest.TestCase):
     def test_rejects_unexpected_output_contract(self) -> None:
         with self.assertRaisesRegex(ValueError, "1x1xNx7"):
             parse_person_detections(
-                np.zeros((1, 7), dtype=np.float32),
+                [[0, 0, 0, 0, 0, 0, 0]],
                 frame_width=100,
                 frame_height=100,
                 minimum_confidence=0.5,
             )
 
     def test_rejects_unexpected_label_and_invalid_threshold(self) -> None:
-        output = np.array([[[[0, 1, 0.95, 0.1, 0.2, 0.6, 0.8]]]], dtype=np.float32)
+        output = [[[[0, 1, 0.95, 0.1, 0.2, 0.6, 0.8]]]]
         with self.assertRaisesRegex(ValueError, "unexpected label"):
             parse_person_detections(
                 output, frame_width=100, frame_height=100, minimum_confidence=0.5
