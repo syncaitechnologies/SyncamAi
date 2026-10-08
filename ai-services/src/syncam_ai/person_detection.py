@@ -14,9 +14,6 @@ from math import isfinite
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-from numpy.typing import NDArray
-
 _MAX_FRAME_PIXELS = 33_554_432
 _MODEL_INPUT_SIZE = 256
 _PERSON_LABEL = 0
@@ -76,7 +73,7 @@ def verify_person_detector_artifact(
 
 
 def parse_person_detections(
-    output: NDArray[np.floating[Any]],
+    output: object,
     *,
     frame_width: int,
     frame_height: int,
@@ -86,15 +83,16 @@ def parse_person_detections(
 
     _validate_frame_dimensions(frame_width, frame_height)
     _validate_confidence(minimum_confidence)
-    values = np.asarray(output)
-    if values.ndim != 4 or values.shape[0:2] != (1, 1) or values.shape[-1] != 7:
-        raise ValueError("person detector output must use the documented 1x1xNx7 contract")
-    if not np.isfinite(values).all():
-        raise ValueError("person detector output must be finite")
-
     detections: list[PersonDetection] = []
-    for row in values[0, 0]:
-        image_id, label, confidence, left, top, right, bottom = (float(value) for value in row)
+    for row in _output_rows(output):
+        try:
+            image_id, label, confidence, left, top, right, bottom = (
+                float(value) for value in row
+            )
+        except (TypeError, ValueError) as error:
+            raise ValueError("person detector output must contain finite numeric values") from error
+        if not all(isfinite(value) for value in (image_id, label, confidence, left, top, right, bottom)):
+            raise ValueError("person detector output must be finite")
         if image_id < 0:
             break
         if int(label) != _PERSON_LABEL:
@@ -142,21 +140,22 @@ class OpenVinoPersonDetector:
 
     def detect(
         self,
-        frame: NDArray[np.uint8[Any]],
+        frame: Any,
         *,
         minimum_confidence: float = 0.5,
     ) -> tuple[PersonDetection, ...]:
         """Run local inference over one BGR frame and return person boxes only."""
 
-        _validate_frame(frame)
+        numpy = _require_numpy()
+        _validate_frame(frame, numpy)
         _validate_confidence(minimum_confidence)
         height, width, _ = frame.shape
         resized = _resize_nearest_bgr(frame, _MODEL_INPUT_SIZE, _MODEL_INPUT_SIZE)
-        tensor = np.transpose(resized, (2, 0, 1))[np.newaxis, ...]
+        tensor = numpy.transpose(resized, (2, 0, 1))[numpy.newaxis, ...]
         outputs = self._compiled_model({self._input_name: tensor})
         if len(outputs) != 1:
             raise RuntimeError("person detector must return exactly one output")
-        output = np.asarray(next(iter(outputs.values())))
+        output = numpy.asarray(next(iter(outputs.values())))
         return parse_person_detections(
             output, frame_width=width, frame_height=height, minimum_confidence=minimum_confidence
         )
@@ -184,8 +183,28 @@ def _validate_frame_dimensions(width: int, height: int) -> None:
         raise ValueError("frame dimensions exceed the local safety bound")
 
 
-def _validate_frame(frame: NDArray[np.uint8[Any]]) -> None:
-    if not isinstance(frame, np.ndarray) or frame.dtype != np.uint8:
+def _output_rows(output: object) -> Any:
+    try:
+        if len(output) != 1 or len(output[0]) != 1:
+            raise ValueError
+        rows = output[0][0]
+        if any(len(row) != 7 for row in rows):
+            raise ValueError
+    except (IndexError, TypeError, ValueError) as error:
+        raise ValueError("person detector output must use the documented 1x1xNx7 contract") from error
+    return rows
+
+
+def _require_numpy() -> Any:
+    try:
+        import numpy
+    except ImportError as error:
+        raise RuntimeError("install the person-detector extra before running local inference") from error
+    return numpy
+
+
+def _validate_frame(frame: Any, numpy: Any) -> None:
+    if not isinstance(frame, numpy.ndarray) or frame.dtype != numpy.uint8:
         raise ValueError("person detector frame must be a uint8 ndarray")
     if frame.ndim != 3 or frame.shape[2] != 3:
         raise ValueError("person detector frame must be a BGR image with three channels")
@@ -193,9 +212,10 @@ def _validate_frame(frame: NDArray[np.uint8[Any]]) -> None:
 
 
 def _resize_nearest_bgr(
-    frame: NDArray[np.uint8[Any]], target_height: int, target_width: int
-) -> NDArray[np.uint8[Any]]:
-    row_indices = np.arange(target_height) * frame.shape[0] // target_height
-    column_indices = np.arange(target_width) * frame.shape[1] // target_width
+    frame: Any, target_height: int, target_width: int
+) -> Any:
+    numpy = _require_numpy()
+    row_indices = numpy.arange(target_height) * frame.shape[0] // target_height
+    column_indices = numpy.arange(target_width) * frame.shape[1] // target_width
     return frame[row_indices][:, column_indices]
 
