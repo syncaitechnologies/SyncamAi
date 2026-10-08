@@ -10,9 +10,11 @@ import { useAlertFeed } from "./use-alert-feed";
 import { ZoneBuilder } from "./ZoneBuilder";
 import { VisionDemo } from "./VisionDemo";
 import { initialDemoView } from "./vision-demo-model";
+import { LocalCameraWorkspace } from "./LocalCameraWorkspace";
+import { initialLocalCameraView } from "./local-camera-session";
 
 type Filter = "all" | "critical" | "unacknowledged" | "acknowledged";
-type View = "dashboard" | "alerts" | "cameras" | "zones" | "models" | "onboarding" | "vision";
+type View = "dashboard" | "alerts" | "cameras" | "zones" | "models" | "onboarding" | "vision" | "local-camera";
 
 const seedAlerts: AlertItem[] = [
   {
@@ -192,7 +194,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
     queueLoaded,
     dataMode,
   } = useAlertFeed(seedAlerts);
-  const [activeView, setActiveView] = useState<View>(() => initialDemoView(window.location.search, dataMode));
+  const [activeView, setActiveView] = useState<View>(() => initialLocalCameraView(window.location.search, dataMode) ?? initialDemoView(window.location.search, dataMode));
   const [now, setNow] = useState(() => new Date());
   const [selectedId, setSelectedId] = useState(firstAlert.id);
   const [filter, setFilter] = useState<Filter>("all");
@@ -394,7 +396,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
     setToast(`Alert dismissed · ${reason}`);
   }
   return (
-    <div className={activeView === "vision" ? "app-shell vision-shell" : "app-shell"}>
+    <div className={activeView === "local-camera" ? "app-shell camera-shell" : activeView === "vision" ? "app-shell vision-shell" : "app-shell"}>
       <aside className="sidebar" aria-label="Primary navigation">
         <div className="brand-lockup">
           <div className="brand-mark">
@@ -418,6 +420,16 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
         </div>
         <nav className="nav-list">
           <span className="nav-label">Monitor</span>
+          <button
+            className={activeView === "local-camera" ? "nav-item local-camera-entry active" : "nav-item local-camera-entry"}
+            type="button"
+            onClick={() => setActiveView("local-camera")}
+            aria-label="Open phone camera"
+            aria-current={activeView === "local-camera" ? "page" : undefined}
+          >
+            <Icon name="camera" />
+            <span>Phone camera</span>
+          </button>
           <button
             className={activeView === "vision" ? "nav-item vision-entry active" : "nav-item vision-entry"}
             type="button"
@@ -527,7 +539,9 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
             <span>Monitor</span>
             <Icon name="chevron" size={14} />
             <strong>
-              {activeView === "vision"
+              {activeView === "local-camera"
+                ? "Phone camera"
+                : activeView === "vision"
                 ? "AI walkthrough"
                 : activeView === "dashboard"
                 ? "Operations overview"
@@ -567,7 +581,9 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
             </time>
           </div>
         </header>
-        {activeView === "vision" ? (
+        {activeView === "local-camera" ? (
+          <LocalCameraWorkspace onOpenOverview={() => setActiveView("dashboard")} />
+        ) : activeView === "vision" ? (
           <VisionDemo dataMode={dataMode} onOpenOverview={() => setActiveView("dashboard")} />
         ) : activeView === "dashboard" ? (
           <OperationsDashboard
@@ -1148,7 +1164,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
           </>
         )}
       </main>
-      {toast && (
+      {toast && activeView !== "local-camera" && (
         <div className="toast">
           <span className="toast-check">
             <Icon name="check" size={14} />

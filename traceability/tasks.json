@@ -1444,6 +1444,24 @@
       ],
       "status": "complete",
       "acceptance": "A phone-friendly React walkthrough opens from navigation or the demo-only query entry and presents explicitly scripted person-zone, three-observation weapon and fictional opted-in/liveness-gated attendance scenarios. Negative scenes, thresholds, prerequisites, replay, reset and human-review states have focused tests. No camera permission, upload, pixel inference, biometric processing, consent collection, real attendance, backend mutation, model activation or production claim is introduced. Live mode cannot display simulated outcomes. A client presentation guide identifies existing code and missing inference/runtime/model/biometric prerequisites; the full verification gate and browser checks precede draft PR publication."
+    },
+    {
+      "id": "T-0433",
+      "title": "Connect real local phone-camera input and record the three-feature delivery target",
+      "phase": 12,
+      "owner": "Web, AI, Security and Product",
+      "dependencies": ["T-0319", "T-0432"],
+      "status": "complete",
+      "acceptance": "A separate responsive camera workspace opens an actual local getUserMedia video stream only after explicit scene authorization and Start, requests no microphone and renders inline muted preview. Stop, camera selection changes, authorization revocation, hidden/pagehide, navigation, disposal and track end stop/detach every track; late permission or playback completion cannot restart capture. Tests cover permission/device errors, lifecycle races and live-auth query isolation without footage. No frame extraction, recording, upload, persistence, inference, model artifact, biometric processing, fake result, site-camera authorization bypass or production claim is introduced. ADR-014 and a conditional three-week person/firearm/knife/enrolled-name plan supersede the owner's synthetic presentation target while preserving ADR-001 and Phase 5 approval gates. PR 170 is verified merged before T-0432 is marked complete."
+    },
+    {
+      "id": "T-0434",
+      "title": "Build a development-only local phone person-inference bridge",
+      "phase": 12,
+      "owner": "Web, AI and Security",
+      "dependencies": ["T-0256", "T-0433"],
+      "status": "in_review",
+      "acceptance": "A user-started, authorized real phone-camera workspace can opt in to bounded transient person-only development inference over one configured HTTPS endpoint. The browser accepts only a clean HTTPS endpoint configuration, samples no more than 640×480 RGBA frames about every 800 ms while enabled, cancels on stop/hidden/navigation/disposal, validates bounded box-only responses and renders no persisted frame or identity. The local Python server requires TLS files and one explicit HTTPS Origin; accepts only the private local-dev route, fixed media type, exact frame length and bounded dimensions; emits only person boxes with no request logs. Model artifacts, TLS files, keys, images, footage, identities, biometrics, weapon results, events, alerts, persistence, tenant integration, API migration, production promotion or production claim are excluded. ADR-015 documents the setup and limits; unit, frontend and full verification gates precede draft PR publication."
     }
   ]
 }
