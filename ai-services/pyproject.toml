@@ -12,7 +12,7 @@ license = { text = "Proprietary" }
 [project.optional-dependencies]
 person-detector = [
   "numpy>=1.26,<3",
-  "openvino>=2025.0,<2026.0",
+  "openvino>=2025.0,<2027.0",
 ]
 
 [tool.setuptools.packages.find]
