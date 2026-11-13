@@ -22,6 +22,15 @@ NVR / IP cameras (RTSP, private LAN)
 | Zone protection | Intrusion, restricted zone or tripwire on a camera | `intrusion` / `restricted_zone` |
 | Car-theft risk | Loitering zone over the parking area with subject classes person + vehicles, 60–120 s | `loitering` ("Person loitering near vehicles") |
 | Camera offline / tampered | Automatic for every configured camera after 60 s | `camera_health` |
+| Possible weapon | Set `models.weapon` and `allow_dev_models: true` (development model only) | `weapon_review` |
+
+Weapon review runs only on frames where a person is visible, also inside
+enlarged crops around the largest people, and needs the same object in three
+consecutive frames within a second (`weapon_review.py`). Repeat alerts from one
+camera are suppressed for a minute. The current weapon model is a community
+model with **no stated licence**; `fetch_site_models.ps1 -IncludeDevWeaponModel`
+downloads it for development and demos only. Replace it with a licence-clean,
+fine-tuned model before selling.
 
 An intrusion zone alerts when a person **enters** it, and also when a person is
 first seen **already inside** it for three consecutive frames while armed. A

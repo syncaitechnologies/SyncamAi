@@ -2,7 +2,9 @@
 # verifies each file against the SHA-384 pinned in
 # ai-services/src/syncam_ai/model_artifacts.py. Never commit model files.
 param(
-    [string]$Destination = "D:\private\models"
+    [string]$Destination = "D:\private\models",
+    # Development/demo only: this community weapon model has no stated licence.
+    [switch]$IncludeDevWeaponModel
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,6 +16,14 @@ $models = @(
         Note   = "YOLOX-s, Apache-2.0: people and vehicles"
     }
 )
+if ($IncludeDevWeaponModel) {
+    $models += @{
+        Name   = "weapon_dev_yolov8.onnx"
+        Url    = "https://huggingface.co/Hadi959/weapon-detection-yolov8/resolve/main/best.onnx"
+        Sha384 = "86f286064e66ee2f857ec35eb3e9cf9094e1e7e2594536ddcdd35176be6fed910dfe3683d7ee7254f4e8ea6c5594cde7"
+        Note   = "community pistol/knife model (DEVELOPMENT ONLY, no licence)"
+    }
+}
 
 New-Item -ItemType Directory -Force $Destination | Out-Null
 foreach ($model in $models) {

@@ -77,7 +77,12 @@ class FrameProcessor(Protocol):
     """Extra analytics (weapons, faces) that run on the same frame."""
 
     def process(
-        self, camera_id: str, frame: Any, detections: Sequence[ObjectDetection], observed_at: datetime
+        self,
+        scope: tuple[str, str],
+        camera_id: str,
+        frame: Any,
+        detections: Sequence[ObjectDetection],
+        observed_at: datetime,
     ) -> list[AlertCandidate]: ...
 
 
@@ -231,7 +236,10 @@ class SiteWorker:
             for event in rules.evaluate(track_frame)
         ]
         for processor in self._processors:
-            candidates.extend(processor.process(camera_id, frame, detections, observed_at))
+            try:
+                candidates.extend(processor.process((rules.tenant_id, rules.site_id), camera_id, frame, detections, observed_at))
+            except Exception as error:  # one analytics failure must not stop zone alerts
+                _LOG.error("%s failed on camera %s: %s", type(processor).__name__, camera_id, error)
         for candidate in candidates:
             self._queue(camera_id, frame, candidate, observed_at)
         return len(candidates)
