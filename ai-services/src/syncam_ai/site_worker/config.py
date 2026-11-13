@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 from uuid import UUID
@@ -29,9 +29,10 @@ class LocalConfig:
     spool_dir: Path = Path("syncam-spool")
     weapon_model: Path | None = None
     weapon_model_dev_only: bool = False
-    face_models: Mapping[str, Path] = field(default_factory=dict)
+    face_models_dir: Path | None = None
     entrance_cameras: tuple[str, ...] = ()
-    staff_file: Path | None = None
+    face_gallery: Path = Path("syncam-faces.gallery")
+    face_match_threshold: float = 0.55
 
 
 def _path(value: object, field_name: str) -> Path:
@@ -71,13 +72,15 @@ def parse_local_config(raw: Mapping[str, Any], *, environ: Mapping[str, str] | N
     if not 0.1 <= min_confidence <= 0.95:
         raise ValueError("min_confidence must be between 0.1 and 0.95")
     weapon = models.get("weapon")
-    faces = models.get("faces", {})
-    if not isinstance(faces, Mapping):
-        raise ValueError("models.faces must map model roles to files")
+    faces = models.get("faces")
     entrance = raw.get("entrance_cameras", [])
     if not isinstance(entrance, list) or any(str(item) not in parsed_cameras for item in entrance):
         raise ValueError("entrance_cameras must list configured camera IDs")
-    staff_file = raw.get("staff_file")
+    threshold = float(raw.get("face_match_threshold", 0.55))
+    if not 0.3 <= threshold <= 0.95:
+        raise ValueError("face_match_threshold must be between 0.3 and 0.95")
+    spool_dir = _path(raw.get("spool_dir", "syncam-spool"), "spool_dir")
+    gallery = raw.get("face_gallery")
     return LocalConfig(
         backend_url=backend_url.strip(),
         site_key=site_key.strip(),
@@ -86,12 +89,13 @@ def parse_local_config(raw: Mapping[str, Any], *, environ: Mapping[str, str] | N
         device=str(raw.get("device", "AUTO")),
         fps=fps,
         min_confidence=min_confidence,
-        spool_dir=_path(raw.get("spool_dir", "syncam-spool"), "spool_dir"),
+        spool_dir=spool_dir,
         weapon_model=_path(weapon, "models.weapon") if weapon else None,
         weapon_model_dev_only=bool(raw.get("allow_dev_models", False)),
-        face_models={str(role): _path(path, f"models.faces.{role}") for role, path in faces.items()},
+        face_models_dir=_path(faces, "models.faces") if faces else None,
         entrance_cameras=tuple(str(item) for item in entrance),
-        staff_file=_path(staff_file, "staff_file") if staff_file else None,
+        face_gallery=_path(gallery, "face_gallery") if gallery else spool_dir.parent / "syncam-faces.gallery",
+        face_match_threshold=threshold,
     )
 
 

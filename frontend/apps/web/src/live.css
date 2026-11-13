@@ -81,6 +81,14 @@
 .live-zone-item strong { font-size: 13px; color: #e3ebf0; }
 .live-zone-item small { font-size: 11px; color: #8092a0; }
 
+.live-date { border: 1px solid #3b4b59; border-radius: 8px; background: #101820; color: #ebf1f4; padding: 8px 10px; font: inherit; font-size: 13px; color-scheme: dark; }
+.live-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.live-table th { text-align: left; color: #74868f; font: 10px "DM Mono", monospace; text-transform: uppercase; letter-spacing: .08em; padding: 8px 10px; border-bottom: 1px solid #26333e; }
+.live-table td { padding: 10px; color: #dce6ec; border-bottom: 1px solid #1d2832; }
+.live-table tr.absent td { color: #7f909c; }
+.live-zone-form .live-consent { align-items: flex-start; font-weight: 500; line-height: 1.45; color: #c9d5dc; }
+.live-zone-form .live-consent input { margin-top: 3px; }
+
 @media (max-width: 1100px) {
   .live-steps, .live-zone-layout { grid-template-columns: 1fr; }
 }

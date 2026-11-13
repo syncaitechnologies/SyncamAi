@@ -45,7 +45,25 @@ export type TelegramTarget = {
   muted: boolean;
 };
 
-export const vehicleClasses = ["bicycle", "bus", "car", "motorcycle", "truck", "van"];
+export type StaffMember = {
+  id: string;
+  site_id: string;
+  display_name: string;
+  employee_code?: string;
+  consent_recorded_at: string;
+  consent_recorded_by: string;
+  active: boolean;
+};
+export type AttendanceRecord = {
+  id: string;
+  staff_id: string;
+  staff_name?: string;
+  camera_id: string;
+  occurred_at: string;
+  confidence: number;
+};
+
+export const vehicleClasses =["bicycle", "bus", "car", "motorcycle", "truck", "van"];
 
 function data<T>(payload: unknown): T {
   if (typeof payload !== "object" || payload === null || !("data" in payload)) {
@@ -162,6 +180,36 @@ export class SyncamApi extends AlertApiClient {
 
   async deleteTelegram(targetId: string) {
     await this.request(`/v1/notifications/telegram/${encodeURIComponent(targetId)}`, { method: "DELETE" });
+  }
+
+  async listStaff(siteId: string, signal?: AbortSignal) {
+    const query = new URLSearchParams({ site_id: siteId });
+    return data<StaffMember[]>(await this.request(`/v1/staff?${query}`, { method: "GET", signal }));
+  }
+
+  async createStaff(siteId: string, displayName: string, employeeCode: string) {
+    return data<StaffMember>(
+      await this.request("/v1/staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ site_id: siteId, display_name: displayName, employee_code: employeeCode, consent_confirmed: true }),
+      }),
+    );
+  }
+
+  async setStaffActive(staffId: string, active: boolean) {
+    return data<StaffMember>(
+      await this.request(`/v1/staff/${encodeURIComponent(staffId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active }),
+      }),
+    );
+  }
+
+  async listAttendance(siteId: string, from: Date, to: Date, signal?: AbortSignal) {
+    const query = new URLSearchParams({ site_id: siteId, from: from.toISOString(), to: to.toISOString() });
+    return data<AttendanceRecord[]>(await this.request(`/v1/attendance?${query}`, { method: "GET", signal }));
   }
 
   alertSnapshot(alertId: string, signal?: AbortSignal) {

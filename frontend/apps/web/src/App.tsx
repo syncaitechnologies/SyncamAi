@@ -15,6 +15,7 @@ import { initialLocalCameraView } from "./local-camera-session";
 import { AlertSnapshot } from "./AlertSnapshot";
 import { LiveZoneEditor } from "./LiveZoneEditor";
 import { SiteSettings } from "./SiteSettings";
+import { AttendanceWorkspace } from "./AttendanceWorkspace";
 import { readAlertRuntimeConfig, selectSite } from "./alert-client";
 
 function readSelectedSiteReady() {
@@ -25,7 +26,7 @@ import { useLiveAlertNotifications } from "./live-notifications";
 import "./live.css";
 
 type Filter = "all" | "critical" | "unacknowledged" | "acknowledged";
-type View = "dashboard" | "alerts" | "cameras" | "zones" | "models" | "onboarding" | "vision" | "local-camera" | "settings";
+type View = "dashboard" | "alerts" | "cameras" | "zones" | "models" | "onboarding" | "vision" | "local-camera" | "settings" | "attendance";
 
 const rawSeedAlerts: AlertItem[] = [
   {
@@ -516,7 +517,17 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
             <Icon name="polygon" />
             <span>Zones & rules</span>
           </button>
-          {!live && (
+          {live ? (
+            <button
+              className={activeView === "attendance" ? "nav-item active" : "nav-item"}
+              type="button"
+              onClick={() => setActiveView("attendance")}
+              aria-current={activeView === "attendance" ? "page" : undefined}
+            >
+              <Icon name="users" />
+              <span>Attendance</span>
+            </button>
+          ) : (
             <button className="nav-item" type="button">
               <Icon name="chart" />
               Incidents
@@ -605,6 +616,8 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
                         ? "Organization setup"
                         : activeView === "settings"
                           ? "Configuration"
+                          : activeView === "attendance"
+                            ? "Attendance"
                   : "Alert Center"}
             </strong>
           </div>
@@ -677,6 +690,8 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
           live ? <LiveZoneEditor workspace={workspace} onNotify={setToast} /> : <ZoneBuilder dataMode={dataMode} onNotify={setToast} />
         ) : activeView === "settings" ? (
           <SiteSettings workspace={workspace} onNotify={setToast} />
+        ) : activeView === "attendance" ? (
+          <AttendanceWorkspace workspace={workspace} onNotify={setToast} />
         ) : activeView === "models" ? (
           <ModelRegistryWorkspace dataMode={dataMode} />
         ) : activeView === "onboarding" ? (

@@ -35,7 +35,7 @@ def _processors(config: LocalConfig, client: BackendClient) -> list[FrameProcess
         from .weapons import WeaponProcessor
 
         processors.append(WeaponProcessor.from_config(config))
-    if config.face_models and config.entrance_cameras:
+    if config.face_models_dir is not None and config.entrance_cameras:
         from .faces import AttendanceProcessor
 
         processors.append(AttendanceProcessor.from_config(config, client))
@@ -115,6 +115,46 @@ def command_snapshot(config: LocalConfig, camera_id: str, output: Path) -> int:
     return 1
 
 
+def command_enroll(config: LocalConfig, staff_id: str, photos: Path) -> int:
+    """Enroll a consenting staff member from a folder of their photos."""
+
+    import cv2
+
+    from .faces import FaceEngine, FaceGallery
+
+    if config.face_models_dir is None:
+        print("Set models.faces in the config to the face model folder first.")
+        return 1
+    staff = {item["id"]: item.get("display_name", "") for item in BackendClient(config.backend_url, config.site_key).config().get("staff", [])}
+    if staff_id not in staff:
+        print("This staff ID is not an active staff member of this site. Add them in the dashboard (Attendance) with recorded consent first.")
+        return 1
+    engine = FaceEngine(config.face_models_dir, device=config.device)
+    signatures = []
+    for path in sorted(photos.iterdir()):
+        if path.suffix.lower() not in {".jpg", ".jpeg", ".png"}:
+            continue
+        image = cv2.imread(str(path))
+        signature = engine.largest_face_signature(image) if image is not None else None
+        print(f"  {path.name}: {'face found' if signature else 'NO FACE - skipped'}")
+        if signature:
+            signatures.append(signature)
+    if len(signatures) < 3:
+        print("At least 3 clear photos of the person's face are needed (different angles and lighting help).")
+        return 1
+    FaceGallery.from_environment(config.face_gallery).enroll(staff_id, staff[staff_id], signatures)
+    print(f"Enrolled {staff[staff_id]} with {len(signatures)} photos. The photos themselves were not stored; you can delete them now.")
+    return 0
+
+
+def command_forget(config: LocalConfig, staff_id: str) -> int:
+    from .faces import FaceGallery
+
+    removed = FaceGallery.from_environment(config.face_gallery).forget(staff_id)
+    print("Face data deleted from this site box." if removed else "No face data was stored for that staff ID.")
+    return 0
+
+
 def command_run(config: LocalConfig) -> int:
     client = BackendClient(config.backend_url, config.site_key)
     detector = _detector(config)
@@ -144,13 +184,24 @@ def command_run(config: LocalConfig) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m syncam_ai.site_worker", description="SyncCam AI site box")
-    parser.add_argument("command", choices=["run", "check", "snapshot"])
-    parser.add_argument("--config", type=Path, required=True, help="local site JSON file (outside Git)")
+    parser.add_argument("command", choices=["run", "check", "snapshot", "enroll", "forget", "face-key"])
+    parser.add_argument("--config", type=Path, help="local site JSON file (outside Git)")
     parser.add_argument("--camera", help="camera ID for the snapshot command")
     parser.add_argument("--out", type=Path, default=Path("snapshot.jpg"))
+    parser.add_argument("--staff-id", help="staff ID from the dashboard for enroll/forget")
+    parser.add_argument("--photos", type=Path, help="folder of the staff member's face photos for enroll")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    if args.command == "face-key":
+        from .faces import FaceGallery
+
+        print("Store this key as the SYNCAM_FACE_KEY environment variable on this site box only.")
+        print("Losing it means re-enrolling staff; never copy it to the cloud or into Git.")
+        print(FaceGallery.new_key())
+        return 0
+    if args.config is None:
+        parser.error("--config is required")
     try:
         config = load_local_config(args.config)
     except (OSError, ValueError) as error:
@@ -162,6 +213,14 @@ def main(argv: list[str] | None = None) -> int:
         if not args.camera:
             parser.error("--camera is required for snapshot")
         return command_snapshot(config, args.camera, args.out)
+    if args.command in {"enroll", "forget"}:
+        if not args.staff_id:
+            parser.error("--staff-id is required")
+        if args.command == "forget":
+            return command_forget(config, args.staff_id)
+        if args.photos is None or not args.photos.is_dir():
+            parser.error("--photos must be a folder of face photos")
+        return command_enroll(config, args.staff_id, args.photos)
     return command_run(config)
 
 

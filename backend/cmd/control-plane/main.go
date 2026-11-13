@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/alerting"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/attendance"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/configdelivery"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/device"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
@@ -91,6 +92,7 @@ func main() {
 	siteIngest := httpapi.SiteIngestOptions{
 		Keys:          siteingest.NewPostgresKeyStore(pool),
 		AlertEvidence: alertRepository,
+		Attendance:    attendance.NewPostgresRepository(pool),
 	}
 	if supabaseURL, secretKey := strings.TrimSpace(os.Getenv("SYNCAM_SUPABASE_URL")), strings.TrimSpace(os.Getenv("SYNCAM_SUPABASE_SECRET_KEY")); supabaseURL != "" && secretKey != "" {
 		siteIngest.Evidence = &siteingest.SupabaseEvidenceStore{BaseURL: supabaseURL, SecretKey: secretKey, Bucket: envOrDefault("SYNCAM_EVIDENCE_BUCKET", "snapshots")}

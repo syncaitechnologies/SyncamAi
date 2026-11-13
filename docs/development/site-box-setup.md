@@ -37,6 +37,34 @@ first seen **already inside** it for three consecutive frames while armed. A
 loitering-near-vehicles zone never alerts for a parked vehicle, only for a
 person who stays while a vehicle is present.
 
+## Staff face attendance
+
+Attendance uses Intel's Apache-2.0 OpenVINO face models (detection, landmarks
+and re-identification), downloaded by `fetch_site_models.ps1 -IncludeFaceModels`.
+
+1. In the dashboard (**Attendance**), add the staff member and tick the box
+   confirming their **written consent**. The dashboard records who confirmed it
+   and when, and shows the staff ID.
+2. On the site box, create the gallery key once and keep it only on that box:
+   `python -m syncam_ai.site_worker face-key`, then store the printed value in
+   the `SYNCAM_FACE_KEY` user environment variable.
+3. Put 3–5 clear photos of the person's face in a folder and run
+   `python -m syncam_ai.site_worker enroll --config <file> --staff-id <id> --photos <folder>`.
+   The photos are not stored; delete them afterwards.
+4. In the site config set `"models": {"faces": "D:/private/models"}` and list the
+   entrance cameras in `"entrance_cameras": ["<camera id>"]`.
+
+The box marks a person present after two matches within ten seconds, then
+ignores them at that camera for ten minutes. Face signatures stay in an
+encrypted file on the box; the cloud stores only names, consent records and
+sighting times. Removing a person in the dashboard stops matching immediately;
+also run `python -m syncam_ai.site_worker forget --config <file> --staff-id <id>`
+on the box to delete their face data. Unknown faces are ignored and never stored.
+
+**Not production-ready yet:** there is no liveness (anti-spoofing) check, so a
+printed photo could be accepted, and the consent wording and retention period
+need legal review for each country before selling attendance.
+
 ## Hardware
 
 Any 64-bit Windows or Linux PC with an Intel CPU works; an Intel iGPU is used

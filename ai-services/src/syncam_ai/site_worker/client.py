@@ -103,6 +103,10 @@ class BackendClient:
             headers={"X-SentinelVision-Request-ID": str(uuid.uuid4())},
         )
 
+    def post_attendance(self, sighting: Mapping[str, object]) -> None:
+        body = json.dumps(sighting, separators=(",", ":")).encode()
+        self._request("POST", "/v1/site-ingest/attendance", body=body, content_type="application/json")
+
     def heartbeat(self, cameras: Mapping[str, Mapping[str, object]]) -> None:
         body = json.dumps({"cameras": cameras}, separators=(",", ":")).encode()
         self._request("POST", "/v1/site-ingest/heartbeat", body=body, content_type="application/json")

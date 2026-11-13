@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/alerting"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/attendance"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/authz"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/siteingest"
@@ -24,6 +25,7 @@ type SiteIngestOptions struct {
 	Evidence          siteingest.EvidenceStore
 	TelegramTargets   siteingest.TargetStore
 	AlertEvidence     alerting.EvidenceReader
+	Attendance        attendance.Repository
 	TelegramBotHandle string
 }
 
@@ -47,6 +49,7 @@ func (s *Server) registerSiteIngestRoutes() {
 	s.mux.Handle("GET /v1/notifications/telegram", s.authenticate(http.HandlerFunc(s.listTelegramTargets)))
 	s.mux.Handle("POST /v1/notifications/telegram/link-codes", s.authenticate(http.HandlerFunc(s.createTelegramLinkCode)))
 	s.mux.Handle("DELETE /v1/notifications/telegram/{id}", s.authenticate(http.HandlerFunc(s.deleteTelegramTarget)))
+	s.registerAttendanceRoutes()
 }
 
 // authenticateSite verifies a site key and runs the handler as a principal
@@ -131,6 +134,7 @@ func (s *Server) siteConfiguration(w http.ResponseWriter, r *http.Request) {
 		"tenant_id": scope.TenantID, "site_id": scope.SiteID,
 		"site":    map[string]string{"name": site.Name, "timezone": site.Timezone},
 		"cameras": activeCameras, "zones": visibleZones,
+		"staff":       s.activeStaff(r, scope.TenantID, scope.SiteID),
 		"server_time": time.Now().UTC(),
 	}})
 }
