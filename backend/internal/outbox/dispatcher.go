@@ -163,6 +163,71 @@ func beginTenantTx(ctx context.Context, pool transactionPool, tenantID string) (
 	return tx, nil
 }
 
+// PendingTenants lists tenants that have unpublished, unleased outbox work.
+// It reads only tenant identifiers through a narrow SECURITY DEFINER function.
+func (s *PostgresStore) PendingTenants(ctx context.Context) ([]string, error) {
+	if s == nil || s.pool == nil {
+		return nil, errors.New("postgres outbox store is unavailable")
+	}
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return nil, fmt.Errorf("begin pending tenant read: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	rows, err := tx.Query(ctx, `SELECT tenant_id::text FROM messaging.pending_outbox_tenants() AS tenant_id`)
+	if err != nil {
+		return nil, fmt.Errorf("list pending outbox tenants: %w", err)
+	}
+	defer rows.Close()
+	tenants := make([]string, 0)
+	for rows.Next() {
+		var tenantID string
+		if err := rows.Scan(&tenantID); err != nil {
+			return nil, fmt.Errorf("scan pending outbox tenant: %w", err)
+		}
+		tenants = append(tenants, tenantID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate pending outbox tenants: %w", err)
+	}
+	return tenants, tx.Commit(ctx)
+}
+
+// TenantLister reports which tenants have pending outbox work.
+type TenantLister interface {
+	PendingTenants(context.Context) ([]string, error)
+}
+
+// RunAllTenants dispatches every tenant's pending messages each interval until
+// ctx ends. It lets one control-plane process serve the whole SaaS.
+func RunAllTenants(ctx context.Context, dispatcher Dispatcher, tenants TenantLister, interval time.Duration, logf func(string, ...any)) {
+	if interval <= 0 {
+		interval = time.Second
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		pending, err := tenants.PendingTenants(ctx)
+		if err != nil && ctx.Err() == nil {
+			logf("list pending outbox tenants failed: %v", err)
+		}
+		for _, tenantID := range pending {
+			result, err := dispatcher.DispatchTenant(ctx, tenantID)
+			if err != nil && ctx.Err() == nil {
+				logf("dispatch outbox failed for tenant %s: %v", tenantID, err)
+			}
+			if result.Claimed > 0 {
+				logf("outbox tenant=%s claimed=%d published=%d failed=%d", tenantID, result.Claimed, result.Published, result.Failed)
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
 type Dispatcher struct {
 	Store     Store
 	Publisher Publisher
