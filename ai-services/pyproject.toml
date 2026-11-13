@@ -14,6 +14,12 @@ person-detector = [
   "numpy>=1.26,<3",
   "openvino>=2025.0,<2026.0",
 ]
+site-worker = [
+  "numpy>=1.26,<3",
+  "openvino>=2025.0,<2026.0",
+  "opencv-python-headless>=4.10,<5",
+  "tzdata>=2024.1",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

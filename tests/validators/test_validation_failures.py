@@ -67,7 +67,7 @@ class FailureFixtureTests(unittest.TestCase):
     def test_python_dependency_parser_includes_optional_runtime_extra(self) -> None:
         self.assertEqual(
             validate_licenses.python_dependency_names(ROOT / "ai-services/pyproject.toml"),
-            {"numpy", "openvino"},
+            {"numpy", "opencv-python-headless", "openvino", "tzdata"},
         )
 
     def test_go_coverage_parser_weights_statements(self) -> None:
