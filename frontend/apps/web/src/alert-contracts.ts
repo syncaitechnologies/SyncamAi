@@ -18,6 +18,7 @@ export type AlertItem = {
   site: string;
   siteId?: string;
   zone: string;
+  zoneId?: string;
   camera: string;
   cameraId?: string;
   occurredAt: string;
@@ -175,12 +176,27 @@ export function alertFromEvent(envelope: RealtimeEnvelope): ApiAlert | null {
 
 const titleByEventType: Record<string, string> = {
   fall: "Person down detected",
+  fall_review: "Possible fall — please review",
   fire: "Fire pattern detected",
+  fire_review: "Possible fire — please review",
   smoke: "Smoke pattern detected",
-  intrusion: "Restricted zone entry",
+  smoke_review: "Possible smoke — please review",
+  intrusion: "Intrusion detected",
   restricted_zone: "Restricted zone entry",
+  loitering: "Person loitering",
+  tripwire: "Line crossed",
+  vehicle_activity: "Vehicle activity",
+  weapon_review: "Possible weapon — please review",
   ppe: "PPE compliance exception",
-  camera_health: "Camera health degraded",
+  camera_health: "Camera offline",
+};
+
+const summaryByEventType: Record<string, string> = {
+  intrusion: "A person or vehicle entered an armed zone. Check the snapshot and respond.",
+  restricted_zone: "A person entered a restricted area. Check the snapshot and respond.",
+  loitering: "Someone stayed in the area longer than the allowed dwell time.",
+  weapon_review: "The AI saw an object that may be a weapon in three consecutive frames. A person must review it now.",
+  camera_health: "The site box stopped receiving video from this camera for over a minute.",
 };
 
 function labelEventType(eventType: string) {
@@ -204,19 +220,22 @@ export function toAlertItem(alert: ApiAlert): AlertItem {
   return {
     id: alert.id,
     title: titleByEventType[alert.event_type] ?? `${type} detected`,
-    summary: `${type} was confirmed by the site alert pipeline and requires operator review.`,
+    summary:
+      summaryByEventType[alert.event_type] ??
+      `${type} was confirmed by the site alert pipeline and requires operator review.`,
     severity: severityForDisplay(alert.severity),
     status: alert.status,
     type,
     site: `Site ${compactId(alert.site_id)}`,
     siteId: alert.site_id,
-    zone: `Zone ${compactId(alert.zone_id)}`,
+    zone: alert.event_type === "camera_health" ? "Camera stream" : `Zone ${compactId(alert.zone_id)}`,
+    zoneId: alert.zone_id,
     camera: `CAM ${compactId(alert.camera_id)}`,
     cameraId: alert.camera_id,
     occurredAt: alert.occurred_at,
     confidence: alert.confidence,
-    model: "Reported by event contract",
-    threshold: 0.8,
+    model: "Site box detector",
+    threshold: 0.45,
     eventId: alert.event_id,
     color:
       alert.severity === "critical"

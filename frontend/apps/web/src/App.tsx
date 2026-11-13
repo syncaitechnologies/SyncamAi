@@ -12,11 +12,22 @@ import { VisionDemo } from "./VisionDemo";
 import { initialDemoView } from "./vision-demo-model";
 import { LocalCameraWorkspace } from "./LocalCameraWorkspace";
 import { initialLocalCameraView } from "./local-camera-session";
+import { AlertSnapshot } from "./AlertSnapshot";
+import { LiveZoneEditor } from "./LiveZoneEditor";
+import { SiteSettings } from "./SiteSettings";
+import { readAlertRuntimeConfig, selectSite } from "./alert-client";
+
+function readSelectedSiteReady() {
+  return Boolean(readAlertRuntimeConfig().siteId);
+}
+import { useWorkspace } from "./use-workspace";
+import { useLiveAlertNotifications } from "./live-notifications";
+import "./live.css";
 
 type Filter = "all" | "critical" | "unacknowledged" | "acknowledged";
-type View = "dashboard" | "alerts" | "cameras" | "zones" | "models" | "onboarding" | "vision" | "local-camera";
+type View = "dashboard" | "alerts" | "cameras" | "zones" | "models" | "onboarding" | "vision" | "local-camera" | "settings";
 
-const seedAlerts: AlertItem[] = [
+const rawSeedAlerts: AlertItem[] = [
   {
     id: "alert-1048",
     title: "Person down detected",
@@ -109,6 +120,11 @@ const seedAlerts: AlertItem[] = [
     evidence: "10s clip ready",
   },
 ];
+// Demo alerts are always "recent" so the walkthrough never shows stale ages.
+const seedAlerts: AlertItem[] = rawSeedAlerts.map((alert, index) => ({
+  ...alert,
+  occurredAt: new Date(Date.now() - (4 + index * 13) * 60_000).toISOString(),
+}));
 
 const statusLabels: Record<AlertStatus, string> = {
   unacknowledged: "Unacknowledged",
@@ -194,7 +210,28 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
     queueLoaded,
     dataMode,
   } = useAlertFeed(seedAlerts);
-  const [activeView, setActiveView] = useState<View>(() => initialLocalCameraView(window.location.search, dataMode) ?? initialDemoView(window.location.search, dataMode));
+  const live = dataMode === "live";
+  const workspace = useWorkspace(live);
+  const notifications = useLiveAlertNotifications(live, alerts, newAlertCount);
+  // In live mode, show the dashboard's camera, zone and site names instead of IDs.
+  const namedAlerts = useMemo(
+    () =>
+      live
+        ? alerts.map((alert) => ({
+            ...alert,
+            camera: workspace.names.cameras[alert.cameraId ?? ""] ?? alert.camera,
+            zone:
+              alert.zoneId && workspace.names.zones[alert.zoneId]
+                ? workspace.names.zones[alert.zoneId]!
+                : alert.zone,
+            site: workspace.site?.name ?? alert.site,
+          }))
+        : alerts,
+    [alerts, live, workspace.names, workspace.site],
+  );
+  const [activeView, setActiveView] = useState<View>(() =>
+    live && !readSelectedSiteReady() ? "settings" : initialLocalCameraView(window.location.search, dataMode) ?? initialDemoView(window.location.search, dataMode),
+  );
   const [now, setNow] = useState(() => new Date());
   const [selectedId, setSelectedId] = useState(firstAlert.id);
   const [filter, setFilter] = useState<Filter>("all");
@@ -209,7 +246,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
   const dismissModalRef = useRef<HTMLDivElement>(null);
   const filteredAlerts = useMemo(
     () =>
-      alerts.filter(
+      namedAlerts.filter(
         (alert) =>
           filter === "all" ||
           (filter === "critical"
@@ -218,10 +255,10 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
               ? alert.status === "unacknowledged"
               : ["acknowledged", "dispatched"].includes(alert.status)),
       ),
-    [alerts, filter],
+    [namedAlerts, filter],
   );
-  const selectedAlert = alerts.find((alert) => alert.id === selectedId) ??
-    alerts[0] ?? {
+  const selectedAlert = namedAlerts.find((alert) => alert.id === selectedId) ??
+    namedAlerts[0] ?? {
       ...emptyAlert,
       title: queueLoaded
         ? feedError
@@ -409,17 +446,18 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
         </div>
         <div className="workspace-select">
           <span className="eyebrow">Workspace</span>
-          <button className="site-picker" type="button">
-            <span className="site-avatar">N</span>
+          <button className="site-picker" type="button" onClick={live ? () => setActiveView("settings") : undefined}>
+            <span className="site-avatar">{live ? (workspace.site?.name ?? "S").slice(0, 1).toUpperCase() : "N"}</span>
             <span>
-              <strong>Northstar</strong>
-              <small>3 sites · Active</small>
+              <strong>{live ? workspace.site?.name ?? "Choose a site" : "Northstar"}</strong>
+              <small>{live ? `${workspace.sites.length} site${workspace.sites.length === 1 ? "" : "s"} · ${workspace.cameras.length} camera${workspace.cameras.length === 1 ? "" : "s"}` : "3 sites · Active"}</small>
             </span>
             <Icon name="chevron" size={15} />
           </button>
         </div>
         <nav className="nav-list">
           <span className="nav-label">Monitor</span>
+          {!live && <>
           <button
             className={activeView === "local-camera" ? "nav-item local-camera-entry active" : "nav-item local-camera-entry"}
             type="button"
@@ -440,6 +478,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
             <Icon name="play" />
             <span>AI walkthrough</span>
           </button>
+          </>}
           <button
             className={activeView === "dashboard" ? "nav-item active" : "nav-item"}
             type="button"
@@ -477,19 +516,29 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
             <Icon name="polygon" />
             <span>Zones & rules</span>
           </button>
-          <button className="nav-item" type="button">
-            <Icon name="chart" />
-            Incidents
-          </button>
+          {!live && (
+            <button className="nav-item" type="button">
+              <Icon name="chart" />
+              Incidents
+            </button>
+          )}
           <span className="nav-label nav-label-spaced">Manage</span>
-          <button className="nav-item" type="button">
-            <Icon name="file" />
-            Reports
-          </button>
-          <button className="nav-item" type="button">
+          {!live && (
+            <button className="nav-item" type="button">
+              <Icon name="file" />
+              Reports
+            </button>
+          )}
+          <button
+            className={activeView === "settings" ? "nav-item active" : "nav-item"}
+            type="button"
+            onClick={() => (live ? setActiveView("settings") : setToast("Configuration is available in the live workspace"))}
+            aria-current={activeView === "settings" ? "page" : undefined}
+          >
             <Icon name="settings" />
-            Configuration
+            <span>Configuration</span>
           </button>
+          {!live && <>
           <button
             className={activeView === "onboarding" ? "nav-item active" : "nav-item"}
             type="button"
@@ -508,6 +557,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
             <Icon name="chart" />
             <span>Model registry</span>
           </button>
+          </>}
         </nav>
         <div className="sidebar-bottom">
           <div className="security-card">
@@ -553,6 +603,8 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
                       ? "Model registry"
                       : activeView === "onboarding"
                         ? "Organization setup"
+                        : activeView === "settings"
+                          ? "Configuration"
                   : "Alert Center"}
             </strong>
           </div>
@@ -560,13 +612,24 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
             <div className="connection-status" data-state={connection}>
               <span className="pulse-dot" />
               {connectionLabel}
-              {dataMode === "live" && (
-                <span className="latency">resume enabled</span>
-              )}
             </div>
-            <button className="topbar-icon" type="button" aria-label="Search">
-              <Icon name="search" />
-            </button>
+            {live && notifications.permission !== "unsupported" && (
+              <button
+                className="topbar-icon"
+                type="button"
+                aria-label={notifications.enabled ? "Desktop alerts on" : "Turn on desktop alerts"}
+                title={notifications.enabled ? "Desktop alerts and sound are on" : "Turn on desktop alerts and sound"}
+                onClick={() => void notifications.enable().then((on) => setToast(on ? "Desktop alerts and sound are on" : "Allow notifications in your browser to get desktop alerts"))}
+                data-active={notifications.enabled}
+              >
+                <Icon name="activity" />
+              </button>
+            )}
+            {!live && (
+              <button className="topbar-icon" type="button" aria-label="Search">
+                <Icon name="search" />
+              </button>
+            )}
             <button
               className="topbar-icon notification-button"
               type="button"
@@ -587,7 +650,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
           <VisionDemo dataMode={dataMode} onOpenOverview={() => setActiveView("dashboard")} />
         ) : activeView === "dashboard" ? (
           <OperationsDashboard
-            alerts={alerts}
+            alerts={namedAlerts}
             connectionLabel={connectionLabel}
             dataMode={dataMode}
             feedHealthy={feedHealthy}
@@ -601,7 +664,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
           />
         ) : activeView === "cameras" ? (
           <CameraWall
-            alerts={alerts}
+            alerts={namedAlerts}
             dataMode={dataMode}
             site={site}
             onOpenAlertCenter={(alertId) => {
@@ -611,7 +674,9 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
             onNotify={setToast}
           />
         ) : activeView === "zones" ? (
-          <ZoneBuilder dataMode={dataMode} onNotify={setToast} />
+          live ? <LiveZoneEditor workspace={workspace} onNotify={setToast} /> : <ZoneBuilder dataMode={dataMode} onNotify={setToast} />
+        ) : activeView === "settings" ? (
+          <SiteSettings workspace={workspace} onNotify={setToast} />
         ) : activeView === "models" ? (
           <ModelRegistryWorkspace dataMode={dataMode} />
         ) : activeView === "onboarding" ? (
@@ -639,13 +704,19 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
               Viewing site
             </label>
             <select
-              disabled={dataMode === "live"}
               id="site-filter"
-              value={dataMode === "live" ? "Configured site" : site}
-              onChange={(event) => setSite(event.target.value)}
+              value={live ? workspace.site?.id ?? "" : site}
+              onChange={(event) => {
+                if (live) {
+                  selectSite(event.target.value);
+                  window.location.reload();
+                } else setSite(event.target.value);
+              }}
             >
-              {dataMode === "live" ? (
-                <option>Configured site</option>
+              {live ? (
+                workspace.sites.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
+                ))
               ) : (
                 <>
                   <option>Northstar Distribution</option>
@@ -687,11 +758,13 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
           <span className="status-strip-meta">
             {dataMode === "demo"
               ? "No backend required"
-              : "Last sequence stored for resume"}
+              : notifications.enabled
+                ? "Desktop alerts and sound on"
+                : "Telegram alerts sent by the server"}
             <span className="strip-divider" />
             {dataMode === "demo"
               ? "18s simulated arrivals"
-              : "Single-use ticket authentication"}
+              : "Snapshots captured on site"}
           </span>
         </div>
         <div className="sr-only" role="status" aria-live="polite">
@@ -870,6 +943,18 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
                   <span>·</span>
                   <span>{selectedAlert.eventId}</span>
                 </div>
+                {live && workspace.api ? (
+                  <div className="evidence-card">
+                    <AlertSnapshot api={workspace.api} alertId={selectedAlert.id} caption={selectedAlert.title} />
+                    <div className="evidence-footer">
+                      <span>
+                        <Icon name="camera" size={14} />
+                        {selectedAlert.camera} · {new Date(selectedAlert.occurredAt).toLocaleString()}
+                      </span>
+                      <span className="live-muted">Click the picture to open it full size</span>
+                    </div>
+                  </div>
+                ) : (
                 <div className="evidence-card">
                   <div className="evidence-art">
                     <div className="evidence-grid" />
@@ -903,6 +988,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
                     </button>
                   </div>
                 </div>
+                )}
                 <div className="detail-copy">
                   <p>{selectedAlert.summary}</p>
                   <div className="detail-facts">
@@ -937,6 +1023,11 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
                       <Icon name="check" size={16} />
                       Acknowledge <span>A</span>
                     </button>
+                  ) : live ? (
+                    <button className="primary-action" type="button" disabled>
+                      <Icon name="check" size={16} />
+                      Acknowledged
+                    </button>
                   ) : selectedAlert.status === "acknowledged" ? (
                     <button
                       className="primary-action dispatch-action"
@@ -956,6 +1047,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
                       Response in progress
                     </button>
                   )}
+                  {!live && <>
                   <button
                     className="secondary-action"
                     type="button"
@@ -979,14 +1071,17 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
                   >
                     <Icon name="clock" size={16} />
                   </button>
+                  </>}
                 </div>
                 <div className="detail-section">
                   <div className="section-heading">
                     <h3>Event details</h3>
-                    <span className="verified">
-                      <Icon name="check" size={13} />
-                      Verified
-                    </span>
+                    {!live && (
+                      <span className="verified">
+                        <Icon name="check" size={13} />
+                        Verified
+                      </span>
+                    )}
                   </div>
                   <div className="detail-grid">
                     <div>
@@ -1002,13 +1097,14 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
                       <strong>{selectedAlert.model}</strong>
                     </div>
                     <div>
-                      <span>Site threshold</span>
+                      <span>{live ? "Site" : "Site threshold"}</span>
                       <strong>
-                        {Math.round(selectedAlert.threshold * 100)}% confidence
+                        {live ? selectedAlert.site : `${Math.round(selectedAlert.threshold * 100)}% confidence`}
                       </strong>
                     </div>
                   </div>
                 </div>
+                {!live && (
                 <div className="detail-section timeline-section">
                   <div className="section-heading">
                     <h3>Event timeline</h3>
@@ -1034,12 +1130,51 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
                     <span>Post-event</span>
                   </div>
                 </div>
+                )}
               </>
             )}
           </div>
           <aside className="context-panel panel">
             {selectedAlert.placeholder ? (
               <div className="empty-detail" aria-hidden="true" />
+            ) : live ? (
+              <>
+                <div className="panel-heading">
+                  <div>
+                    <div className="panel-kicker">What to do</div>
+                    <h2>Response guide</h2>
+                  </div>
+                </div>
+                <div className="context-block">
+                  <ol className="live-guide">
+                    <li>Look at the snapshot and confirm what the camera saw.</li>
+                    <li>If it is a real incident, call your guard or the police and follow your site procedure.</li>
+                    <li>Press <strong>Acknowledge</strong> so your team knows it is being handled.</li>
+                  </ol>
+                </div>
+                <div className="context-block">
+                  <div className="context-heading">
+                    <h3>Same camera, last 24 hours</h3>
+                  </div>
+                  {namedAlerts
+                    .filter((alert) => alert.cameraId === selectedAlert.cameraId && alert.id !== selectedAlert.id && Date.now() - Date.parse(alert.occurredAt) < 86_400_000)
+                    .slice(0, 5)
+                    .map((alert) => (
+                      <button key={alert.id} type="button" className="related-event" onClick={() => setSelectedId(alert.id)}>
+                        <SeverityMark severity={alert.severity} />
+                        <span>
+                          <strong>{alert.title}</strong>
+                          <small>{alert.zone} · {new Date(alert.occurredAt).toLocaleTimeString()}</small>
+                        </span>
+                        <Icon name="chevron" size={14} />
+                      </button>
+                    ))}
+                </div>
+                <div className="context-footer">
+                  <Icon name="shield" size={14} />
+                  <span>Detection is not identification. Every alert needs a human check.</span>
+                </div>
+              </>
             ) : (
               <>
                 <div className="panel-heading">

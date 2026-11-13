@@ -5,7 +5,7 @@ intrusion, restricted-zone, tripwire and loitering rules. This module adds the
 three behaviours a security client needs on top of them:
 
 * **Schedules** - a zone only alerts while it is armed (e.g. 22:00-06:00).
-* **Presence** - for intrusion and restricted zones, a person who first
+* **Presence** - for intrusion and restricted zones, a *person* who first
   appears *already inside* an armed zone also alerts, after a short
   confirmation, because the existing engine only fires on an outside-to-inside
   crossing.
@@ -150,6 +150,9 @@ class SiteRules:
         self, track: TrackObservation, zones: Iterable[ZoneInfo], armed: set[str]
     ) -> list[dict[str, object]]:
         events: list[dict[str, object]] = []
+        if track.subject_class != "person":
+            # Vehicles parked before a zone arms must not alert when it arms.
+            return events
         for zone in zones:
             if zone.kind not in {"intrusion", "restricted_zone"} or zone.compiled is None:
                 continue
