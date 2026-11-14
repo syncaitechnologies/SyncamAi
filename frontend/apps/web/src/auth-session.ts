@@ -3,7 +3,7 @@ import type { AuthClient } from "./supabase-auth.ts";
 
 export type MfaFactor = { id: string; friendly_name?: string };
 export type SessionDecision =
-  | { kind: "ready"; tenantId: string }
+  | { kind: "ready"; tenantId: string; siteIds: string[]; roles: string[] }
   | { kind: "enroll" }
   | { kind: "challenge"; factors: MfaFactor[] }
   | { kind: "blocked"; message: string };
@@ -47,7 +47,7 @@ export function decideSession(
     if (totp.length) return { kind: "challenge", factors: totp };
     return { kind: "blocked", message: "This account uses a factor not supported by this screen. Contact your administrator; MFA cannot be skipped." };
   }
-  return { kind: "ready", tenantId: membership.tenant_id };
+  return { kind: "ready", tenantId: membership.tenant_id, siteIds: membership.site_ids, roles: membership.roles };
 }
 
 export async function inspectSession(client: AuthClient, session: Session): Promise<SessionDecision> {

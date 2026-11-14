@@ -13,15 +13,19 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/alerting"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/attendance"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/configdelivery"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/device"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/httpapi"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/outbox"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/privacymasks"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/realtime"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/siteingest"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/tenant"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/zones"
 )
@@ -82,7 +86,44 @@ func main() {
 	configurationRepository := configdelivery.NewPostgresRepository(pool)
 	privacyMaskRepository := privacymasks.NewPostgresRepository(pool)
 	tickets := realtime.NewMemoryTicketStore()
-	handler, err := httpapi.WithBrowserOrigins(httpapi.NewWithPrivacyMaskReleaseTransport(verifier, repository, eventRepository, alertRepository, realtimeRepository, tickets, cameraRepository, enrollmentRepository, deviceStatusRepository, device.MTLSDeviceVerifier{}, zoneRepository, configurationRepository, privacyMaskRepository, privacymasks.NewPostgresReleaseTransportRepository(pool)), os.Getenv("SYNCAM_BROWSER_ORIGINS"))
+
+	runContext, stopRunning := context.WithCancel(context.Background())
+	defer stopRunning()
+	siteIngest := httpapi.SiteIngestOptions{
+		Keys:          siteingest.NewPostgresKeyStore(pool),
+		AlertEvidence: alertRepository,
+		Attendance:    attendance.NewPostgresRepository(pool),
+	}
+	if supabaseURL, secretKey := strings.TrimSpace(os.Getenv("SYNCAM_SUPABASE_URL")), strings.TrimSpace(os.Getenv("SYNCAM_SUPABASE_SECRET_KEY")); supabaseURL != "" && secretKey != "" {
+		siteIngest.Evidence = &siteingest.SupabaseEvidenceStore{BaseURL: supabaseURL, SecretKey: secretKey, Bucket: envOrDefault("SYNCAM_EVIDENCE_BUCKET", "snapshots")}
+		log.Print("alert snapshot storage enabled")
+	} else {
+		log.Print("alert snapshot storage disabled: set SYNCAM_SUPABASE_URL and SYNCAM_SUPABASE_SECRET_KEY")
+	}
+	var notifier alerting.Notifier
+	if botToken := strings.TrimSpace(os.Getenv("SYNCAM_TELEGRAM_BOT_TOKEN")); botToken != "" {
+		telegram := &siteingest.TelegramClient{Token: botToken}
+		targets := siteingest.NewPostgresTargetStore(pool)
+		siteIngest.TelegramTargets = targets
+		siteIngest.TelegramBotHandle = strings.TrimPrefix(strings.TrimSpace(os.Getenv("SYNCAM_TELEGRAM_BOT_HANDLE")), "@")
+		notifier = &siteingest.TelegramNotifier{
+			Client: telegram, Targets: targets, Evidence: siteIngest.Evidence,
+			Describe: siteingest.NewRepositoryDescriber(repository, cameraRepository, zoneRepository),
+			Logf:     log.Printf,
+		}
+		go siteingest.RunTelegramLinker(runContext, telegram, targets, siteingest.SiteNamer(repository), log.Printf)
+		log.Print("telegram alerts enabled")
+	} else {
+		log.Print("telegram alerts disabled: set SYNCAM_TELEGRAM_BOT_TOKEN")
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("SYNCAM_INPROCESS_OUTBOX")), "true") {
+		store := outbox.NewPostgresStore(pool)
+		dispatcher := outbox.Dispatcher{Store: store, Publisher: alerting.NewProjectorWithNotifier(pool, notifier), WorkerID: uuid.NewString(), BatchSize: 25}
+		go outbox.RunAllTenants(runContext, dispatcher, store, time.Second, log.Printf)
+		log.Print("in-process alert worker enabled for all tenants")
+	}
+
+	handler, err := httpapi.WithBrowserOrigins(httpapi.NewWithSiteIngest(verifier, repository, eventRepository, alertRepository, realtimeRepository, tickets, cameraRepository, enrollmentRepository, deviceStatusRepository, device.MTLSDeviceVerifier{}, zoneRepository, configurationRepository, privacyMaskRepository, privacymasks.NewPostgresReleaseTransportRepository(pool), siteIngest), os.Getenv("SYNCAM_BROWSER_ORIGINS"))
 	if err != nil {
 		log.Fatal("SYNCAM_BROWSER_ORIGINS is invalid; use explicit HTTPS origins (HTTP only for localhost)")
 	}
@@ -99,6 +140,7 @@ func main() {
 	signal.Notify(stopped, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-stopped
+		stopRunning()
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := server.Shutdown(ctx); err != nil {

@@ -106,7 +106,10 @@ func (r *PostgresRepository) list(ctx context.Context, tenantID, siteID string) 
 	return alerts, nil
 }
 
-type Projector struct{ pool transactionPool }
+type Projector struct {
+	pool     transactionPool
+	notifier Notifier
+}
 
 func NewProjector(pool transactionPool) *Projector { return &Projector{pool: pool} }
 
@@ -178,6 +181,9 @@ func (p *Projector) Publish(ctx context.Context, message outbox.Message) error {
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit alert projection: %w", err)
+	}
+	if p.notifier != nil {
+		p.notifier.AlertCreated(ctx, alert, append([]string(nil), event.EvidenceRefs...))
 	}
 	return nil
 }

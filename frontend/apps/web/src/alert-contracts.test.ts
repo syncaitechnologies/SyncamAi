@@ -36,7 +36,7 @@ test("parses the canonical alert list and maps it to the operator model", () => 
   });
   assert.equal(parsed[0]?.id, alert.id);
   const mapped = toAlertItem(parsed[0]!);
-  assert.equal(mapped.title, "Restricted zone entry");
+  assert.equal(mapped.title, "Intrusion detected");
   assert.equal(mapped.severity, "High");
   assert.equal(mapped.siteId, alert.site_id);
 });

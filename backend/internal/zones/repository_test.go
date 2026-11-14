@@ -53,7 +53,7 @@ func TestMemoryRepositoryCreatesReplaysListsAndUpdatesZones(t *testing.T) {
 }
 
 func zoneRows(zone Zone) *pgxmock.Rows {
-	return pgxmock.NewRows([]string{"id", "tenant_id", "site_id", "camera_id", "floor", "name", "kind", "geometry", "loiter_seconds", "subject_classes", "enabled", "config_version", "created_at", "updated_at"}).AddRow(zone.ID, zone.TenantID, zone.SiteID, zone.CameraID, zone.Floor, zone.Name, zone.Kind, zone.Geometry, zone.LoiterSeconds, zone.SubjectClasses, zone.Enabled, zone.ConfigVersion, zone.CreatedAt, zone.UpdatedAt)
+	return pgxmock.NewRows([]string{"id", "tenant_id", "site_id", "camera_id", "floor", "name", "kind", "geometry", "loiter_seconds", "subject_classes", "enabled", "config_version", "created_at", "updated_at", "schedule"}).AddRow(zone.ID, zone.TenantID, zone.SiteID, zone.CameraID, zone.Floor, zone.Name, zone.Kind, zone.Geometry, zone.LoiterSeconds, zone.SubjectClasses, zone.Enabled, zone.ConfigVersion, zone.CreatedAt, zone.UpdatedAt, []byte(zone.Schedule))
 }
 
 func expectZoneTransaction(mock pgxmock.PgxPoolIface, mode pgx.TxAccessMode) {
@@ -96,7 +96,7 @@ func TestPostgresRepositoryReadsAndWritesZones(t *testing.T) {
 	mock.ExpectExec("DELETE FROM platform.idempotency_keys").WithArgs(testTenant, "zone-create").WillReturnResult(pgxmock.NewResult("DELETE", 0))
 	mock.ExpectQuery("SELECT request_hash, response_body").WithArgs(testTenant, "zone-create").WillReturnRows(pgxmock.NewRows([]string{"request_hash", "response_body"}))
 	mock.ExpectQuery("SELECT EXISTS").WithArgs(testSite, testTenant).WillReturnRows(pgxmock.NewRows([]string{"exists"}).AddRow(true))
-	mock.ExpectQuery("INSERT INTO config.zones").WithArgs(pgxmock.AnyArg(), testTenant, testSite, "", "Dock", "Loading bay", "intrusion", testPolygon, nil, []string{}, true, "user-1").WillReturnRows(pgxmock.NewRows([]string{"created_at", "updated_at"}).AddRow(createdAt, createdAt))
+	mock.ExpectQuery("INSERT INTO config.zones").WithArgs(pgxmock.AnyArg(), testTenant, testSite, "", "Dock", "Loading bay", "intrusion", testPolygon, nil, []string{}, true, "user-1", nil).WillReturnRows(pgxmock.NewRows([]string{"created_at", "updated_at"}).AddRow(createdAt, createdAt))
 	mock.ExpectExec("INSERT INTO platform.idempotency_keys").WithArgs(testTenant, "zone-create", pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	expectZoneAudit(mock, "zone.created", pgxmock.AnyArg(), createdAt)
 	mock.ExpectCommit()
@@ -110,7 +110,7 @@ func TestPostgresRepositoryReadsAndWritesZones(t *testing.T) {
 	enabled := false
 	expectZoneTransaction(mock, pgx.ReadWrite)
 	mock.ExpectQuery("SELECT id::text").WithArgs(testZone).WillReturnRows(zoneRows(zone))
-	mock.ExpectQuery("UPDATE config.zones").WithArgs(testZone, "Dock", name, testPolygon, nil, []string{}, enabled, "user-1").WillReturnRows(pgxmock.NewRows([]string{"config_version", "updated_at"}).AddRow(int64(2), updatedAt))
+	mock.ExpectQuery("UPDATE config.zones").WithArgs(testZone, "Dock", name, testPolygon, nil, []string{}, enabled, "user-1", nil).WillReturnRows(pgxmock.NewRows([]string{"config_version", "updated_at"}).AddRow(int64(2), updatedAt))
 	expectZoneAudit(mock, "zone.updated", testZone, updatedAt)
 	mock.ExpectCommit()
 	updated, err := NewPostgresRepository(mock).Update(context.Background(), UpdateCommand{TenantID: testTenant, ActorID: "user-1", RequestID: testRequest, ZoneID: testZone, ExpectedVersion: 1, Name: &name, Enabled: &enabled})
@@ -341,7 +341,7 @@ func TestPostgresRepositoryRejectsBadZoneCreateAndUpdateStorage(t *testing.T) {
 	writeFailure := errors.New("write unavailable")
 	expectZoneTransaction(mock, pgx.ReadWrite)
 	mock.ExpectQuery("SELECT id::text").WithArgs(testZone).WillReturnRows(zoneRows(zone))
-	mock.ExpectQuery("UPDATE config.zones").WithArgs(testZone, "", "Loading bay north", testPolygon, nil, []string{}, true, "user-1").WillReturnError(writeFailure)
+	mock.ExpectQuery("UPDATE config.zones").WithArgs(testZone, "", "Loading bay north", testPolygon, nil, []string{}, true, "user-1", nil).WillReturnError(writeFailure)
 	mock.ExpectRollback()
 	name := "Loading bay north"
 	if _, err := NewPostgresRepository(mock).Update(context.Background(), UpdateCommand{TenantID: testTenant, ActorID: "user-1", ZoneID: testZone, ExpectedVersion: 1, Name: &name}); !errors.Is(err, writeFailure) {

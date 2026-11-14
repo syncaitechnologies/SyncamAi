@@ -24,6 +24,7 @@ type createZoneRequest struct {
 	Enabled        *bool           `json:"enabled"`
 	LoiterSeconds  *int            `json:"loiter_seconds"`
 	SubjectClasses []string        `json:"subject_classes"`
+	Schedule       json.RawMessage `json:"schedule"`
 }
 type updateZoneRequest struct {
 	ConfigVersion  int64            `json:"config_version"`
@@ -33,6 +34,7 @@ type updateZoneRequest struct {
 	Enabled        *bool            `json:"enabled"`
 	LoiterSeconds  *int             `json:"loiter_seconds"`
 	SubjectClasses *[]string        `json:"subject_classes"`
+	Schedule       *json.RawMessage `json:"schedule"`
 }
 
 func (s *Server) listZones(w http.ResponseWriter, r *http.Request) {
@@ -102,7 +104,7 @@ func (s *Server) createZone(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found.")
 		return
 	}
-	result, err := s.zones.Create(r.Context(), zones.CreateCommand{TenantID: tenantID, ActorID: principal.UserID, RequestID: requestID, IdempotencyKey: idempotencyKey, SiteID: strings.TrimSpace(input.SiteID), CameraID: strings.TrimSpace(input.CameraID), Floor: strings.TrimSpace(input.Floor), Name: strings.TrimSpace(input.Name), Kind: strings.TrimSpace(input.Kind), Geometry: input.Geometry, Enabled: *input.Enabled, LoiterSeconds: input.LoiterSeconds, SubjectClasses: input.SubjectClasses})
+	result, err := s.zones.Create(r.Context(), zones.CreateCommand{TenantID: tenantID, ActorID: principal.UserID, RequestID: requestID, IdempotencyKey: idempotencyKey, SiteID: strings.TrimSpace(input.SiteID), CameraID: strings.TrimSpace(input.CameraID), Floor: strings.TrimSpace(input.Floor), Name: strings.TrimSpace(input.Name), Kind: strings.TrimSpace(input.Kind), Geometry: input.Geometry, Enabled: *input.Enabled, LoiterSeconds: input.LoiterSeconds, SubjectClasses: input.SubjectClasses, Schedule: input.Schedule})
 	if errors.Is(err, zones.ErrIdempotencyConflict) {
 		writeError(w, http.StatusConflict, "IDEMPOTENCY_REPLAY", "Idempotency-Key was already used for a different request.")
 		return
@@ -142,7 +144,7 @@ func (s *Server) updateZone(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Zone update fields or GeoJSON geometry are invalid.")
 		return
 	}
-	updated, err := s.zones.Update(r.Context(), zones.UpdateCommand{TenantID: tenantID, ActorID: principal.UserID, RequestID: requestID, ZoneID: zone.ID, ExpectedVersion: input.ConfigVersion, Name: input.Name, Floor: input.Floor, Geometry: input.Geometry, Enabled: input.Enabled, LoiterSeconds: input.LoiterSeconds, SubjectClasses: input.SubjectClasses})
+	updated, err := s.zones.Update(r.Context(), zones.UpdateCommand{TenantID: tenantID, ActorID: principal.UserID, RequestID: requestID, ZoneID: zone.ID, ExpectedVersion: input.ConfigVersion, Name: input.Name, Floor: input.Floor, Geometry: input.Geometry, Enabled: input.Enabled, LoiterSeconds: input.LoiterSeconds, SubjectClasses: input.SubjectClasses, Schedule: input.Schedule})
 	if errors.Is(err, zones.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found.")
 		return
@@ -207,13 +209,20 @@ func validCreateZone(input createZoneRequest) bool {
 	input.CameraID = strings.TrimSpace(input.CameraID)
 	input.Name = strings.TrimSpace(input.Name)
 	input.Kind = strings.TrimSpace(input.Kind)
-	if _, err := uuid.Parse(input.SiteID); err != nil || len(input.Name) == 0 || len(input.Name) > 120 || len(input.Floor) > 120 || !zoneKinds[input.Kind] || (input.CameraID != "" && !validUUID(input.CameraID)) || !validLoiterSeconds(input.Kind, input.LoiterSeconds) || !validSubjectClasses(input.SubjectClasses) {
+	if _, err := uuid.Parse(input.SiteID); err != nil || len(input.Name) == 0 || len(input.Name) > 120 || len(input.Floor) > 120 || !zoneKinds[input.Kind] || (input.CameraID != "" && !validUUID(input.CameraID)) || !validLoiterSeconds(input.Kind, input.LoiterSeconds) || !validSubjectClasses(input.SubjectClasses) || !validSchedule(input.Schedule) {
 		return false
 	}
 	return validGeometry(input.Geometry, input.Kind)
 }
+func validSchedule(raw json.RawMessage) bool {
+	_, err := zones.NormalizeSchedule(raw)
+	return err == nil
+}
 func validUpdateZone(input *updateZoneRequest, kind string) bool {
-	if input.ConfigVersion < 1 || (input.Name == nil && input.Floor == nil && input.Geometry == nil && input.Enabled == nil && input.LoiterSeconds == nil && input.SubjectClasses == nil) {
+	if input.ConfigVersion < 1 || (input.Name == nil && input.Floor == nil && input.Geometry == nil && input.Enabled == nil && input.LoiterSeconds == nil && input.SubjectClasses == nil && input.Schedule == nil) {
+		return false
+	}
+	if input.Schedule != nil && !validSchedule(*input.Schedule) {
 		return false
 	}
 	if input.Name != nil {

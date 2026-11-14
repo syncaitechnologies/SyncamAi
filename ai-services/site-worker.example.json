@@ -1,0 +1,15 @@
+{
+  "backend_url": "https://syncam-api.onrender.com",
+  "site_key_env": "SYNCAM_SITE_KEY",
+  "cameras": {
+    "00000000-0000-4000-8000-000000000001": "rtsp://viewer:${CAM1_PASSWORD}@192.168.1.64:554/Streaming/Channels/102",
+    "00000000-0000-4000-8000-000000000002": "rtsp://viewer:${CAM2_PASSWORD}@192.168.1.65:554/cam/realmonitor?channel=1&subtype=1"
+  },
+  "models": {
+    "detector": "D:/private/models/yolox_s.onnx"
+  },
+  "device": "AUTO",
+  "fps": 4,
+  "min_confidence": 0.45,
+  "spool_dir": "D:/private/syncam-spool"
+}

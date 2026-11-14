@@ -7,6 +7,7 @@ import {
   parseTicketEnvelope,
   type ApiAlert,
 } from "./alert-contracts";
+import { readWorkspace } from "./workspace";
 
 export type DataMode = "demo" | "live";
 export type ConnectionState =
@@ -24,26 +25,45 @@ export type AlertRuntimeConfig = {
   siteId: string;
 };
 
+const selectedSiteKey = "syncam.selected_site";
+
+export function selectSite(siteId: string) {
+  sessionStorage.setItem(selectedSiteKey, siteId);
+}
+
 export function readAlertRuntimeConfig(): AlertRuntimeConfig {
   const mode =
     import.meta.env.VITE_SYNCAM_DATA_MODE === "live" ? "live" : "demo";
+  // SaaS: the tenant and sites come from the signed-in user's verified claims.
+  // Build-time IDs remain an override for single-site deployments.
+  const workspace = mode === "live" ? readWorkspace() : null;
+  const selected = mode === "live" ? sessionStorage.getItem(selectedSiteKey) : null;
+  const siteIds = workspace?.siteIds ?? [];
   return {
     mode,
     apiBaseUrl: String(import.meta.env.VITE_SYNCAM_API_BASE_URL ?? "").replace(
       /\/$/,
       "",
     ),
-    tenantId: String(import.meta.env.VITE_SYNCAM_TENANT_ID ?? ""),
-    siteId: String(import.meta.env.VITE_SYNCAM_SITE_ID ?? ""),
+    tenantId:
+      String(import.meta.env.VITE_SYNCAM_TENANT_ID ?? "") ||
+      workspace?.tenantId ||
+      "",
+    siteId:
+      String(import.meta.env.VITE_SYNCAM_SITE_ID ?? "") ||
+      (selected && (siteIds.includes(selected) || workspace?.roles.includes("super_admin")) ? selected : "") ||
+      siteIds[0] ||
+      "",
   };
 }
 
 export function validateLiveConfig(config: AlertRuntimeConfig) {
   if (config.mode !== "live") return;
-  if (!config.tenantId || !config.siteId) {
-    throw new Error(
-      "Live mode requires VITE_SYNCAM_TENANT_ID and VITE_SYNCAM_SITE_ID.",
-    );
+  if (!config.tenantId) {
+    throw new Error("Your account is not linked to a SyncCam workspace yet.");
+  }
+  if (!config.siteId) {
+    throw new Error("No site is selected. Create a site in Configuration first.");
   }
   if (!sessionStorage.getItem("syncam.access_token")) {
     throw new Error(
@@ -66,11 +86,34 @@ export class AlertApiError extends Error {
 export class AlertApiClient {
   private readonly acknowledgementKeys = new Map<string, string>();
 
-  constructor(private readonly config: AlertRuntimeConfig) {}
+  constructor(protected readonly config: AlertRuntimeConfig) {}
 
   async listAlerts(signal?: AbortSignal): Promise<ApiAlert[]> {
     const payload = await this.request("/v1/alerts", { method: "GET", signal });
-    return parseAlertListEnvelope(payload);
+    // The queue is tenant-wide; show the selected site's alerts.
+    return parseAlertListEnvelope(payload).filter(
+      (alert) => !this.config.siteId || alert.site_id === this.config.siteId,
+    );
+  }
+
+  /** Fetches an authenticated image (snapshot or reference frame) as an object URL. */
+  async imageUrl(path: string, signal?: AbortSignal): Promise<string | null> {
+    const accessToken = sessionStorage.getItem("syncam.access_token");
+    const response = await fetch(`${this.config.apiBaseUrl}${path}`, {
+      method: "GET",
+      cache: "no-store",
+      signal,
+      headers: {
+        Accept: "image/jpeg",
+        Authorization: `Bearer ${accessToken ?? ""}`,
+        "X-SentinelVision-Tenant-ID": this.config.tenantId,
+      },
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) {
+      throw new AlertApiError(`Image request failed with ${response.status}.`, response.status);
+    }
+    return URL.createObjectURL(await response.blob());
   }
 
   async acknowledgeAlert(
@@ -111,7 +154,7 @@ export class AlertApiClient {
     return url.toString();
   }
 
-  private async request(path: string, init: RequestInit): Promise<unknown> {
+  protected async request(path: string, init: RequestInit): Promise<unknown> {
     const accessToken = sessionStorage.getItem("syncam.access_token");
     const response = await fetch(`${this.config.apiBaseUrl}${path}`, {
       ...init,

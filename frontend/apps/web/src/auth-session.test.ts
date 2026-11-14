@@ -16,7 +16,9 @@ const session = { access_token: "test-token", user: { id: "user-1" } } as Sessio
 test("privileged seed roles enroll before accessing the app", () => {
   for (const role of ["super_admin", "auditor"]) {
     assert.deepEqual(decideSession(claims(role), []), { kind: "enroll" });
-    assert.deepEqual(decideSession(claims(role, "aal2"), [totp]), { kind: "ready", tenantId: "tenant-1" });
+    assert.deepEqual(decideSession(claims(role, "aal2"), [totp]), {
+      kind: "ready", tenantId: "tenant-1", siteIds: role === "super_admin" ? [] : ["site-1"], roles: [role],
+    });
   }
 });
 
@@ -77,7 +79,9 @@ function inspectionClient(options: { invalid?: boolean; wrongSubject?: boolean; 
 
 test("checks the exact access token with the SDK before routing the session", async () => {
   const { client, tokens } = inspectionClient();
-  assert.deepEqual(await inspectSession(client, session), { kind: "ready", tenantId: "tenant-1" });
+  assert.deepEqual(await inspectSession(client, session), {
+    kind: "ready", tenantId: "tenant-1", siteIds: ["site-1"], roles: ["operator"],
+  });
   assert.deepEqual(tokens, ["test-token"]);
 });
 
