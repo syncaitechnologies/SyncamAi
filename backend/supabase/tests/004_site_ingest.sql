@@ -1,5 +1,5 @@
 begin;
-select plan(16);
+select plan(19);
 
 select ok((select relrowsecurity and relforcerowsecurity from pg_class where oid = 'platform.site_keys'::regclass),
   'site keys enforce row level security');
@@ -50,6 +50,16 @@ select is((select site_id::text from platform.resolve_site_key(repeat('a', 64)))
 update platform.site_keys set revoked_at = clock_timestamp() where id = '41400000-0000-4000-8000-000000000021';
 select is((select count(*)::int from platform.resolve_site_key(repeat('a', 64))), 0,
   'a revoked key no longer resolves');
+
+insert into notify.telegram_link_codes (code_hash, tenant_id, site_id, created_by, expires_at) values
+ (repeat('b', 64), '41400000-0000-4000-8000-000000000001', '41400000-0000-4000-8000-000000000011',
+  'test', clock_timestamp() + interval '10 minutes');
+select is((select site_id::text from notify.redeem_telegram_link(repeat('b', 64), 4242, 'Team')),
+  '41400000-0000-4000-8000-000000000011', 'a valid link code links its chat to the site');
+select is((select count(*)::int from notify.telegram_targets where chat_id = 4242), 1,
+  'the linked chat becomes a telegram target');
+select is((select count(*)::int from notify.redeem_telegram_link(repeat('b', 64), 4242, 'Team')), 0,
+  'a link code cannot be redeemed twice');
 
 select * from finish();
 rollback;

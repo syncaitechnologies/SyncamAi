@@ -91,6 +91,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+#variable_conflict use_column
 DECLARE
     link notify.telegram_link_codes%ROWTYPE;
 BEGIN
