@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -106,9 +107,18 @@ func main() {
 		targets := siteingest.NewPostgresTargetStore(pool)
 		siteIngest.TelegramTargets = targets
 		siteIngest.TelegramBotHandle = strings.TrimPrefix(strings.TrimSpace(os.Getenv("SYNCAM_TELEGRAM_BOT_HANDLE")), "@")
+		cooldown := siteingest.DefaultCooldown
+		if raw := strings.TrimSpace(os.Getenv("SYNCAM_TELEGRAM_COOLDOWN_SECONDS")); raw != "" {
+			seconds, err := strconv.Atoi(raw)
+			if err != nil || seconds < 1 || seconds > 3600 {
+				log.Fatal("SYNCAM_TELEGRAM_COOLDOWN_SECONDS must be a whole number of seconds from 1 to 3600")
+			}
+			cooldown = time.Duration(seconds) * time.Second
+		}
 		notifier = &siteingest.TelegramNotifier{
 			Client: telegram, Targets: targets, Evidence: siteIngest.Evidence,
 			Describe: siteingest.NewRepositoryDescriber(repository, cameraRepository, zoneRepository),
+			Cooldown: cooldown,
 			Logf:     log.Printf,
 		}
 		go siteingest.RunTelegramLinker(runContext, telegram, targets, siteingest.SiteNamer(repository), log.Printf)

@@ -42,14 +42,38 @@ class WeaponConfirmationTest(unittest.TestCase):
         processor.confirm((TENANT, SITE), CAMERA, [GUN], [PERSON], START + timedelta(milliseconds=500))
         self.assertEqual(processor.confirm((TENANT, SITE), CAMERA, [GUN], [PERSON], START + timedelta(milliseconds=750)), [])
 
-    def test_repeat_alerts_are_suppressed_for_a_minute(self) -> None:
-        processor = self.processor()
-        total = 0
-        moment = START
-        for _ in range(40):  # ten seconds of the same weapon at 4 fps
+    def show(self, processor, moment, seconds, weapons):
+        alerts = 0
+        for _ in range(int(seconds * 4)):
             moment += timedelta(milliseconds=250)
-            total += len(processor.confirm((TENANT, SITE), CAMERA, [GUN], [PERSON], moment))
-        self.assertEqual(total, 1)
+            alerts += len(processor.confirm((TENANT, SITE), CAMERA, weapons, [PERSON], moment))
+        return moment, alerts
+
+    def test_one_alert_per_appearance_and_fifteen_second_repeats(self) -> None:
+        processor = self.processor()
+        moment, held = self.show(processor, START, 20, [GUN])
+        self.assertEqual(held, 1, "a weapon held in view for 20 s alerts once")
+        moment, _ = self.show(processor, moment, 4, [])
+        moment, quick = self.show(processor, moment, 3, [GUN])
+        self.assertEqual(quick, 1, "shown again after more than 15 s: alerts again")
+        moment, _ = self.show(processor, moment, 4, [])
+        moment, too_soon = self.show(processor, moment, 3, [GUN])
+        self.assertEqual(too_soon, 0, "shown again within 15 s of the last alert: held back")
+
+    def test_a_knife_right_after_a_gun_still_alerts(self) -> None:
+        processor = self.processor()
+        knife = ObjectDetection("knife", 0.7, 0.3, 0.5, 0.36, 0.6)
+        moment = START
+        gun_alerts = knife_alerts = []
+        for index in range(3):
+            moment += timedelta(milliseconds=250)
+            gun_alerts = processor.confirm((TENANT, SITE), CAMERA, [GUN], [PERSON], moment) or gun_alerts
+        for index in range(4):
+            moment += timedelta(milliseconds=250)
+            knife_alerts = processor.confirm((TENANT, SITE), CAMERA, [knife], [PERSON], moment) or knife_alerts
+        self.assertEqual(len(gun_alerts), 1)
+        self.assertEqual(len(knife_alerts), 1, "a different weapon type is not held back by the gun alert")
+        self.assertIn("knife", knife_alerts[0].title)
 
     def test_no_people_means_no_weapon_inference(self) -> None:
         processor = self.processor()
