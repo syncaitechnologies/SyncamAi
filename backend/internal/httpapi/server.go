@@ -50,6 +50,7 @@ type Server struct {
 	configuration           configdelivery.Repository
 	privacyMasks            privacymasks.Repository
 	privacyReleaseTransport privacymasks.ReleaseTransportRepository
+	siteIngest              SiteIngestOptions
 	mux                     *http.ServeMux
 }
 
@@ -106,7 +107,13 @@ func NewWithPrivacyMaskApprovals(verifier identity.Verifier, tenants tenant.Repo
 }
 
 func NewWithPrivacyMaskReleaseTransport(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository, realtimeRepository realtime.Repository, tickets realtime.TicketStore, cameras device.Repository, enrollment device.EnrollmentRepository, deviceStatus device.StatusRepository, deviceVerifier device.DeviceIdentityVerifier, zoneRepository zones.Repository, configuration configdelivery.Repository, privacyMasks privacymasks.Repository, privacyReleaseTransport privacymasks.ReleaseTransportRepository) http.Handler {
-	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, realtime: realtimeRepository, tickets: tickets, cameras: cameras, enrollment: enrollment, deviceStatus: deviceStatus, deviceVerifier: deviceVerifier, zones: zoneRepository, configuration: configuration, privacyMasks: privacyMasks, privacyReleaseTransport: privacyReleaseTransport, mux: http.NewServeMux()}
+	return NewWithSiteIngest(verifier, tenants, events, alerts, realtimeRepository, tickets, cameras, enrollment, deviceStatus, deviceVerifier, zoneRepository, configuration, privacyMasks, privacyReleaseTransport, SiteIngestOptions{})
+}
+
+// NewWithSiteIngest adds site-box ingest, alert snapshots and Telegram
+// linking to the complete control plane.
+func NewWithSiteIngest(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository, realtimeRepository realtime.Repository, tickets realtime.TicketStore, cameras device.Repository, enrollment device.EnrollmentRepository, deviceStatus device.StatusRepository, deviceVerifier device.DeviceIdentityVerifier, zoneRepository zones.Repository, configuration configdelivery.Repository, privacyMasks privacymasks.Repository, privacyReleaseTransport privacymasks.ReleaseTransportRepository, siteIngest SiteIngestOptions) http.Handler {
+	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, realtime: realtimeRepository, tickets: tickets, cameras: cameras, enrollment: enrollment, deviceStatus: deviceStatus, deviceVerifier: deviceVerifier, zones: zoneRepository, configuration: configuration, privacyMasks: privacyMasks, privacyReleaseTransport: privacyReleaseTransport, siteIngest: siteIngest, mux: http.NewServeMux()}
 	server.mux.HandleFunc("GET /healthz", server.health)
 	server.mux.Handle("GET /v1/auth/me", server.authenticate(http.HandlerFunc(server.me)))
 	server.mux.Handle("POST /v1/auth/ws-ticket", server.authenticate(http.HandlerFunc(server.issueRealtimeTicket)))
@@ -139,6 +146,7 @@ func NewWithPrivacyMaskReleaseTransport(verifier identity.Verifier, tenants tena
 	server.mux.Handle("GET /v1/alerts", server.authenticate(http.HandlerFunc(server.listAlerts)))
 	server.mux.Handle("POST /v1/alerts/{id}/acknowledge", server.authenticate(http.HandlerFunc(server.acknowledgeAlert)))
 	server.mux.HandleFunc("GET /ws/v1/alerts", server.streamAlerts)
+	server.registerSiteIngestRoutes()
 	return server.mux
 }
 

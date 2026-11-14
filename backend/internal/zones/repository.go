@@ -44,6 +44,7 @@ type Zone struct {
 	Enabled        bool            `json:"enabled"`
 	LoiterSeconds  *int            `json:"loiter_seconds,omitempty"`
 	SubjectClasses []string        `json:"subject_classes,omitempty"`
+	Schedule       json.RawMessage `json:"schedule,omitempty"`
 	ConfigVersion  int64           `json:"config_version"`
 	CreatedAt      time.Time       `json:"created_at"`
 	UpdatedAt      time.Time       `json:"updated_at"`
@@ -56,6 +57,7 @@ type CreateCommand struct {
 	Enabled                                      bool
 	LoiterSeconds                                *int
 	SubjectClasses                               []string
+	Schedule                                     json.RawMessage
 }
 
 type CreateResult struct {
@@ -71,6 +73,7 @@ type UpdateCommand struct {
 	Enabled                              *bool
 	LoiterSeconds                        *int
 	SubjectClasses                       *[]string
+	Schedule                             *json.RawMessage
 }
 
 type Repository interface {
@@ -145,8 +148,12 @@ func (r *MemoryRepository) Create(_ context.Context, command CreateCommand) (Cre
 	if err != nil {
 		return CreateResult{}, err
 	}
+	schedule, err := NormalizeSchedule(command.Schedule)
+	if err != nil {
+		return CreateResult{}, err
+	}
 	now := r.now()
-	zone := Zone{ID: uuid.NewString(), TenantID: command.TenantID, SiteID: command.SiteID, CameraID: strings.TrimSpace(command.CameraID), Floor: strings.TrimSpace(command.Floor), Name: strings.TrimSpace(command.Name), Kind: strings.TrimSpace(command.Kind), Geometry: append(json.RawMessage(nil), command.Geometry...), Enabled: command.Enabled, LoiterSeconds: loiterSeconds, SubjectClasses: subjectClasses, ConfigVersion: 1, CreatedAt: now, UpdatedAt: now}
+	zone := Zone{ID: uuid.NewString(), TenantID: command.TenantID, SiteID: command.SiteID, CameraID: strings.TrimSpace(command.CameraID), Floor: strings.TrimSpace(command.Floor), Name: strings.TrimSpace(command.Name), Kind: strings.TrimSpace(command.Kind), Geometry: append(json.RawMessage(nil), command.Geometry...), Enabled: command.Enabled, LoiterSeconds: loiterSeconds, SubjectClasses: subjectClasses, Schedule: schedule, ConfigVersion: 1, CreatedAt: now, UpdatedAt: now}
 	r.zones = append(r.zones, zone)
 	r.idempotency[key] = replay{hash: hash, zone: clone(zone)}
 	return CreateResult{Zone: clone(zone)}, nil
@@ -190,6 +197,13 @@ func (r *MemoryRepository) Update(_ context.Context, command UpdateCommand) (Zon
 		}
 		next.SubjectClasses = subjectClasses
 	}
+	if command.Schedule != nil {
+		schedule, err := NormalizeSchedule(*command.Schedule)
+		if err != nil {
+			return Zone{}, err
+		}
+		next.Schedule = schedule
+	}
 	if !same(current, next) {
 		next.ConfigVersion++
 		next.UpdatedAt = r.now()
@@ -213,10 +227,20 @@ func clone(zone Zone) Zone {
 		zone.LoiterSeconds = &value
 	}
 	zone.SubjectClasses = append([]string(nil), zone.SubjectClasses...)
+	if zone.Schedule != nil {
+		zone.Schedule = append(json.RawMessage(nil), zone.Schedule...)
+	}
 	return zone
 }
 func same(a, b Zone) bool {
-	return a.Name == b.Name && a.Floor == b.Floor && a.Enabled == b.Enabled && string(a.Geometry) == string(b.Geometry) && sameLoiterSeconds(a.LoiterSeconds, b.LoiterSeconds) && sameSubjectClasses(a.SubjectClasses, b.SubjectClasses)
+	return a.Name == b.Name && a.Floor == b.Floor && a.Enabled == b.Enabled && string(a.Geometry) == string(b.Geometry) && sameLoiterSeconds(a.LoiterSeconds, b.LoiterSeconds) && sameSubjectClasses(a.SubjectClasses, b.SubjectClasses) && string(a.Schedule) == string(b.Schedule)
+}
+
+func databaseSchedule(value json.RawMessage) any {
+	if len(value) == 0 {
+		return nil
+	}
+	return string(value)
 }
 
 func hashCreate(command CreateCommand) (string, error) {
@@ -228,13 +252,18 @@ func hashCreate(command CreateCommand) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	schedule, err := NormalizeSchedule(command.Schedule)
+	if err != nil {
+		return "", err
+	}
 	payload, err := json.Marshal(struct {
 		SiteID, CameraID, Floor, Name, Kind string
 		Geometry                            json.RawMessage
 		Enabled                             bool
 		LoiterSeconds                       *int
 		SubjectClasses                      []string
-	}{command.SiteID, strings.TrimSpace(command.CameraID), strings.TrimSpace(command.Floor), strings.TrimSpace(command.Name), strings.TrimSpace(command.Kind), command.Geometry, command.Enabled, loiterSeconds, subjectClasses})
+		Schedule                            json.RawMessage `json:",omitempty"`
+	}{command.SiteID, strings.TrimSpace(command.CameraID), strings.TrimSpace(command.Floor), strings.TrimSpace(command.Name), strings.TrimSpace(command.Kind), command.Geometry, command.Enabled, loiterSeconds, subjectClasses, schedule})
 	if err != nil {
 		return "", err
 	}

@@ -4,6 +4,7 @@ import type { Session } from "@supabase/supabase-js";
 import { App } from "./App";
 import { inspectSession, type SessionDecision } from "./auth-session";
 import { syncAccessToken, type AuthClient } from "./supabase-auth";
+import { storeWorkspace } from "./workspace";
 
 type Enrollment = { id: string; qr: string; secret: string };
 
@@ -21,17 +22,21 @@ export function MfaGate({ client, session, onSignOut, notice, signingOut }: {
   useEffect(() => {
     let active = true;
     syncAccessToken(null);
+    storeWorkspace(null);
     setResult(null);
     setError("");
-    if (signingOut) return () => { active = false; syncAccessToken(null); };
+    if (signingOut) return () => { active = false; syncAccessToken(null); storeWorkspace(null); };
     void inspectSession(client, session).then((decision) => {
       if (!active) return;
-      if (decision.kind === "ready") syncAccessToken(session);
+      if (decision.kind === "ready") {
+        syncAccessToken(session);
+        storeWorkspace({ tenantId: decision.tenantId, siteIds: decision.siteIds, roles: decision.roles });
+      }
       setResult({ token: session.access_token, decision });
     }).catch(() => {
       if (active) setError("We could not verify your session securely. Check your connection and retry, or sign out.");
     });
-    return () => { active = false; syncAccessToken(null); };
+    return () => { active = false; syncAccessToken(null); storeWorkspace(null); };
   }, [client, session.access_token, session.user.id, retry, signingOut]);
 
   const decision = result?.token === session.access_token ? result.decision : null;

@@ -25,7 +25,7 @@ def python_dependency_names(pyproject_file: pathlib.Path) -> set[str]:
     for dependencies in project.get("optional-dependencies", {}).values():
         requirements.extend(dependencies)
     return {
-        re.split(r"[<>=!~;[\\s]", requirement, maxsplit=1)[0].lower().replace("_", "-")
+        re.split(r"[<>=!~;\[\s]", requirement, maxsplit=1)[0].lower().replace("_", "-")
         for requirement in requirements
     }
 
