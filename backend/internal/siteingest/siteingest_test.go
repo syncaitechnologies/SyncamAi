@@ -281,6 +281,9 @@ func TestTelegramLinkerRedeemsStartCodes(t *testing.T) {
 	if len(replies) != 3 || !strings.Contains(replies[0], "Welcome") || !strings.Contains(replies[1], "invalid or expired") || !strings.Contains(replies[2], "Warehouse") {
 		t.Fatalf("unexpected replies: %q", replies)
 	}
+	if !strings.HasPrefix(replies[2], "✅ Linked") || !strings.Contains(replies[0], "Configuration → Telegram") {
+		t.Fatalf("replies must keep their UTF-8 symbols: %q", replies)
+	}
 }
 
 func TestTelegramClientNeverLeaksTokenInErrors(t *testing.T) {
