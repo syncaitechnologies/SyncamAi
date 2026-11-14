@@ -319,7 +319,7 @@ func handleTelegramUpdate(ctx context.Context, client *TelegramClient, store Tar
 	}
 	chat := update.Message.Chat
 	if len(fields) < 2 {
-		_ = client.SendMessage(ctx, chat.ID, "Welcome to SyncCam AI alerts. Open Configuration â†’ Telegram alerts in your SyncCam dashboard, press \"Link Telegram\", and send the code shown there as: /start CODE")
+		_ = client.SendMessage(ctx, chat.ID, "Welcome to SyncCam AI alerts. Open Configuration → Telegram alerts in your SyncCam dashboard, press \"Link Telegram\", and send the code shown there as: /start CODE")
 		return
 	}
 	title := chat.Title
@@ -342,5 +342,5 @@ func handleTelegramUpdate(ctx context.Context, client *TelegramClient, store Tar
 			name = label
 		}
 	}
-	_ = client.SendMessage(ctx, chat.ID, "âœ… Linked. This chat will now receive SyncCam AI alerts with photos for "+name+".")
+	_ = client.SendMessage(ctx, chat.ID, "✅ Linked. This chat will now receive SyncCam AI alerts with photos for "+name+".")
 }
