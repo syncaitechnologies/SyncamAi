@@ -22,8 +22,11 @@ type AlertLabels struct {
 type DescribeFunc func(ctx context.Context, alert alerting.Alert) AlertLabels
 
 // DefaultCooldown suppresses repeat notifications for the same zone and event
-// type, so one person walking around a zone does not flood a phone.
-const DefaultCooldown = 2 * time.Minute
+// type, so a flickering detection does not flood a phone. The site box
+// already sends each person entry or confirmed weapon only once, so a short
+// window keeps genuine repeat incidents visible. Override it with
+// SYNCAM_TELEGRAM_COOLDOWN_SECONDS.
+const DefaultCooldown = 15 * time.Second
 
 // TelegramNotifier sends a photo (or text) message for each new alert to the
 // Telegram chats linked to the alert's site.

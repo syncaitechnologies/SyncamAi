@@ -39,7 +39,7 @@ WEAPON_DEV_YOLOV8: Final = ModelArtifact(
 )
 # Detector class index -> canonical weapon class used by weapon_review.py.
 WEAPON_CLASSES: Final = {0: "firearm", 1: "knife"}
-REPEAT_SUPPRESSION_SECONDS: Final = 60.0
+REPEAT_SUPPRESSION_SECONDS: Final = 15.0
 _MAX_CROPS: Final = 3
 
 
@@ -113,6 +113,7 @@ class WeaponProcessor:
     model_version: str
     minimum_confidence: float = 0.5
     input_size: int = 640
+    repeat_seconds: float = REPEAT_SUPPRESSION_SECONDS
     _confirmations: dict[str, WeaponReviewConfirmation] = field(default_factory=dict)
     _sequences: dict[str, int] = field(default_factory=dict)
     _last_alert: dict[str, float] = field(default_factory=dict)
@@ -126,7 +127,7 @@ class WeaponProcessor:
 
         core = openvino.Core()
         compiled = core.compile_model(core.read_model(str(config.weapon_model)), config.device)
-        return cls(model=compiled, model_version=WEAPON_DEV_YOLOV8.model_version)
+        return cls(model=compiled, model_version=WEAPON_DEV_YOLOV8.model_version, repeat_seconds=config.weapon_repeat_seconds)
 
     def detect(self, frame: Any, people: Sequence[ObjectDetection]) -> list[ObjectDetection]:
         import numpy
@@ -186,12 +187,19 @@ class WeaponProcessor:
             ),
         ))
         alerts: list[AlertCandidate] = []
-        for event in events:
-            moment = observed_at.timestamp()
-            if moment - self._last_alert.get(camera_id, -1e12) < REPEAT_SUPPRESSION_SECONDS:
-                continue
-            self._last_alert[camera_id] = moment
-            alerts.append(AlertCandidate(event=event, title="Possible weapon - review now", detections=tuple(people) + tuple(weapons)))
+        if not events:
+            return alerts
+        moment = observed_at.timestamp()
+        # Repeats are suppressed per weapon type, so a knife shown right after
+        # a gun still alerts, but one object held up does not flood the phone.
+        visible = sorted({item.subject_class for item in weapons}) or ["weapon"]
+        fresh = [kind for kind in visible if moment - self._last_alert.get(f"{camera_id}:{kind}", -1e12) >= self.repeat_seconds]
+        if not fresh:
+            return alerts
+        for kind in visible:
+            self._last_alert[f"{camera_id}:{kind}"] = moment
+        label = " / ".join(fresh)
+        alerts.append(AlertCandidate(event=events[0], title=f"Possible weapon ({label}) - review now", detections=tuple(people) + tuple(weapons)))
         return alerts
 
 

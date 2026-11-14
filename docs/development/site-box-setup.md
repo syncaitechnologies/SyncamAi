@@ -26,8 +26,12 @@ NVR / IP cameras (RTSP, private LAN)
 
 Weapon review runs only on frames where a person is visible, also inside
 enlarged crops around the largest people, and needs the same object in three
-consecutive frames within a second (`weapon_review.py`). Repeat alerts from one
-camera are suppressed for a minute. The current weapon model is a community
+consecutive frames within a second (`weapon_review.py`). A weapon alerts once
+per appearance; after it is out of view for about three seconds, showing it
+again alerts again, at most once per 15 s per weapon type and camera
+(`weapon_repeat_seconds` in the site config). Telegram applies its own 15 s
+window per zone and alert type (`SYNCAM_TELEGRAM_COOLDOWN_SECONDS` on the
+API). The current weapon model is a community
 model with **no stated licence**; `fetch_site_models.ps1 -IncludeDevWeaponModel`
 downloads it for development and demos only. Replace it with a licence-clean,
 fine-tuned model before selling.
