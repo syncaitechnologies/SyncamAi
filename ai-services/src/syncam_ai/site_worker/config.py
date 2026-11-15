@@ -34,6 +34,8 @@ class LocalConfig:
     face_gallery: Path = Path("syncam-faces.gallery")
     face_match_threshold: float = 0.55
     weapon_repeat_seconds: float = 15.0
+    liveness_model: Path | None = None
+    face_liveness_threshold: float = 0.8
 
 
 def _path(value: object, field_name: str) -> Path:
@@ -83,6 +85,10 @@ def parse_local_config(raw: Mapping[str, Any], *, environ: Mapping[str, str] | N
     weapon_repeat = float(raw.get("weapon_repeat_seconds", 15))
     if not 5 <= weapon_repeat <= 600:
         raise ValueError("weapon_repeat_seconds must be between 5 and 600")
+    liveness = models.get("liveness")
+    liveness_threshold = float(raw.get("face_liveness_threshold", 0.8))
+    if not 0.3 <= liveness_threshold <= 0.99:
+        raise ValueError("face_liveness_threshold must be between 0.3 and 0.99")
     spool_dir = _path(raw.get("spool_dir", "syncam-spool"), "spool_dir")
     gallery = raw.get("face_gallery")
     return LocalConfig(
@@ -101,6 +107,8 @@ def parse_local_config(raw: Mapping[str, Any], *, environ: Mapping[str, str] | N
         face_gallery=_path(gallery, "face_gallery") if gallery else spool_dir.parent / "syncam-faces.gallery",
         face_match_threshold=threshold,
         weapon_repeat_seconds=weapon_repeat,
+        liveness_model=_path(liveness, "models.liveness") if liveness else None,
+        face_liveness_threshold=liveness_threshold,
     )
 
 

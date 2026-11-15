@@ -41,6 +41,13 @@ if ($IncludeFaceModels) {
         $model = [IO.Path]::GetFileNameWithoutExtension($file)
         $models += @{ Name = $file; Url = "$omz/$model/FP16/$file"; Sha384 = $faces[$file]; Note = "Intel $model (Apache-2.0)" }
     }
+    # Liveness (anti-spoofing): MiniFASNet-V2 from minivision-ai/Silent-Face-Anti-Spoofing, ONNX export.
+    $models += @{
+        Name   = "minifasnet_v2.onnx"
+        Url    = "https://huggingface.co/garciafido/minifasnet-v2-anti-spoofing-onnx/resolve/d29c87568ca9b5662da803b10f217c4db20b142b/minifasnet_v2.onnx"
+        Sha384 = "ac8083744d29aa3d1945f0bd05c22783f8f5c2710666a54d66006b3b89ea09e07215cc81670f3d67f15a65ac27daea8c"
+        Note   = "MiniFASNet-V2 face liveness (Apache-2.0)"
+    }
 }
 
 New-Item -ItemType Directory -Force $Destination | Out-Null
