@@ -107,6 +107,26 @@ class BackendClient:
         body = json.dumps(sighting, separators=(",", ":")).encode()
         self._request("POST", "/v1/site-ingest/attendance", body=body, content_type="application/json")
 
+    def live_requests(self) -> list[str]:
+        """Camera IDs of this site that someone is watching in the dashboard."""
+
+        response = self._request("GET", "/v1/site-ingest/live")
+        cameras = (response or {}).get("data", {}).get("cameras", [])
+        if not isinstance(cameras, list):
+            raise BackendError("live view response is invalid", retryable=False)
+        return [str(camera_id) for camera_id in cameras]
+
+    def put_live_frame(self, camera_id: str, jpeg: bytes) -> bool:
+        """Upload one live frame; False once nobody is watching that camera."""
+
+        try:
+            self._request("PUT", f"/v1/site-ingest/cameras/{urllib.parse.quote(camera_id)}/live", body=jpeg, content_type="image/jpeg")
+        except BackendError as error:
+            if error.status == 409:
+                return False
+            raise
+        return True
+
     def heartbeat(self, cameras: Mapping[str, Mapping[str, object]]) -> None:
         body = json.dumps({"cameras": cameras}, separators=(",", ":")).encode()
         self._request("POST", "/v1/site-ingest/heartbeat", body=body, content_type="application/json")

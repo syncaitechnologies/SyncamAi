@@ -2,8 +2,10 @@
 
 The site box is a small computer at the client's premises that runs the AI part
 of this repository against the client's **existing** IP cameras or NVR. It sends
-only events and one annotated snapshot per alert to the control plane; video
-never leaves the site and camera passwords stay in the local config.
+only events and one annotated snapshot per alert to the control plane, plus
+near-live frames while someone is watching a camera in the dashboard (see
+[Live view](#live-view-in-the-dashboard)). Video is never recorded in the cloud
+and camera passwords stay in the local config.
 
 ```
 NVR / IP cameras (RTSP, private LAN)
@@ -131,6 +133,28 @@ python -m syncam_ai.site_worker run --config D:\private\syncam-site.json
 
 A camera entry may also be a video file path (looped) or a webcam index such as
 `"0"`, which is useful for demos and testing.
+
+## Live view in the dashboard
+
+The Camera Wall shows a near-live view of any camera on request.
+
+- Video stays on the site box until someone with live-view rights (Operator,
+  Site admin or Super admin with the `raw_video` data class) presses
+  **Watch live** on a camera tile or in its spotlight.
+- That starts a viewing session, which the API writes to the tenant's
+  hash-chained audit log (`camera.live_view.started`, with the viewer's
+  email) **before** any frame is shown. If the record cannot be written, live
+  view does not start.
+- The site box checks every 2 seconds which of its cameras are being watched
+  and sends about 2 small JPEG frames a second (at most 640 px wide) for those
+  only. It stops within about 10 seconds of the viewer closing the tile,
+  pressing Stop or hiding the browser tab.
+- Frames pass through the API's memory and are never written to storage. The
+  view shows a **LIVE · viewed by … · logged** chip and the age of the frame.
+- Expect a choppy picture with 1–2 seconds of delay; it is meant for checking
+  a scene, not for smooth video.
+- To keep a site's video entirely on the premises, set `"live_view": false`
+  in its site config.
 
 ## Reliability and privacy
 

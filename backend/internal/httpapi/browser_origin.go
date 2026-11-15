@@ -74,7 +74,7 @@ func WithBrowserOrigins(next http.Handler, configuration string) (http.Handler, 
 			return
 		}
 		w.Header().Set("Access-Control-Allow-Origin", values[0])
-		w.Header().Set("Access-Control-Expose-Headers", "X-Correlation-Id, Retry-After")
+		w.Header().Set("Access-Control-Expose-Headers", "X-Correlation-Id, Retry-After, X-Frame-Captured-At")
 		// Only this validated, private context value may extend the WebSocket
 		// library's origin allowlist. Never trust forwarded or arbitrary headers.
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), approvedBrowserOriginKey{}, origin)))

@@ -23,6 +23,7 @@ import (
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/httpapi"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/livefeed"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/outbox"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/privacymasks"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/realtime"
@@ -94,6 +95,8 @@ func main() {
 		Keys:          siteingest.NewPostgresKeyStore(pool),
 		AlertEvidence: alertRepository,
 		Attendance:    attendance.NewPostgresRepository(pool),
+		Live:          livefeed.NewHub(),
+		LiveAudit:     livefeed.NewPostgresAuditor(pool),
 	}
 	if supabaseURL, secretKey := strings.TrimSpace(os.Getenv("SYNCAM_SUPABASE_URL")), strings.TrimSpace(os.Getenv("SYNCAM_SUPABASE_SECRET_KEY")); supabaseURL != "" && secretKey != "" {
 		siteIngest.Evidence = &siteingest.SupabaseEvidenceStore{BaseURL: supabaseURL, SecretKey: secretKey, Bucket: envOrDefault("SYNCAM_EVIDENCE_BUCKET", "snapshots")}

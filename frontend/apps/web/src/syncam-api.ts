@@ -219,4 +219,47 @@ export class SyncamApi extends AlertApiClient {
   cameraReference(cameraId: string, signal?: AbortSignal) {
     return this.imageUrl(`/v1/cameras/${encodeURIComponent(cameraId)}/reference`, signal);
   }
+
+  /** Starts (or keeps alive) an audited near-live viewing session. */
+  async startLiveView(cameraId: string, signal?: AbortSignal) {
+    return data<LiveViewSession>(
+      await this.request(`/v1/cameras/${encodeURIComponent(cameraId)}/live`, {
+        method: "POST",
+        signal,
+        headers: { "X-Correlation-Id": crypto.randomUUID() },
+      }),
+    );
+  }
+
+  async stopLiveView(cameraId: string) {
+    await this.request(`/v1/cameras/${encodeURIComponent(cameraId)}/live`, { method: "DELETE", keepalive: true }).catch(() => undefined);
+  }
+
+  /** The newest live frame, "pending" before the site box sends one, or "expired". */
+  async liveFrame(cameraId: string, signal?: AbortSignal): Promise<LiveFrame | "pending" | "expired"> {
+    const accessToken = sessionStorage.getItem("syncam.access_token");
+    const response = await fetch(`${this.config.apiBaseUrl}/v1/cameras/${encodeURIComponent(cameraId)}/live/frame`, {
+      method: "GET",
+      cache: "no-store",
+      signal,
+      headers: {
+        Accept: "image/jpeg",
+        Authorization: `Bearer ${accessToken ?? ""}`,
+        "X-SentinelVision-Tenant-ID": this.config.tenantId,
+      },
+    });
+    if (response.status === 404) return "pending";
+    if (response.status === 409) return "expired";
+    if (!response.ok) throw new Error(`Live frame request failed with ${response.status}.`);
+    return { blob: await response.blob(), capturedAt: response.headers.get("X-Frame-Captured-At") };
+  }
 }
+
+export type LiveViewSession = {
+  camera_id: string;
+  viewer: string;
+  audited: boolean;
+  expires_in_seconds: number;
+  poll_interval_ms: number;
+};
+export type LiveFrame = { blob: Blob; capturedAt: string | null };
