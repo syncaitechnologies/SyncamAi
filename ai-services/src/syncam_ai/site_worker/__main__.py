@@ -3,6 +3,7 @@
     python -m syncam_ai.site_worker check    --config site.json
     python -m syncam_ai.site_worker snapshot --config site.json --camera <id> --out frame.jpg
     python -m syncam_ai.site_worker run      --config site.json
+    python -m syncam_ai.site_worker liveness --config site.json [--camera <id>]
 """
 
 from __future__ import annotations
@@ -147,6 +148,43 @@ def command_enroll(config: LocalConfig, staff_id: str, photos: Path) -> int:
     return 0
 
 
+def command_liveness(config: LocalConfig, camera_id: str | None, seconds: float) -> int:
+    """Print the liveness score of the largest face once a second (for set-up and demos)."""
+
+    from .faces import FaceEngine, LivenessChecker
+
+    if config.face_models_dir is None or config.liveness_model is None:
+        print("Set models.faces and models.liveness in the config first.")
+        return 1
+    camera_id = camera_id or (config.entrance_cameras[0] if config.entrance_cameras else next(iter(config.cameras)))
+    if camera_id not in config.cameras:
+        print("camera is not in the local config")
+        return 1
+    engine = FaceEngine(config.face_models_dir, device=config.device)
+    checker = LivenessChecker(config.liveness_model, device=config.device)
+    stream = CameraStream(camera_id, config.cameras[camera_id])
+    stream.start()
+    print(f"Look at camera {camera_id}; then hold a photo or phone screen of a face up to it. Real faces need {config.face_liveness_threshold:.2f} or more.")
+    deadline = time.monotonic() + seconds
+    try:
+        while time.monotonic() < deadline:
+            time.sleep(1)
+            latest = stream.latest()
+            if latest is None:
+                continue
+            faces = engine.faces(latest[1])
+            if not faces:
+                print("  no face")
+                continue
+            largest = max(faces, key=lambda face: (face[2] - face[0]) * (face[3] - face[1]))
+            score = checker.score(latest[1], largest[:4])
+            verdict = "REAL" if score >= config.face_liveness_threshold else "SPOOF / not accepted"
+            print(f"  liveness {score:.2f}  {verdict}")
+    finally:
+        stream.stop()
+    return 0
+
+
 def command_forget(config: LocalConfig, staff_id: str) -> int:
     from .faces import FaceGallery
 
@@ -184,12 +222,13 @@ def command_run(config: LocalConfig) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m syncam_ai.site_worker", description="SyncCam AI site box")
-    parser.add_argument("command", choices=["run", "check", "snapshot", "enroll", "forget", "face-key"])
+    parser.add_argument("command", choices=["run", "check", "snapshot", "enroll", "forget", "face-key", "liveness"])
     parser.add_argument("--config", type=Path, help="local site JSON file (outside Git)")
     parser.add_argument("--camera", help="camera ID for the snapshot command")
     parser.add_argument("--out", type=Path, default=Path("snapshot.jpg"))
     parser.add_argument("--staff-id", help="staff ID from the dashboard for enroll/forget")
     parser.add_argument("--photos", type=Path, help="folder of the staff member's face photos for enroll")
+    parser.add_argument("--seconds", type=float, default=30.0, help="how long the liveness command runs")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -213,6 +252,8 @@ def main(argv: list[str] | None = None) -> int:
         if not args.camera:
             parser.error("--camera is required for snapshot")
         return command_snapshot(config, args.camera, args.out)
+    if args.command == "liveness":
+        return command_liveness(config, args.camera, args.seconds)
     if args.command in {"enroll", "forget"}:
         if not args.staff_id:
             parser.error("--staff-id is required")

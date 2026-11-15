@@ -73,6 +73,8 @@ Authentication → URL configuration → Redirect URLs.
 ## Before charging clients
 
 - Replace the development weapon model with a licence-clean model.
-- Add face liveness and a legal review of consent wording and retention.
+- Tune `face_liveness_threshold` at each client's entrance camera (photo and
+  phone-screen test with the `liveness` command), and get a legal review of
+  the consent wording and retention.
 - Move to paid plans: Vercel Pro (Hobby is non-commercial), Render Starter,
   Supabase Pro (about $52 a month in total).

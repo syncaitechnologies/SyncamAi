@@ -55,8 +55,32 @@ and re-identification), downloaded by `fetch_site_models.ps1 -IncludeFaceModels`
 3. Put 3–5 clear photos of the person's face in a folder and run
    `python -m syncam_ai.site_worker enroll --config <file> --staff-id <id> --photos <folder>`.
    The photos are not stored; delete them afterwards.
-4. In the site config set `"models": {"faces": "D:/private/models"}` and list the
-   entrance cameras in `"entrance_cameras": ["<camera id>"]`.
+4. In the site config set
+   `"models": {"faces": "D:/private/models", "liveness": "D:/private/models/minifasnet_v2.onnx"}`
+   and list the entrance cameras in `"entrance_cameras": ["<camera id>"]`.
+5. Check liveness at the entrance camera:
+   `python -m syncam_ai.site_worker liveness --config <file>` prints a score
+   every second. Look at the camera (real faces should score above
+   `face_liveness_threshold`, default 0.8), then hold up a printed photo or a
+   phone showing a face (it should score well below).
+
+### Liveness (anti-spoofing)
+
+Every face is checked by MiniFASNet-V2 from minivision-ai's
+Silent-Face-Anti-Spoofing (Apache-2.0, also downloaded by
+`-IncludeFaceModels`) before it can be matched. The model looks at the face
+plus the area around it (2.7× the face box) and catches printed photos and
+faces shown on phone or monitor screens. A face that fails is never matched;
+if it looks like an enrolled staff member, the site box logs
+`possible photo or screen spoof` (at most once a minute per person) and does
+not mark attendance. Without `models.liveness` attendance still runs, with a
+warning at start-up.
+
+Limits: this is a passive check from a single ordinary camera. It is not a
+certified presentation-attack-detection system, and a high-quality 3D mask or
+a very large, sharp screen held at the right distance may pass. Tune
+`face_liveness_threshold` on site (lighting and camera height change the
+scores) and keep staff aware that attendance is reviewed.
 
 The box marks a person present after two matches within ten seconds, then
 ignores them at that camera for ten minutes. Face signatures stay in an
@@ -65,9 +89,8 @@ sighting times. Removing a person in the dashboard stops matching immediately;
 also run `python -m syncam_ai.site_worker forget --config <file> --staff-id <id>`
 on the box to delete their face data. Unknown faces are ignored and never stored.
 
-**Not production-ready yet:** there is no liveness (anti-spoofing) check, so a
-printed photo could be accepted, and the consent wording and retention period
-need legal review for each country before selling attendance.
+**Before selling attendance:** the consent wording and retention period need
+legal review for each country.
 
 ## Hardware
 

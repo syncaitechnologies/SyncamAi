@@ -12,8 +12,14 @@ the site box from that person's photos; the resulting signatures are stored
 only in a gallery file encrypted with a key held on the box
 (``SYNCAM_FACE_KEY``). Only "staff X was seen at camera Y at time Z" is sent to
 the cloud. Unknown faces are ignored: they never raise alerts and nothing about
-them is stored. Liveness (anti-spoofing) is not implemented yet, so a photo of
-a staff member could be accepted; this must be added before production.
+them is stored.
+
+Liveness (anti-spoofing): before a face counts, MiniFASNet-V2 from
+minivision-ai/Silent-Face-Anti-Spoofing (Apache-2.0) checks that it is a real
+face and not a printed photo or a phone/monitor screen. A face that fails is
+never matched for attendance; if it looks like an enrolled staff member, the
+box logs a possible spoof. This is a single-camera, passive check: it stops
+casual photo and screen attempts but not a determined attacker with a 3D mask.
 """
 
 from __future__ import annotations
@@ -62,6 +68,19 @@ _REFERENCE_LANDMARKS: Final = (
     (30.2946 / 96, 51.6963 / 112), (65.5318 / 96, 51.5014 / 112), (48.0252 / 96, 71.7366 / 112),
     (33.5493 / 96, 92.3655 / 112), (62.7299 / 96, 92.2041 / 112),
 )
+# Converted to ONNX from the upstream 2.7_80x80_MiniFASNetV2.pth (SHA-256
+# a5eb02e1...99bec0); the conversion was checked against the upstream PyTorch
+# model before pinning. Pinned to an immutable Hugging Face revision.
+LIVENESS_MODEL: Final = ModelArtifact(
+    identifier="minivision-minifasnetv2-2.7-80x80",
+    license="Apache-2.0",
+    source="https://huggingface.co/garciafido/minifasnet-v2-anti-spoofing-onnx/resolve/d29c87568ca9b5662da803b10f217c4db20b142b/minifasnet_v2.onnx",
+    files=(("onnx", "ac8083744d29aa3d1945f0bd05c22783f8f5c2710666a54d66006b3b89ea09e07215cc81670f3d67f15a65ac27daea8c"),),
+)
+LIVENESS_SCALE: Final = 2.7
+LIVENESS_INPUT: Final = 80
+LIVENESS_REAL_CLASS: Final = 1  # upstream classes: 0 = spoof, 1 = real face, 2 = spoof
+SPOOF_LOG_SECONDS: Final = 60.0
 MIN_FACE_PIXELS: Final = 36
 CONFIRMATIONS: Final = 2
 CONFIRMATION_WINDOW_SECONDS: Final = 10.0
@@ -220,6 +239,69 @@ class FaceEngine:
         return self.signature(image, largest[:4])
 
 
+# ---------------------------------------------------------------- liveness
+
+def liveness_crop_box(frame_width: int, frame_height: int, box: tuple[int, int, int, int], scale: float = LIVENESS_SCALE) -> tuple[int, int, int, int]:
+    """The context window around a face that MiniFASNet was trained on.
+
+    A port of ``CropImage._get_new_box`` from Silent-Face-Anti-Spoofing: the
+    face box grown ``scale`` times around its centre (less if the frame is too
+    small), shifted to stay inside the frame. Returns inclusive pixel corners.
+    The surrounding context (photo edges, screen bezels, fingers) is what lets
+    the model tell a real face from a picture of one.
+    """
+
+    left, top, right, bottom = box
+    box_width, box_height = max(1, right - left), max(1, bottom - top)
+    scale = min((frame_height - 1) / box_height, (frame_width - 1) / box_width, scale)
+    width, height = box_width * scale, box_height * scale
+    centre_x, centre_y = left + box_width / 2, top + box_height / 2
+    x0, y0, x1, y1 = centre_x - width / 2, centre_y - height / 2, centre_x + width / 2, centre_y + height / 2
+    if x0 < 0:
+        x1, x0 = x1 - x0, 0
+    if y0 < 0:
+        y1, y0 = y1 - y0, 0
+    if x1 > frame_width - 1:
+        x0, x1 = x0 - (x1 - frame_width + 1), frame_width - 1
+    if y1 > frame_height - 1:
+        y0, y1 = y0 - (y1 - frame_height + 1), frame_height - 1
+    return int(x0), int(y0), int(x1), int(y1)
+
+
+def softmax(values: Sequence[float]) -> list[float]:
+    import math
+
+    peak = max(values)
+    exps = [math.exp(value - peak) for value in values]
+    total = sum(exps)
+    return [value / total for value in exps]
+
+
+class LivenessChecker:
+    """Scores how likely a face is a real, present person (0 to 1)."""
+
+    def __init__(self, model_path: Path, *, device: str = "AUTO") -> None:
+        import openvino
+
+        verify_model_artifact(LIVENESS_MODEL, {"onnx": model_path})
+        core = openvino.Core()
+        self._model = core.compile_model(core.read_model(str(model_path)), device)
+
+    def score(self, frame: Any, box: tuple[int, int, int, int]) -> float:
+        """Probability that the face at ``box`` (frame pixels) is real."""
+
+        import cv2
+        import numpy
+
+        height, width = frame.shape[:2]
+        x0, y0, x1, y1 = liveness_crop_box(width, height, box)
+        crop = cv2.resize(frame[y0:y1 + 1, x0:x1 + 1], (LIVENESS_INPUT, LIVENESS_INPUT))
+        # Upstream feeds raw 0-255 BGR values (its to_tensor does not divide by 255).
+        tensor = crop.transpose(2, 0, 1)[numpy.newaxis].astype(numpy.float32)
+        logits = next(iter(self._model(tensor).values())).reshape(-1)
+        return softmax([float(value) for value in logits])[LIVENESS_REAL_CLASS]
+
+
 # ---------------------------------------------------------------- runtime
 
 @dataclass
@@ -231,6 +313,8 @@ class AttendanceProcessor:
     backend: Any
     entrance_cameras: frozenset[str]
     threshold: float = 0.55
+    liveness: Any = None
+    liveness_threshold: float = 0.8
     clock: Any = time.monotonic
     _signatures: dict[str, list[list[float]]] = field(default_factory=dict)
     _active_staff: set[str] = field(default_factory=set)
@@ -238,17 +322,26 @@ class AttendanceProcessor:
     _recent: dict[str, list[float]] = field(default_factory=dict)
     _last_marked: dict[str, float] = field(default_factory=dict)
     _pending: list[dict[str, object]] = field(default_factory=list)
+    _spoof_logged: dict[str, float] = field(default_factory=dict)
 
     @classmethod
     def from_config(cls, config: LocalConfig, backend: Any) -> "AttendanceProcessor":
         if config.face_models_dir is None:
             raise ValueError("models.faces must point to the face model folder")
+        liveness = None
+        if config.liveness_model is not None:
+            liveness = LivenessChecker(config.liveness_model, device=config.device)
+            _LOG.info("attendance liveness check on (threshold %.2f)", config.face_liveness_threshold)
+        else:
+            _LOG.warning("attendance liveness check OFF: a printed photo of a staff member could be accepted; set models.liveness")
         return cls(
             engine=FaceEngine(config.face_models_dir, device=config.device),
             gallery=FaceGallery.from_environment(config.face_gallery),
             backend=backend,
             entrance_cameras=frozenset(config.entrance_cameras),
             threshold=config.face_match_threshold,
+            liveness=liveness,
+            liveness_threshold=config.face_liveness_threshold,
         )
 
     def _refresh(self) -> None:
@@ -283,6 +376,21 @@ class AttendanceProcessor:
                 "confidence": max(0.0, min(1.0, match.similarity)),
             })
         return sightings
+
+    def note_spoof(self, camera_id: str, signature: Sequence[float], score: float) -> None:
+        """Log (at most once a minute per person) a staff face that failed liveness."""
+
+        match = best_match(signature, self._signatures, threshold=self.threshold)
+        if match is None:
+            return
+        now = self.clock()
+        if now - self._spoof_logged.get(match.staff_id, -1e12) < SPOOF_LOG_SECONDS:
+            return
+        self._spoof_logged[match.staff_id] = now
+        _LOG.warning(
+            "possible photo or screen spoof: face matching staff %s on camera %s failed the liveness check (score %.2f); attendance not marked",
+            match.staff_id, camera_id, score,
+        )
 
     def flush(self) -> None:
         remaining = []
@@ -319,11 +427,20 @@ class AttendanceProcessor:
             left, right = int(person.left * width), int(person.right * width)
             top = int(person.top * height)
             bottom = int((person.top + (person.bottom - person.top) * 0.5) * height)
-            region = frame[max(0, top):max(top + 1, bottom), max(0, left):max(left + 1, right)]
+            origin_x, origin_y = max(0, left), max(0, top)
+            region = frame[origin_y:max(top + 1, bottom), origin_x:max(left + 1, right)]
             if region.size == 0:
                 continue
             for face in self.engine.faces(region):
-                signatures.append(self.engine.signature(region, face[:4]))
+                signature = self.engine.signature(region, face[:4])
+                if self.liveness is not None:
+                    # Liveness looks at the face in the full frame, with context around it.
+                    box = (face[0] + origin_x, face[1] + origin_y, face[2] + origin_x, face[3] + origin_y)
+                    score = self.liveness.score(frame, box)
+                    if score < self.liveness_threshold:
+                        self.note_spoof(camera_id, signature, score)
+                        continue
+                signatures.append(signature)
         self._pending.extend(self.observe(camera_id, signatures, observed_at))
         if self._pending:
             self.flush()
