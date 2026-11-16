@@ -136,3 +136,19 @@
 .live-banner.bad { color: #ffd2d2; background: #3a1c1f; border-color: #6a2d32; }
 @keyframes discovery-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .discovery-wait::before { animation: none; } }
+.discovery-protect { display: grid; gap: 3px; color: #9fb3bd; font-size: 12px; }
+.discovery-protect select { width: 100%; }
+.discovery-suggested { display: inline-block; margin-left: 6px; padding: 1px 6px; color: #0c1a15; background: #8fe3c0; border-radius: 999px; font-size: 11px; font-weight: 600; }
+
+/* Telegram link QR code */
+.live-telegram-link { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.live-telegram-link > div { display: grid; gap: 8px; flex: 1 1 200px; }
+.live-qr { width: 168px; height: 168px; flex: none; border-radius: 8px; }
+
+/* Protection templates in the zone editor */
+.live-templates { display: grid; gap: 8px; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid #26333e; }
+.live-templates h2 { margin: 0; }
+.live-template { display: grid; gap: 4px; padding: 10px; background: #131e25; border: 1px solid #26333e; border-radius: 8px; }
+.live-template strong { color: #e6f0f4; }
+.live-template small { color: #9fb3bd; }
+.live-template button { justify-self: start; }

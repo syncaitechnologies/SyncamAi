@@ -10,8 +10,8 @@ three behaviours a security client needs on top of them:
   confirmation, because the existing engine only fires on an outside-to-inside
   crossing.
 * **Loitering near vehicles** - a loitering zone whose subject classes include
-  vehicles alerts only for *people* who dwell there while a vehicle is present
-  (car-theft risk). Parked vehicles themselves never trigger it.
+  vehicles alerts only for *people* who dwell there beside a vehicle in the
+  zone (car-theft risk). Parked vehicles themselves never trigger it.
 """
 
 from __future__ import annotations
@@ -37,6 +37,10 @@ from .schedule import is_active
 
 VEHICLE_CLASSES: Final = frozenset({"bicycle", "bus", "car", "motorcycle", "truck", "van"})
 PRESENCE_CONFIRMATION_FRAMES: Final = 3
+# How close (in picture units, 0-1) a vehicle's centre must be to a loitering
+# person's centre to count as "near". Tracks carry centres only, so this is a
+# deliberately generous radius that still excludes the far side of the view.
+NEAR_VEHICLE_DISTANCE: Final = 0.3
 _TRACK_STATE_TTL_SECONDS: Final = 120
 
 
@@ -123,15 +127,15 @@ class SiteRules:
         if not zones:
             return []
         armed = {zone.id for zone in zones if is_active(zone.schedule, frame.observed_at)}
-        vehicles_present = {
-            zone.id
+        vehicles_in_zone = {
+            zone.id: [
+                (track.center_x, track.center_y)
+                for track in frame.tracks
+                if track.subject_class in zone.vehicle_classes
+                and _point_in_polygon(track.center_x, track.center_y, zone.compiled.points)
+            ]
             for zone in zones
             if zone.near_vehicles and zone.compiled is not None
-            and any(
-                track.subject_class in zone.vehicle_classes
-                and _point_in_polygon(track.center_x, track.center_y, zone.compiled.points)
-                for track in frame.tracks
-            )
         }
         events: list[dict[str, object]] = []
         for track in frame.tracks:
@@ -139,7 +143,10 @@ class SiteRules:
                 zone = self._zones.get(str(event.get("zone_id")))
                 if zone is None or zone.id not in armed:
                     continue
-                if zone.near_vehicles and (track.subject_class != "person" or zone.id not in vehicles_present):
+                if zone.near_vehicles and (
+                    track.subject_class != "person"
+                    or not _beside_a_vehicle(track, vehicles_in_zone.get(zone.id, []))
+                ):
                     continue
                 events.append(event)
             events.extend(self._presence_events(track, zones, armed))
@@ -177,6 +184,19 @@ class SiteRules:
         cutoff = now.timestamp() - _TRACK_STATE_TTL_SECONDS
         for key in [key for key, state in self._presence.items() if state.last_seen.timestamp() < cutoff]:
             del self._presence[key]
+
+
+def _beside_a_vehicle(track: TrackObservation, vehicles: Sequence[tuple[float, float]]) -> bool:
+    """True when a vehicle's centre is within NEAR_VEHICLE_DISTANCE of the person.
+
+    Distances are in picture units (0-1), so a vehicle elsewhere in a large
+    zone, e.g. a whole-view "Car park watch", does not count as "near".
+    """
+
+    limit = NEAR_VEHICLE_DISTANCE * NEAR_VEHICLE_DISTANCE
+    return any(
+        (track.center_x - x) ** 2 + (track.center_y - y) ** 2 <= limit for x, y in vehicles
+    )
 
 
 def near_vehicle_zone_classes() -> list[str]:

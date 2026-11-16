@@ -33,6 +33,18 @@ test("channels with a picture start selected and are named", () => {
   assert.deepEqual(validChoices(choices).map(({ channel }) => channel), [1], "unnamed channels are not added");
 });
 
+test("protection defaults follow what the site box saw", () => {
+  const choices = channelChoices({
+    device_id: "192.168.1.108:554",
+    family: "dahua",
+    brand: "Dahua / Lorex",
+    error: "",
+    channels: [{ channel: 1, thumbnail: "AAA", vehicles: 3 }, { channel: 2, thumbnail: "BBB", vehicles: 0 }, { channel: 3, thumbnail: "CCC" }, { channel: 4 }],
+  });
+  assert.deepEqual(choices.map(({ protection }) => protection), ["car-park", "night-intrusion", "night-intrusion", "none"]);
+  assert.equal(choices[0]!.vehicles, 3);
+});
+
 test("adopt payload binds created cameras to channels", () => {
   assert.deepEqual(adoptPayload("192.168.1.108:554", [{ camera_id: "c1", channel: 1 }]), {
     device_id: "192.168.1.108:554",

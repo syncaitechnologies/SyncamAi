@@ -1,14 +1,26 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { selectSite } from "./alert-client";
 import { CameraDiscovery } from "./CameraDiscovery";
 import { Icon } from "./icon";
+import { qrMatrix, qrSvgPath } from "./qr";
 import type { PairingCode, SiteKey, TelegramTarget } from "./syncam-api";
 import type { WorkspaceData } from "./use-workspace";
 import { canManage, readWorkspace } from "./workspace";
 
 /** Latest signed release of the Windows site box (built by .github/workflows/site-box-installer.yml). */
 const BOX_INSTALLER_URL = "https://github.com/syncaitechnologies/SyncamAi/releases/latest/download/SyncCamSetup.exe";
+
+/** A QR code of a link, dark on white so phone cameras read it in either theme. */
+function LinkQr({ url }: { url: string }) {
+  const { path, size } = useMemo(() => qrSvgPath(qrMatrix(url)), [url]);
+  return (
+    <svg className="live-qr" viewBox={`0 0 ${size} ${size}`} shapeRendering="crispEdges" role="img" aria-label="QR code that opens the SyncCam bot in Telegram">
+      <rect width={size} height={size} fill="#fff" />
+      <path d={path} fill="#000" />
+    </svg>
+  );
+}
 
 function ago(value?: string) {
   if (!value) return "never";
@@ -135,7 +147,7 @@ export function SiteSettings({ workspace, onNotify }: { workspace: WorkspaceData
         <section className="panel live-card">
           <header><span className="live-step">2</span><div><h2>Cameras</h2><p>Let the site box find the recorder and its cameras, or add a camera by hand.</p></div></header>
           {manage && site && (finding
-            ? <CameraDiscovery api={api} siteId={site.id} onNotify={onNotify} onAdded={reload} onClose={() => setFinding(false)} />
+            ? <CameraDiscovery api={api} siteId={site.id} timezone={site.timezone} onNotify={onNotify} onAdded={reload} onClose={() => setFinding(false)} />
             : <button type="button" className="live-primary" onClick={() => setFinding(true)}><Icon name="search" size={14} />Find cameras</button>)}
           <ul className="live-list">
             {cameras.length === 0 && <li className="live-muted">No cameras yet.</li>}
@@ -230,9 +242,16 @@ export function SiteSettings({ workspace, onNotify }: { workspace: WorkspaceData
           {link && (
             <div className="live-secret">
               <strong>Open Telegram to finish linking (valid 15 minutes)</strong>
-              {link.bot
-                ? <a className="live-primary" href={`https://t.me/${link.bot}?start=${link.code}`} target="_blank" rel="noreferrer">Open @{link.bot} in Telegram</a>
-                : null}
+              {link.bot && (
+                <div className="live-telegram-link">
+                  <LinkQr url={`https://t.me/${link.bot}?start=${link.code}`} />
+                  <div>
+                    <small>Scan with the phone camera to open Telegram, then press <strong>Start</strong>.</small>
+                    <a className="live-primary" href={`https://t.me/${link.bot}?start=${link.code}`} target="_blank" rel="noreferrer">Open @{link.bot} in Telegram</a>
+                    <a className="live-link" href={`https://t.me/${link.bot}?startgroup=${link.code}`} target="_blank" rel="noreferrer">Alert a group instead: add the bot to a group</a>
+                  </div>
+                </div>
+              )}
               <small>Or send <code>/start {link.code}</code> to the SyncCam bot. To alert a group, add the bot to the group and send the same message there.</small>
               <button type="button" className="secondary" onClick={() => { setLink(null); refresh(); }}>Done — refresh list</button>
             </div>

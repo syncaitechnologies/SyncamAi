@@ -8,6 +8,7 @@ rest of the package (and its tests) work without the site-worker extras.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from math import exp
 from pathlib import Path
@@ -160,6 +161,9 @@ class YoloxDetector:
             raise RuntimeError("install the site-worker extra to run detection") from error
         core = openvino.Core()
         self._model = core.compile_model(core.read_model(str(model_path)), device)
+        # The compiled model's single infer request is not thread-safe; Find
+        # cameras inspects pictures from another thread.
+        self._lock = threading.Lock()
         self._input_size = input_size
         self._class_map = class_map
         self.model_version = artifact.model_version
@@ -172,7 +176,8 @@ class YoloxDetector:
         height, width = frame.shape[:2]
         padded, ratio = letterbox(frame, self._input_size)
         tensor = padded.transpose(2, 0, 1)[numpy.newaxis].astype(numpy.float32)
-        output = next(iter(self._model(tensor).values()))[0]
+        with self._lock:
+            output = next(iter(self._model(tensor).values()))[0]
         # Pre-filter on objectness in NumPy before the per-row Python decode.
         return decode_yolox_fast(
             output, input_size=self._input_size, ratio=ratio, frame_width=width,

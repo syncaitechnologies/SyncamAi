@@ -229,9 +229,38 @@ Once the box is paired and running, **Configuration → Cameras → Find cameras
    Hikvision/HiLook/Annke, Uniview or Reolink) and checks channels 1–32,
    stopping at once on a wrong password so the recorder does not lock the
    account. It shows a picture of each channel.
-4. **Tick and name** the channels and press **Add**. The cameras are created
-   in the dashboard and start on the box within seconds; no restart. They
-   survive restarts because the box stores them in its vault.
+4. **Tick and name** the channels, choose their **protection** and press
+   **Add**. The cameras are created in the dashboard and start on the box
+   within seconds; no restart. They survive restarts because the box stores
+   them in its vault. Protection defaults to **Car park watch** where the box
+   saw parked vehicles in the channel's picture (marked "Vehicles seen") and to
+   **Night intrusion** elsewhere; choose "None" to draw zones later.
+
+### Protection templates
+
+One click protects a whole camera view, in Find cameras or under **Zones &
+rules → Protect this camera**:
+
+| Template | Rule | Armed (site timezone) |
+|---|---|---|
+| Night intrusion | Person anywhere in view (intrusion) | Every day 22:00–06:00 |
+| Car park watch | Person staying 90 s near vehicles (loitering near vehicles) | Every day 20:00–07:00 |
+
+Each template is an ordinary zone over the whole picture, so it can be paused
+or replaced by drawn zones later. A camera shows "Added" for a template it
+already has.
+
+"Near vehicles" means a vehicle's centre is within 0.3 of the picture's size
+of the person's centre (`NEAR_VEHICLE_DISTANCE` in `site_worker/rules.py`).
+A car on the far side of a whole-view zone does not count, and this applies
+to drawn loitering-near-vehicles zones too.
+
+### Telegram alerts
+
+**Configuration → Telegram alerts → Link a Telegram chat** shows a QR code:
+scan it with a phone camera, Telegram opens the SyncCam bot, press **Start**.
+"Add the bot to a group" opens Telegram's group picker and links the group the
+same way. The code works once, for 15 minutes.
 
 The box only ever probes private (LAN) addresses. Setup tasks and their
 results (which include the channel pictures) are kept in the API's memory for

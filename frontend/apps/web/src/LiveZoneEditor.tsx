@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
 
 import { Icon } from "./icon";
+import { allDays, hasTemplate, protectionTemplates, templateZone, type ProtectionTemplate } from "./protection-templates";
 import { vehicleClasses, type Schedule, type Zone, type ZoneKind } from "./syncam-api";
 import type { WorkspaceData } from "./use-workspace";
 import { canManage, readWorkspace } from "./workspace";
@@ -23,7 +24,7 @@ const presets: Preset[] = [
   { id: "vehicle", label: "Vehicle enters", help: "Alert when a vehicle drives into the zone while armed (e.g. after hours).", kind: "intrusion", classes: vehicleClasses },
   { id: "line", label: "Line crossing", help: "Alert when a person crosses the line. Click two points.", kind: "tripwire", classes: ["person"] },
 ];
-const days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+const days = allDays;
 
 function presetFor(zone: Zone) {
   const classes = zone.subject_classes ?? [];
@@ -121,6 +122,20 @@ export function LiveZoneEditor({ workspace, onNotify }: { workspace: WorkspaceDa
     }
   }
 
+  async function protect(template: ProtectionTemplate) {
+    if (!api || !site || !selectedCamera) return;
+    setBusy(true);
+    try {
+      await api.createZone(templateZone(template, { siteId: site.id, cameraId: selectedCamera, timezone: site.timezone }));
+      onNotify(`${template.label} added · the site box applies it within a minute`);
+      reload();
+    } catch (error) {
+      onNotify(error instanceof Error ? error.message : "Protection could not be added");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function toggle(zone: Zone) {
     if (!api) return;
     try {
@@ -177,6 +192,24 @@ export function LiveZoneEditor({ workspace, onNotify }: { workspace: WorkspaceDa
             </footer>
           </section>
           <aside className="panel live-zone-side">
+            {manage && (
+              <div className="live-templates">
+                <h2>Protect this camera</h2>
+                <small className="live-muted">One click covers the whole picture. Times are in the site timezone ({site?.timezone}); change or pause it later like any zone.</small>
+                {protectionTemplates.map((template) => {
+                  const added = hasTemplate(zones, selectedCamera, template);
+                  return (
+                    <div key={template.id} className="live-template">
+                      <strong>{template.label}</strong>
+                      <small>{template.help}</small>
+                      <button type="button" className={added ? "live-link" : "live-primary"} disabled={busy || added} onClick={() => void protect(template)}>
+                        {added ? <><Icon name="check" size={14} />Added</> : `Add ${template.label.toLowerCase()}`}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {manage && (
               <div className="live-zone-form">
                 <h2>New zone</h2>

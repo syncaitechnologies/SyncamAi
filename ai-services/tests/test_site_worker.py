@@ -125,6 +125,18 @@ class SiteRulesTest(unittest.TestCase):
         events = rules.evaluate(frame(START + timedelta(seconds=240), (2, 0.8, "car"), (3, 0.7, "person")))
         self.assertEqual([event["event_type"] for event in events], ["loitering"])
 
+    def test_a_vehicle_far_away_in_a_big_zone_does_not_count(self) -> None:
+        rules = self.rules(zone(PARKING, "loitering", loiter_seconds=30, subject_classes=near_vehicle_zone_classes(), name="Car park watch (whole view)"))
+        # Person loitering at x=0.55, a car parked at the far edge (x=0.95): no alert.
+        rules.evaluate(frame(START, (2, 0.95, "car"), (3, 0.2, "person")))
+        rules.evaluate(frame(START + timedelta(seconds=1), (2, 0.95, "car"), (3, 0.55, "person")))
+        self.assertEqual(rules.evaluate(frame(START + timedelta(seconds=40), (2, 0.95, "car"), (3, 0.55, "person"))), [])
+        # The same dwell beside the car alerts.
+        rules.evaluate(frame(START + timedelta(seconds=41), (2, 0.95, "car"), (4, 0.2, "person")))
+        rules.evaluate(frame(START + timedelta(seconds=42), (2, 0.95, "car"), (4, 0.8, "person")))
+        events = rules.evaluate(frame(START + timedelta(seconds=80), (2, 0.95, "car"), (4, 0.8, "person")))
+        self.assertEqual([event["event_type"] for event in events], ["loitering"])
+
     def test_rejects_frames_from_another_site(self) -> None:
         rules = self.rules(zone(YARD, "intrusion"))
         other = TrackFrame(tenant_id=TENANT, site_id=DEVICE, camera_id=CAMERA, device_id=DEVICE, observed_at=START, tracks=())

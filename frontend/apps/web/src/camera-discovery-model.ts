@@ -1,6 +1,15 @@
+import { suggestTemplate, type TemplateId } from "./protection-templates.ts";
 import type { FoundDevice, ProbeResult } from "./syncam-api";
 
-export type ChannelChoice = { channel: number; name: string; selected: boolean; thumbnail?: string };
+export type ChannelChoice = {
+  channel: number;
+  name: string;
+  selected: boolean;
+  thumbnail?: string;
+  /** Vehicles the site box saw in the channel's picture (absent if it could not check). */
+  vehicles?: number;
+  protection: TemplateId | "none";
+};
 
 /** Only addresses on a private network can be checked by the site box. */
 export function isPrivateIPv4(value: string) {
@@ -30,13 +39,19 @@ export function deviceTitle(device: FoundDevice) {
   return label ? `${label} · ${device.ip}` : `${device.brand} · ${device.ip}`;
 }
 
-/** Channels with a picture start ticked; empty ones (no camera wired) do not. */
+/**
+ * Channels with a picture start ticked; empty ones (no camera wired) do not.
+ * Protection defaults to "Car park watch" where the box saw vehicles and to
+ * "Night intrusion" elsewhere; the admin can change or turn it off.
+ */
 export function channelChoices(result: ProbeResult): ChannelChoice[] {
   return result.channels.map((channel) => ({
     channel: channel.channel,
     name: `Camera ${channel.channel}`,
     selected: Boolean(channel.thumbnail),
     thumbnail: channel.thumbnail,
+    vehicles: channel.vehicles,
+    protection: channel.thumbnail ? suggestTemplate(channel) : "none",
   }));
 }
 

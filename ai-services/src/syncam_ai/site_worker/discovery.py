@@ -324,8 +324,18 @@ def probe_channels(
     return result
 
 
-def grab_thumbnail(url: str, *, width: int = 320, timeout_ms: int = 6000) -> dict[str, Any] | None:
-    """One small JPEG (base64) from an RTSP address, or None."""
+def grab_thumbnail(
+    url: str,
+    *,
+    width: int = 320,
+    timeout_ms: int = 6000,
+    inspect: Callable[[Any], dict[str, Any]] | None = None,
+) -> dict[str, Any] | None:
+    """One small JPEG (base64) from an RTSP address, or None.
+
+    ``inspect`` sees the full-size frame and may add fields, e.g. the vehicle
+    count that makes the dashboard suggest "Car park watch".
+    """
 
     import cv2
 
@@ -346,6 +356,12 @@ def grab_thumbnail(url: str, *, width: int = 320, timeout_ms: int = 6000) -> dic
         ok, encoded = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 60])
         if not ok:
             return None
-        return {"thumbnail": base64.b64encode(encoded.tobytes()).decode(), "width": original_width, "height": height}
+        result: dict[str, Any] = {"thumbnail": base64.b64encode(encoded.tobytes()).decode(), "width": original_width, "height": height}
+        if inspect is not None:
+            try:
+                result.update(inspect(frame))
+            except Exception:  # a suggestion is optional; the picture still counts
+                pass
+        return result
     finally:
         capture.release()
