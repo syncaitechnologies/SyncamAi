@@ -73,8 +73,11 @@ Authentication → URL configuration → Redirect URLs.
 ## Before charging clients
 
 - Replace the development weapon model with a licence-clean model.
-- Tune `face_liveness_threshold` at each client's entrance camera (photo and
-  phone-screen test with the `liveness` command), and get a legal review of
-  the consent wording and retention.
+- Attendance: sell it as a convenience record, not anti-fraud. The passive
+  liveness check can be fooled by a phone photo (see
+  [site-box-setup](site-box-setup.md#liveness-anti-spoofing)); for clients who
+  need fraud-resistant attendance, quote an infrared/3D face terminal or an
+  active kiosk check. Tune `face_liveness_threshold` at each entrance camera,
+  and get a legal review of the consent wording and retention.
 - Move to paid plans: Vercel Pro (Hobby is non-commercial), Render Starter,
   Supabase Pro (about $52 a month in total).

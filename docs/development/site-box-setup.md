@@ -64,25 +64,43 @@ and re-identification), downloaded by `fetch_site_models.ps1 -IncludeFaceModels`
    `python -m syncam_ai.site_worker liveness --config <file>` prints a score
    every second. Look at the camera (real faces should score above
    `face_liveness_threshold`, default 0.8), then hold up a printed photo or a
-   phone showing a face (it should score well below).
+   phone showing a face at several distances and angles. If real faces score
+   low or photos score high, move the camera or add light; see the limits
+   below.
 
 ### Liveness (anti-spoofing)
 
 Every face is checked by MiniFASNet-V2 from minivision-ai's
 Silent-Face-Anti-Spoofing (Apache-2.0, also downloaded by
 `-IncludeFaceModels`) before it can be matched. The model looks at the face
-plus the area around it (2.7× the face box) and catches printed photos and
-faces shown on phone or monitor screens. A face that fails is never matched;
-if it looks like an enrolled staff member, the site box logs
+plus the area around it (2.7× the face box). A face that fails is never
+matched; if it looks like an enrolled staff member, the site box logs
 `possible photo or screen spoof` (at most once a minute per person) and does
 not mark attendance. Without `models.liveness` attendance still runs, with a
 warning at start-up.
 
-Limits: this is a passive check from a single ordinary camera. It is not a
-certified presentation-attack-detection system, and a high-quality 3D mask or
-a very large, sharp screen held at the right distance may pass. Tune
-`face_liveness_threshold` on site (lighting and camera height change the
-scores) and keep staff aware that attendance is reviewed.
+> **Attendance is a convenience record, not anti-fraud.** On-site tests on a
+> laptop webcam in evening light (November 2026) showed that a phone photo of
+> an enrolled person is *usually* rejected but **can mark attendance** when held
+> close or tilted, and that real faces further from the camera are often
+> scored as spoofs. Two stronger passive checks were built and measured, and
+> neither was reliable enough to ship:
+>
+> | Check | Result |
+> |---|---|
+> | MiniFASNet over a 4-second window | Scores followed face size and light more than real-vs-photo: the photo reached a 0.70 four-second mean, real faces dropped to 0.4 |
+> | Phone/tablet/monitor detection (YOLOX COCO classes) | Found the phone around the face in only 2 of 183 frames |
+> | Blink check with Intel open-closed-eye-0001 (15 fps, colour and greyscale, 1,296 rule variants) | No variant rejected the photo while catching real blinks; the photo's eyes read "closed" on 10–23% of frames |
+>
+> Sell attendance as "who arrived, when" with spot checks, not as proof of
+> presence. For fraud-resistant attendance, use a door terminal with infrared
+> or 3D (depth) liveness, or a kiosk that asks the person to blink or turn on
+> cue.
+
+Other limits: this is a passive check from a single ordinary camera, not a
+certified presentation-attack-detection system. Lighting, camera height and
+distance change the scores; mount entrance cameras at face height with
+light on the face, and keep staff aware that attendance is reviewed.
 
 The box marks a person present after two matches within ten seconds, then
 ignores them at that camera for ten minutes. Face signatures stay in an
