@@ -24,6 +24,7 @@ const paths: Record<string, string> = {
   plus: "M12 5v14M5 12h14",
   polygon: "M5 5h5v5H5zM14 5h5v5h-5zM9.5 14h5v5h-5zM10 10l2 4M14 10l-2 4M7 10l5 4",
   line: "M5 18 19 6M5 6h.01M19 18h.01",
+  download: "M12 4v11m-5-5 5 5 5-5M5 20h14",
 };
 
 export function Icon({ name, size = 18 }: { name: string; size?: number }) {
