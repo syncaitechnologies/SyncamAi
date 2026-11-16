@@ -119,7 +119,76 @@ automatically through OpenVINO (`device: AUTO`). On an i7-1165G7, YOLOX-s takes
 about 18 ms per frame on the Iris Xe GPU and 80 ms on the CPU, enough for about
 10 cameras at 4 fps. An Intel N100 mini-PC handles roughly 4–8 cameras.
 
-## Install (Windows)
+## Install (Windows, recommended): SyncCamSetup.exe
+
+Pick a Windows 10/11 64-bit PC at the site that stays on and is on the same
+network as the cameras or recorder.
+
+1. In the dashboard, **Configuration → Site box → Pair a site box**. It shows
+   an 8-character code such as `K7Q4-XM92` (works once, for 30 minutes) and a
+   link to download **SyncCamSetup.exe**.
+2. Run SyncCamSetup.exe on the PC. The installer is not code-signed yet, so
+   Windows SmartScreen may warn: choose **More info → Run anyway**. It needs
+   administrator rights.
+3. Type the pairing code when the installer asks. It then
+   - installs SyncCam Box under `C:\Program Files\SyncCam Box`,
+   - creates `C:\ProgramData\SyncCam` (config, encrypted vault, models, alert
+     spool, logs), readable only by SYSTEM and Administrators,
+   - downloads the detection model and checks its SHA-384 pin,
+   - pairs the box, and
+   - registers the **SyncCam Box** task, which runs as SYSTEM at computer
+     start-up (nobody has to sign in) and restarts within a minute if it stops.
+4. In the dashboard, **Configuration → Cameras → Find cameras** adds the
+   cameras (see [below](#find-cameras-no-rtsp-addresses-to-type)). Nothing
+   else is configured on the PC.
+
+IT teams can install without the wizard:
+`SyncCamSetup.exe /VERYSILENT /CODE=K7Q4XM92`.
+
+**Status page.** On the box itself, the Start menu entry **SyncCam Box status**
+opens <http://127.0.0.1:8790>: whether the box is paired and connected, each
+camera's last frame, the last alert, alerts waiting to be delivered and the
+update state. It is served on the loopback address only, shows no addresses,
+passwords or keys, and refuses requests for any other host name.
+
+**Updates.** Once a day the box reads the latest release's
+`syncam-box-manifest.json`. It installs a newer version only when the manifest's
+Ed25519 signature matches a key built into the program
+(`site_worker/release_keys.py`), the installer is a release asset of this
+repository and its SHA-256 matches the signed manifest. Older or equal
+versions are ignored. The installer runs as a separate one-off SYSTEM task and
+keeps the pairing, cameras and models.
+
+**Uninstall** from Windows Settings → Apps. The `C:\ProgramData\SyncCam` folder
+(pairing, recorder passwords, models) is kept so a reinstall continues where it
+left off; delete it, and revoke the box's key in the dashboard, to remove
+everything.
+
+Logs: `C:\ProgramData\SyncCam\logs\syncam-box.log` (rotated at 5 MB) and
+`setup.log` from the installer. The program also takes the commands below,
+e.g. `"C:\Program Files\SyncCam Box\syncam-box.exe" pair --code <code>` (as
+Administrator) to pair again after a failed attempt.
+
+### Publishing a release (maintainers)
+
+1. Set `VERSION` in `ai-services/src/syncam_ai/site_worker/version.py` and
+   merge it.
+2. Push a tag `box-v<VERSION>`. The `site-box-installer` workflow builds the
+   installer on Windows (PyInstaller 6.11.1 + Inno Setup 6), signs the update
+   manifest with the `SYNCAM_RELEASE_SIGNING_KEY` repository secret and
+   publishes the GitHub release. Every pull request that touches the site box
+   also builds the installer as a 7-day workflow artifact.
+3. The release key was created with
+   `python installer/release_manifest.py generate-key --out <private file>`.
+   Its private half lives only in that secret and the maintainer's private
+   folder; never commit it. Rotation is described in `release_keys.py`.
+
+Build-time tools: PyInstaller (GPL-2.0 with the bootloader exception, which
+allows distributing the bundled program) and Inno Setup (free for commercial
+use). Neither is a runtime dependency. The installed folder keeps the licence
+files of the bundled libraries, including OpenCV's LGPL FFmpeg.
+
+## Install from source (developers)
 
 1. In the dashboard, register the site's cameras, then under
    **Configuration → Site box** press **Pair a site box**. It shows an

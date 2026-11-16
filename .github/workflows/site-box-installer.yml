@@ -1,0 +1,78 @@
+name: site-box-installer
+
+# Pull requests that touch the site box build the installer and keep it as a
+# workflow artifact for 7 days. A tag box-v<version> builds, signs the update
+# manifest with SYNCAM_RELEASE_SIGNING_KEY and publishes a GitHub release that
+# installed boxes update from.
+on:
+  pull_request:
+    paths:
+      - "installer/**"
+      - "ai-services/**"
+      - ".github/workflows/site-box-installer.yml"
+  push:
+    tags: ["box-v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Make sure Inno Setup 6 is available
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --no-progress -y
+          }
+      - name: Build SyncCamSetup.exe
+        shell: pwsh
+        run: |
+          $version = ""
+          if ($env:GITHUB_REF -like "refs/tags/box-v*") { $version = $env:GITHUB_REF_NAME.Substring(5) }
+          ./installer/build.ps1 -Python python -Version $version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SyncCamSetup
+          path: dist/*.exe
+          retention-days: 7
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/box-v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --quiet "cryptography>=43,<47"
+      - uses: actions/download-artifact@v4
+        with:
+          name: SyncCamSetup
+          path: dist
+      - name: Sign the update manifest
+        env:
+          SYNCAM_RELEASE_SIGNING_KEY: ${{ secrets.SYNCAM_RELEASE_SIGNING_KEY }}
+        run: |
+          version="${GITHUB_REF_NAME#box-v}"
+          python installer/release_manifest.py sign --installer "dist/SyncCamSetup-${version}.exe" \
+            --version "${version}" --tag "${GITHUB_REF_NAME}" --out dist
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#box-v}"
+          gh release create "${GITHUB_REF_NAME}" --title "SyncCam Box ${version}" \
+            --notes "Windows installer for the SyncCam site box. Installed boxes update to this version automatically." \
+            "dist/SyncCamSetup-${version}.exe" dist/SyncCamSetup.exe \
+            dist/syncam-box-manifest.json dist/syncam-box-manifest.json.sig

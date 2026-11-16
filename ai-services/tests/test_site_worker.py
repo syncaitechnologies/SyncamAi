@@ -349,6 +349,16 @@ class _Detector:
 
 
 class RunnerTest(BackendFixture):
+    def test_status_connected_expires_after_failed_refreshes(self) -> None:
+        moment = [START]
+        with tempfile.TemporaryDirectory() as directory:
+            worker = SiteWorker(backend=self.client, detector=_Detector(), streams={}, spool=Spool(pathlib.Path(directory)), now=lambda: moment[0])
+            self.assertFalse(worker.status()["connected"])
+            worker.refresh_config()
+            self.assertTrue(worker.status()["connected"])
+            moment[0] = START + timedelta(minutes=4)  # refreshes failed since
+            self.assertFalse(worker.status()["connected"])
+
     def test_end_to_end_intrusion_and_camera_offline(self) -> None:
         clock = [0.0]
         stream, detector = _Stream(), _Detector()
@@ -368,6 +378,13 @@ class RunnerTest(BackendFixture):
             self.assertEqual(step(0.30, 0), 0)
             self.assertEqual(step(0.40, 1), 0)
             self.assertEqual(step(0.55, 2), 1, "walking into the yard raises one intrusion alert")
+            status = worker.status()
+            self.assertEqual((status["alerts_queued"], status["alerts_pending"]), (1, 1))
+            self.assertEqual(status["last_alert_at"], START.isoformat())
+            self.assertEqual(status["connected_at"], START.isoformat())
+            self.assertGreaterEqual(status["zones"], 1)
+            self.assertEqual([camera["id"] for camera in status["cameras"]], [CAMERA])
+            self.assertNotIn("rtsp", json.dumps(status).lower(), "the status page never shows camera addresses")
             stream.online = False
             clock[0] += 1
             self.assertEqual(worker.tick(), 0)
