@@ -13,6 +13,7 @@ import (
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/attendance"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/authz"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/livefeed"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/siteingest"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/tenant"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/zones"
@@ -27,6 +28,10 @@ type SiteIngestOptions struct {
 	AlertEvidence     alerting.EvidenceReader
 	Attendance        attendance.Repository
 	TelegramBotHandle string
+	// Live relays near-live frames while someone watches; LiveAudit records
+	// each viewing session. Both are required for live view.
+	Live      *livefeed.Hub
+	LiveAudit livefeed.Auditor
 }
 
 type siteScopeContextKey struct{}
@@ -50,6 +55,7 @@ func (s *Server) registerSiteIngestRoutes() {
 	s.mux.Handle("POST /v1/notifications/telegram/link-codes", s.authenticate(http.HandlerFunc(s.createTelegramLinkCode)))
 	s.mux.Handle("DELETE /v1/notifications/telegram/{id}", s.authenticate(http.HandlerFunc(s.deleteTelegramTarget)))
 	s.registerAttendanceRoutes()
+	s.registerLiveViewRoutes()
 }
 
 // authenticateSite verifies a site key and runs the handler as a principal

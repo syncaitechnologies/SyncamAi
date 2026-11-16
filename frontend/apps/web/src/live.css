@@ -97,3 +97,19 @@
   .live-banner { margin: 0 16px 14px; }
   .live-facts { grid-template-columns: 1fr; }
 }
+
+/* Near-live camera view (Camera Wall) */
+.camera-tile-live { background: #05080a; }
+.live-feed { position: absolute; inset: 0; background: #05080a; overflow: hidden; }
+.spotlight-visual .live-feed { min-height: 480px; }
+.live-feed img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.live-feed-message { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center; color: #8fa1ab; font-size: 12px; }
+.live-feed-chip { position: absolute; left: 8px; bottom: 8px; z-index: 3; display: inline-flex; align-items: center; gap: 6px; max-width: calc(100% - 16px); padding: 4px 8px; overflow: hidden; color: #fff; background: rgba(150, 24, 24, .86); border-radius: 4px; font: 600 10px "DM Mono", monospace; letter-spacing: .04em; white-space: nowrap; text-overflow: ellipsis; }
+.live-feed-chip i { width: 7px; height: 7px; flex: none; background: #ff5a5a; border-radius: 50%; animation: live-feed-pulse 1.4s ease-in-out infinite; }
+.live-feed-age { position: absolute; right: 8px; bottom: 8px; z-index: 3; padding: 3px 6px; color: #d0dbd7; background: rgba(8, 13, 17, .76); border-radius: 4px; font: 10px "DM Mono", monospace; }
+.wall-live-action { display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 6px; min-height: 30px; padding: 0 10px; color: #0b1a14; background: #8fe3c0; border: 0; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; }
+.wall-live-action[aria-pressed="true"] { color: #ffd9d9; background: #4a1f22; }
+.wall-live-action:focus-visible { outline: 3px solid #9ce9cb; outline-offset: 2px; }
+.spotlight-details .wall-live-action { width: 100%; min-height: 37px; margin-top: 12px; }
+@keyframes live-feed-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .live-feed-chip i { animation: none; } }

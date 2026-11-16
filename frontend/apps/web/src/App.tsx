@@ -680,6 +680,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
             alerts={namedAlerts}
             dataMode={dataMode}
             site={site}
+            api={workspace.api}
             onOpenAlertCenter={(alertId) => {
               if (alertId) setSelectedId(alertId);
               setActiveView("alerts");

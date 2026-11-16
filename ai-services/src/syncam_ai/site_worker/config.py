@@ -36,6 +36,7 @@ class LocalConfig:
     weapon_repeat_seconds: float = 15.0
     liveness_model: Path | None = None
     face_liveness_threshold: float = 0.8
+    live_view: bool = True
 
 
 def _path(value: object, field_name: str) -> Path:
@@ -109,6 +110,7 @@ def parse_local_config(raw: Mapping[str, Any], *, environ: Mapping[str, str] | N
         weapon_repeat_seconds=weapon_repeat,
         liveness_model=_path(liveness, "models.liveness") if liveness else None,
         face_liveness_threshold=liveness_threshold,
+        live_view=bool(raw.get("live_view", True)),
     )
 
 

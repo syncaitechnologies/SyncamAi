@@ -10,12 +10,16 @@ import {
   type CameraWallLayout,
 } from "./camera-wall-model";
 import { Icon } from "./icon";
+import { LiveCameraFeed } from "./LiveCameraFeed";
+import type { SyncamApi } from "./syncam-api";
 import { useCameraInventory } from "./use-camera-inventory";
 
 interface CameraWallProps {
   alerts: AlertItem[];
   dataMode: "demo" | "live";
   site: string;
+  /** Present in live mode; enables audited near-live viewing. */
+  api?: SyncamApi | null;
   onOpenAlertCenter: (alertId?: string) => void;
   onNotify: (message: string) => void;
 }
@@ -69,9 +73,19 @@ export function CameraWall({
   alerts,
   dataMode,
   site,
+  api = null,
   onOpenAlertCenter,
   onNotify,
 }: CameraWallProps) {
+  const [liveIds, setLiveIds] = useState<ReadonlySet<string>>(() => new Set());
+  const canWatch = dataMode === "live" && api !== null;
+  const toggleLive = (id: string) =>
+    setLiveIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<CameraWallFilter>("all");
   const [layout, setLayout] = useState<CameraWallLayout>(9);
@@ -135,11 +149,11 @@ export function CameraWall({
       <div className={`wall-boundary-banner ${dataMode === "live" ? "wall-boundary-live" : ""}`} role="status">
         <span className="wall-boundary-icon"><Icon name="shield" size={17} /></span>
         <span>
-          <strong>{dataMode === "demo" ? "Privacy-safe demonstration" : "Metadata-only live inventory"}</strong>
+          <strong>{dataMode === "demo" ? "Privacy-safe demonstration" : "Live view on request"}</strong>
           <small>
             {dataMode === "demo"
               ? "Camera metadata and scene graphics are synthetic. No footage, stream credentials, or customer data are present."
-              : "Tenant-scoped camera metadata is live. Audited WebRTC sessions remain unavailable, so raw pixels never render."}
+              : "Video stays on the site box until you press Watch live. Then it sends about 2 frames a second while you watch; every session is logged and frames are never stored."}
           </small>
         </span>
       </div>
@@ -208,7 +222,7 @@ export function CameraWall({
             {!inventory.loaded ? "Loading authorized cameras" : inventory.error ? "Camera metadata could not be loaded" : "No cameras are registered for this site"}
           </h2>
           <p>
-            {inventory.error || "Register a camera for this site to populate the metadata-only wall. Live viewing remains disabled until audited stream sessions are implemented."}
+            {inventory.error || "Register a camera for this site and connect a site box to watch it live here."}
           </p>
           <button type="button" onClick={() => onOpenAlertCenter()}>
             Review metadata-only alerts <Icon name="arrow" size={14} />
@@ -219,7 +233,13 @@ export function CameraWall({
           <div className="camera-wall-main">
             {spotlight ? (
               <article className={`wall-spotlight ${spotlight.alert ? severityClass(spotlight.alert.severity) : ""}`}>
-                <div className="spotlight-visual"><CameraVisual tile={spotlight} /></div>
+                <div className="spotlight-visual">
+                  {canWatch && api && liveIds.has(spotlight.id) ? (
+                    <LiveCameraFeed api={api} cameraId={spotlight.id} cameraName={spotlight.name} />
+                  ) : (
+                    <CameraVisual tile={spotlight} />
+                  )}
+                </div>
                 <div className="spotlight-details">
                   <button className="spotlight-close" type="button" onClick={() => setSpotlightId(null)} aria-label="Close spotlight">
                     <Icon name="close" size={16} />
@@ -238,9 +258,15 @@ export function CameraWall({
                   ) : (
                     <div className="spotlight-event spotlight-event-clear"><Icon name="check" /><strong>No active alert</strong><small>Metadata-only demo state</small></div>
                   )}
-                  <button className="unavailable-stream-action" type="button" onClick={() => onNotify("Audited live-view sessions are not connected in this local slice.")}>
-                    <Icon name="play" size={14} /> Request live session
-                  </button>
+                  {canWatch ? (
+                    <button className="wall-live-action" type="button" aria-pressed={liveIds.has(spotlight.id)} onClick={() => toggleLive(spotlight.id)}>
+                      <Icon name="play" size={14} /> {liveIds.has(spotlight.id) ? "Stop live view" : "Watch live"}
+                    </button>
+                  ) : (
+                    <button className="unavailable-stream-action" type="button" onClick={() => onNotify("Live view needs live mode with a connected site box.")}>
+                      <Icon name="play" size={14} /> Request live session
+                    </button>
+                  )}
                 </div>
               </article>
             ) : visibleTiles.length ? (
@@ -251,22 +277,35 @@ export function CameraWall({
               >
                 {visibleTiles.map((tile) => (
                   <article key={tile.id} className={`camera-tile ${tile.alert ? severityClass(tile.alert.severity) : ""}`}>
-                    <button
-                      className="camera-tile-surface"
-                      type="button"
-                      data-camera-tile
-                      onClick={() => setSpotlightId(tile.id)}
-                      onKeyDown={handleGridKeyDown}
-                      aria-label={`${tile.id}, ${tile.name}, ${statusLabels[tile.status]}${tile.alert ? `, active ${tile.alert.severity} alert ${tile.alert.title}` : ""}. ${tile.synthetic ? "Synthetic preview" : "Live metadata"}; no footage.`}
-                    >
-                      <CameraVisual tile={tile} />
-                      <span className={`camera-status camera-status-${tile.status}`}><i />{statusLabels[tile.status]}</span>
-                      {tile.alert && <span className="camera-event-chip"><b>{tile.alert.severity}</b>{tile.alert.type}</span>}
-                      <span className="spotlight-hint"><Icon name="maximize" size={13} /> Spotlight</span>
-                    </button>
+                    {canWatch && api && liveIds.has(tile.id) ? (
+                      <div className="camera-tile-surface camera-tile-live">
+                        <LiveCameraFeed api={api} cameraId={tile.id} cameraName={tile.name} />
+                        {tile.alert && <span className="camera-event-chip"><b>{tile.alert.severity}</b>{tile.alert.type}</span>}
+                      </div>
+                    ) : (
+                      <button
+                        className="camera-tile-surface"
+                        type="button"
+                        data-camera-tile
+                        onClick={() => setSpotlightId(tile.id)}
+                        onKeyDown={handleGridKeyDown}
+                        aria-label={`${tile.id}, ${tile.name}, ${statusLabels[tile.status]}${tile.alert ? `, active ${tile.alert.severity} alert ${tile.alert.title}` : ""}. ${tile.synthetic ? "Synthetic preview" : "Live metadata"}; no footage.`}
+                      >
+                        <CameraVisual tile={tile} />
+                        <span className={`camera-status camera-status-${tile.status}`}><i />{statusLabels[tile.status]}</span>
+                        {tile.alert && <span className="camera-event-chip"><b>{tile.alert.severity}</b>{tile.alert.type}</span>}
+                        <span className="spotlight-hint"><Icon name="maximize" size={13} /> Spotlight</span>
+                      </button>
+                    )}
                     <footer className="camera-tile-footer">
-                      <span><strong>{tile.id} · {tile.name}</strong><small>{tile.location}</small></span>
-                      <ActivityBars values={tile.activity} />
+                      <span><strong>{tile.synthetic ? `${tile.id} · ` : ""}{tile.name}</strong><small>{tile.location}</small></span>
+                      {canWatch ? (
+                        <button className="wall-live-action" type="button" aria-pressed={liveIds.has(tile.id)} onClick={() => toggleLive(tile.id)}>
+                          <Icon name="play" size={13} /> {liveIds.has(tile.id) ? "Stop" : "Watch live"}
+                        </button>
+                      ) : (
+                        <ActivityBars values={tile.activity} />
+                      )}
                     </footer>
                   </article>
                 ))}

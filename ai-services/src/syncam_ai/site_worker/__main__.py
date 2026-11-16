@@ -207,8 +207,20 @@ def command_run(config: LocalConfig) -> int:
         processors=_processors(config, client),
     )
 
+    relay = None
+    if config.live_view:
+        from .live import LiveRelay
+
+        relay = LiveRelay(client, streams)
+        relay.start()
+        _LOG.info("live view available: frames are sent only while someone watches in the dashboard")
+    else:
+        _LOG.info("live view disabled in the site config")
+
     def _stop(*_: object) -> None:
         _LOG.info("stopping site worker")
+        if relay is not None:
+            relay.stop()
         worker.stop()
         for stream in streams.values():
             stream.stop()
