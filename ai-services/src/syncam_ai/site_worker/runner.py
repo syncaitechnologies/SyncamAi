@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from ..detection_tracking import CameraLocalDetectionTracker, Detection, DetectionFrame
+from .capture import StreamSet
 from .client import BackendError
 from .detector import ObjectDetection
 from .rules import SiteRules
@@ -132,7 +133,8 @@ class SiteWorker:
     ) -> None:
         self._backend = backend
         self._detector = detector
-        self._streams = dict(streams)
+        # Shared with the setup agent, which adds cameras found on the network.
+        self._streams = streams if isinstance(streams, StreamSet) else StreamSet(streams)
         self._spool = spool
         self._interval = 1.0 / fps
         self._min_confidence = min_confidence
@@ -187,7 +189,7 @@ class SiteWorker:
         queued = 0
         for camera_id, stream in self._streams.items():
             queued += self._check_health(camera_id, stream, moment)
-            state = self._cameras[camera_id]
+            state = self._cameras.setdefault(camera_id, _CameraState())
             latest = stream.latest()
             if latest is None or moment - state.last_processed < self._interval:
                 continue
@@ -271,7 +273,7 @@ class SiteWorker:
         _LOG.info("ALERT %s on camera %s", candidate.title, self._known_cameras.get(camera_id, camera_id))
 
     def _check_health(self, camera_id: str, stream: Stream, moment: float) -> int:
-        state = self._cameras[camera_id]
+        state = self._cameras.setdefault(camera_id, _CameraState())
         health = stream.health()
         if health.online:
             if state.offline_reported:

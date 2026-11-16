@@ -11,10 +11,11 @@ import logging
 import os
 import threading
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 _LOG = logging.getLogger(__name__)
 os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp|stimeout;10000000")
@@ -120,3 +121,39 @@ class CameraStream(threading.Thread):
     def _set_error(self, message: str) -> None:
         with self._lock:
             self._error = message
+
+
+class StreamSet(Mapping):
+    """The site's camera streams, shared by every part of the box.
+
+    Cameras added from the dashboard ("Find cameras") start without a
+    restart. Readers iterate over a snapshot, so adding a stream while the
+    runner or the live relay is looping is safe.
+    """
+
+    def __init__(self, streams: Mapping[str, Any] | None = None) -> None:
+        self._lock = threading.Lock()
+        self._streams: dict[str, Any] = dict(streams or {})
+
+    def __getitem__(self, camera_id: str) -> Any:
+        with self._lock:
+            return self._streams[camera_id]
+
+    def __iter__(self) -> Iterator[str]:
+        with self._lock:
+            return iter(list(self._streams))
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._streams)
+
+    def add(self, camera_id: str, stream: Any, *, start: bool = True) -> bool:
+        """Add a stream unless that camera already has one. Returns True if added."""
+
+        with self._lock:
+            if camera_id in self._streams:
+                return False
+            self._streams[camera_id] = stream
+        if start and hasattr(stream, "start"):
+            stream.start()
+        return True

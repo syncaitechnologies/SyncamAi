@@ -144,7 +144,31 @@ also pair by hand: `python -m syncam_ai.site_worker pair --config <file> --code 
 The older way, a site key from **Advanced: create a site key instead** in the
 `SYNCAM_SITE_KEY` environment variable, still works and takes precedence.
 
-Common RTSP formats:
+### Find cameras (no RTSP addresses to type)
+
+Once the box is paired and running, **Configuration → Cameras → Find cameras**:
+
+1. **Scan the network.** The box sends an ONVIF WS-Discovery probe and scans
+   its own /24 subnet for RTSP (554) and brand ports (37777 Dahua/Lorex,
+   8000 Hikvision, 9000 Reolink). Each answer is labelled with its brand.
+   If nothing is found, type the recorder's local address.
+2. **Connect** to the recorder with a view-only account. The password is
+   encrypted in the browser for this box only (ECDH P-256 → HKDF → AES-GCM);
+   the API relays ciphertext it cannot read and keeps it in memory only until
+   the box picks it up. The box keeps it in its encrypted vault.
+3. The box finds the RTSP format that works (Dahua/Lorex/Amcrest/CP Plus,
+   Hikvision/HiLook/Annke, Uniview or Reolink) and checks channels 1–32,
+   stopping at once on a wrong password so the recorder does not lock the
+   account. It shows a picture of each channel.
+4. **Tick and name** the channels and press **Add**. The cameras are created
+   in the dashboard and start on the box within seconds; no restart. They
+   survive restarts because the box stores them in its vault.
+
+The box only ever probes private (LAN) addresses. Setup tasks and their
+results (which include the channel pictures) are kept in the API's memory for
+at most an hour and are visible only to administrators of that site.
+
+Common RTSP formats (used automatically by Find cameras):
 
 | Brand | Sub-stream URL |
 |---|---|

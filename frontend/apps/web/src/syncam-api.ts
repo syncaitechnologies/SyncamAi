@@ -39,6 +39,28 @@ export type SiteKey = {
   box_public_key?: string;
 };
 export type PairingCode = { code: string; site_id: string; expires_at: string };
+export type SetupBox = { paired: boolean; online: boolean; key_id?: string; label?: string; public_key?: string; last_seen_at?: string };
+export type SetupTaskType = "scan" | "probe" | "adopt";
+export type SetupTask = {
+  id: string;
+  type: SetupTaskType;
+  status: "pending" | "running" | "done" | "failed";
+  result?: unknown;
+  error?: string;
+};
+export type FoundDevice = {
+  device_id: string;
+  ip: string;
+  rtsp_port: number;
+  ports: number[];
+  family: string | null;
+  brand: string;
+  name: string;
+  model: string;
+  onvif: boolean;
+};
+export type ProbedChannel = { channel: number; thumbnail?: string; width?: number; height?: number };
+export type ProbeResult = { device_id: string; family: string | null; brand: string; channels: ProbedChannel[]; error: string };
 export type TelegramTarget = {
   id: string;
   site_id: string;
@@ -156,6 +178,43 @@ export class SyncamApi extends AlertApiClient {
       body: JSON.stringify({ site_id: siteId, label }),
     })) as { data: SiteKey; secret: { site_key: string } };
     return { key: payload.data, secret: payload.secret.site_key };
+  }
+
+  /** The paired site box whose public key camera passwords are encrypted for. */
+  async setupBox(siteId: string, signal?: AbortSignal) {
+    return data<SetupBox>(await this.request(`/v1/sites/${encodeURIComponent(siteId)}/setup/box`, { method: "GET", signal }));
+  }
+
+  async createSetupTask(siteId: string, type: SetupTaskType, payload?: unknown) {
+    return data<SetupTask>(
+      await this.request(`/v1/sites/${encodeURIComponent(siteId)}/setup/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload === undefined ? { type } : { type, payload }),
+      }),
+    );
+  }
+
+  async setupTask(siteId: string, taskId: string, signal?: AbortSignal) {
+    return data<SetupTask>(
+      await this.request(`/v1/sites/${encodeURIComponent(siteId)}/setup/tasks/${encodeURIComponent(taskId)}`, { method: "GET", signal }),
+    );
+  }
+
+  /** Queue a task for the site box and wait for its result. */
+  async runSetupTask<T>(siteId: string, type: SetupTaskType, payload: unknown, options: { signal?: AbortSignal; timeoutMs: number; intervalMs?: number }) {
+    const created = await this.createSetupTask(siteId, type, payload);
+    const deadline = Date.now() + options.timeoutMs;
+    for (;;) {
+      await new Promise((resolve) => setTimeout(resolve, options.intervalMs ?? 1500));
+      if (options.signal?.aborted) throw new DOMException("Cancelled", "AbortError");
+      const task = await this.setupTask(siteId, created.id, options.signal);
+      if (task.status === "done") return task.result as T;
+      if (task.status === "failed") throw new Error(task.error || "The site box could not finish this step.");
+      if (Date.now() > deadline) {
+        throw new Error(task.status === "pending" ? "The site box did not pick this up. Check that it is online." : "The site box is taking too long. Try again.");
+      }
+    }
   }
 
   /** A one-time 8-character code a new site box types to pair itself. */

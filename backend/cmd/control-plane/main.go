@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/alerting"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/attendance"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/boxsetup"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/configdelivery"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/device"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
@@ -95,6 +96,7 @@ func main() {
 	siteIngest := httpapi.SiteIngestOptions{
 		Keys:          keyStore,
 		Pairing:       keyStore,
+		Setup:         boxsetup.NewHub(),
 		AlertEvidence: alertRepository,
 		Attendance:    attendance.NewPostgresRepository(pool),
 		Live:          livefeed.NewHub(),
