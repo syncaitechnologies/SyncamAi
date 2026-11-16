@@ -53,7 +53,7 @@ def parse_local_config(raw: Mapping[str, Any], *, environ: Mapping[str, str] | N
     key_env = str(raw.get("site_key_env", "SYNCAM_SITE_KEY"))
     site_key = environment.get(key_env) or raw.get("site_key")
     if not isinstance(site_key, str) or not site_key.strip():
-        raise ValueError(f"set the site key in the {key_env} environment variable")
+        raise ValueError(f"this box is not paired: run 'python -m syncam_ai.site_worker pair --config <file> --code <code from the dashboard>' (or set {key_env})")
     cameras = raw.get("cameras")
     if not isinstance(cameras, Mapping) or not cameras:
         raise ValueError("cameras must map camera IDs from the dashboard to RTSP addresses")
@@ -114,5 +114,25 @@ def parse_local_config(raw: Mapping[str, Any], *, environ: Mapping[str, str] | N
     )
 
 
+def vault_path_for(raw: Mapping[str, Any], config_path: Path) -> Path:
+    """Where this box keeps its encrypted secrets (``"vault"`` in the config)."""
+
+    from .vault import default_vault_path
+
+    vault = raw.get("vault")
+    return _path(vault, "vault") if vault else default_vault_path(config_path)
+
+
 def load_local_config(path: Path) -> LocalConfig:
-    return parse_local_config(json.loads(path.read_text(encoding="utf-8")))
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    environment = dict(os.environ)
+    key_env = str(raw.get("site_key_env", "SYNCAM_SITE_KEY"))
+    if not environment.get(key_env) and not raw.get("site_key"):
+        # A box paired with a code keeps its site key in the encrypted vault.
+        from .pairing import vault_site_key
+        from .vault import BoxVault
+
+        paired_key = vault_site_key(BoxVault(vault_path_for(raw, path)))
+        if paired_key:
+            environment[key_env] = paired_key
+    return parse_local_config(raw, environ=environment)

@@ -4,6 +4,7 @@
     python -m syncam_ai.site_worker snapshot --config site.json --camera <id> --out frame.jpg
     python -m syncam_ai.site_worker run      --config site.json
     python -m syncam_ai.site_worker liveness --config site.json [--camera <id>]
+    python -m syncam_ai.site_worker pair     --config site.json --code K7Q4-XM92
 """
 
 from __future__ import annotations
@@ -185,6 +186,38 @@ def command_liveness(config: LocalConfig, camera_id: str | None, seconds: float)
     return 0
 
 
+def command_pair(config_path: Path, code: str, name: str | None) -> int:
+    """Pair this box with the code shown in the dashboard (Configuration > Site box)."""
+
+    import json
+
+    from .config import vault_path_for
+    from .pairing import pair_box
+    from .vault import BoxVault
+
+    try:
+        raw = json.loads(config_path.read_text(encoding="utf-8"))
+        backend_url = str(raw["backend_url"])
+        vault = BoxVault(vault_path_for(raw, config_path))
+    except (OSError, ValueError, KeyError) as error:
+        print(f"config error: {error}", file=sys.stderr)
+        return 2
+    if vault.exists():
+        print(f"This box is already paired ({vault.path}). Delete that file to pair it again.")
+        return 1
+    try:
+        result = pair_box(vault, backend_url, code, label=name)
+    except ValueError as error:
+        print(error)
+        return 2
+    except BackendError as error:
+        print(f"Pairing failed: {error}")
+        return 1
+    print(f"Paired with site {result.site_id}. The site key is stored encrypted in {vault.path}.")
+    print("Start the box with: python -m syncam_ai.site_worker run --config <file>")
+    return 0
+
+
 def command_forget(config: LocalConfig, staff_id: str) -> int:
     from .faces import FaceGallery
 
@@ -234,13 +267,15 @@ def command_run(config: LocalConfig) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m syncam_ai.site_worker", description="SyncCam AI site box")
-    parser.add_argument("command", choices=["run", "check", "snapshot", "enroll", "forget", "face-key", "liveness"])
+    parser.add_argument("command", choices=["run", "check", "snapshot", "enroll", "forget", "face-key", "liveness", "pair"])
     parser.add_argument("--config", type=Path, help="local site JSON file (outside Git)")
     parser.add_argument("--camera", help="camera ID for the snapshot command")
     parser.add_argument("--out", type=Path, default=Path("snapshot.jpg"))
     parser.add_argument("--staff-id", help="staff ID from the dashboard for enroll/forget")
     parser.add_argument("--photos", type=Path, help="folder of the staff member's face photos for enroll")
     parser.add_argument("--seconds", type=float, default=30.0, help="how long the liveness command runs")
+    parser.add_argument("--code", help="pairing code from the dashboard for the pair command")
+    parser.add_argument("--name", help="name for this box in the dashboard (default: the computer name)")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -253,6 +288,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.config is None:
         parser.error("--config is required")
+    if args.command == "pair":
+        if not args.code:
+            parser.error("--code is required for pair")
+        return command_pair(args.config, args.code, args.name)
     try:
         config = load_local_config(args.config)
     except (OSError, ValueError) as error:

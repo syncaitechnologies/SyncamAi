@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import { selectSite } from "./alert-client";
 import { Icon } from "./icon";
-import type { SiteKey, TelegramTarget } from "./syncam-api";
+import type { PairingCode, SiteKey, TelegramTarget } from "./syncam-api";
 import type { WorkspaceData } from "./use-workspace";
 import { canManage, readWorkspace } from "./workspace";
 
@@ -29,6 +29,7 @@ export function SiteSettings({ workspace, onNotify }: { workspace: WorkspaceData
   const [telegram, setTelegram] = useState<{ targets: TelegramTarget[]; bot: string; error: string }>({ targets: [], bot: "", error: "" });
   const [secret, setSecret] = useState("");
   const [link, setLink] = useState<{ code: string; bot: string; expires_at: string } | null>(null);
+  const [pairing, setPairing] = useState<PairingCode | null>(null);
   const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
 
@@ -150,7 +151,7 @@ export function SiteSettings({ workspace, onNotify }: { workspace: WorkspaceData
         </section>
 
         <section className="panel live-card">
-          <header><span className="live-step">3</span><div><h2>Site box</h2><p>The small PC on site that runs the AI. It needs a site key.</p></div></header>
+          <header><span className="live-step">3</span><div><h2>Site box</h2><p>The small PC on site that runs the AI. Pair it with a one-time code.</p></div></header>
           <p className={`live-banner ${boxOnline ? "ok" : ""}`}>
             <Icon name={boxOnline ? "check" : "clock"} size={14} />
             {boxOnline ? "Site box online" : activeKeys.length ? "Site box has not checked in during the last few minutes" : "No site box connected yet"}
@@ -159,7 +160,7 @@ export function SiteSettings({ workspace, onNotify }: { workspace: WorkspaceData
             {keys.map((key) => (
               <li key={key.id}>
                 <span className={`live-dot ${key.revoked_at ? "" : key.last_seen_at && Date.now() - Date.parse(key.last_seen_at) < 6 * 60_000 ? "ok" : "bad"}`} />
-                <span><strong>{key.label}</strong><small>{key.revoked_at ? "Revoked" : `Last seen ${ago(key.last_seen_at)}`}</small></span>
+                <span><strong>{key.label}</strong><small>{key.revoked_at ? "Revoked" : `${key.box_public_key ? "Paired box · " : ""}Last seen ${ago(key.last_seen_at)}`}</small></span>
                 {manage && !key.revoked_at && (
                   <button type="button" className="live-link danger" disabled={busy} onClick={() => void run(async () => { await api.revokeSiteKey(key.id); onNotify("Site key revoked"); refresh(); }, "Revoke failed")}>Revoke</button>
                 )}
@@ -177,10 +178,29 @@ export function SiteSettings({ workspace, onNotify }: { workspace: WorkspaceData
               <small>On the site box run <code>pwsh scripts/install_site_box.ps1 -Config D:\private\syncam-site.json</code> and paste the key when asked.</small>
             </div>
           )}
+          {pairing && (
+            <div className="live-secret live-pairing" role="status">
+              <strong>Pairing code for {site?.name ?? "this site"}</strong>
+              <code className="live-pairing-code" aria-label={`Pairing code ${pairing.code.split("").join(" ")}`}>{pairing.code}</code>
+              <small>
+                Type it on the site box: <code>python -m syncam_ai.site_worker pair --config &lt;file&gt; --code {pairing.code}</code>.
+                It works once and expires at {new Date(pairing.expires_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.
+              </small>
+              <div>
+                <button type="button" onClick={() => copy(pairing.code, onNotify)}>Copy code</button>
+                <button type="button" className="secondary" onClick={() => { setPairing(null); refresh(); }}>Done</button>
+              </div>
+            </div>
+          )}
           {manage && site && (
-            <button type="button" className="live-primary" disabled={busy} onClick={() => void run(async () => { const created = await api.createSiteKey(site.id, `Site box ${activeKeys.length + 1}`); setSecret(created.secret); refresh(); }, "Site key could not be created")}>
-              <Icon name="plus" size={14} />Create site key
-            </button>
+            <div className="live-actions">
+              <button type="button" className="live-primary" disabled={busy} onClick={() => void run(async () => { setSecret(""); setPairing(await api.createPairingCode(site.id)); }, "Pairing code could not be created")}>
+                <Icon name="plus" size={14} />Pair a site box
+              </button>
+              <button type="button" className="live-link" disabled={busy} onClick={() => void run(async () => { setPairing(null); const created = await api.createSiteKey(site.id, `Site box ${activeKeys.length + 1}`); setSecret(created.secret); refresh(); }, "Site key could not be created")}>
+                Advanced: create a site key instead
+              </button>
+            </div>
           )}
         </section>
 

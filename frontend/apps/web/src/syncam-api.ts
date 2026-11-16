@@ -35,7 +35,10 @@ export type SiteKey = {
   revoked_at?: string;
   last_seen_at?: string;
   camera_status: Record<string, CameraStatus>;
+  /** Present when the box paired with a code (PEM, P-256). */
+  box_public_key?: string;
 };
+export type PairingCode = { code: string; site_id: string; expires_at: string };
 export type TelegramTarget = {
   id: string;
   site_id: string;
@@ -153,6 +156,17 @@ export class SyncamApi extends AlertApiClient {
       body: JSON.stringify({ site_id: siteId, label }),
     })) as { data: SiteKey; secret: { site_key: string } };
     return { key: payload.data, secret: payload.secret.site_key };
+  }
+
+  /** A one-time 8-character code a new site box types to pair itself. */
+  async createPairingCode(siteId: string) {
+    return data<PairingCode>(
+      await this.request("/v1/site-keys/pairing-codes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ site_id: siteId }),
+      }),
+    );
   }
 
   async revokeSiteKey(keyId: string) {

@@ -91,8 +91,10 @@ func main() {
 
 	runContext, stopRunning := context.WithCancel(context.Background())
 	defer stopRunning()
+	keyStore := siteingest.NewPostgresKeyStore(pool)
 	siteIngest := httpapi.SiteIngestOptions{
-		Keys:          siteingest.NewPostgresKeyStore(pool),
+		Keys:          keyStore,
+		Pairing:       keyStore,
 		AlertEvidence: alertRepository,
 		Attendance:    attendance.NewPostgresRepository(pool),
 		Live:          livefeed.NewHub(),

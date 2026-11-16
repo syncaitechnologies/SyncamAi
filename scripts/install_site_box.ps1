@@ -1,13 +1,17 @@
 # Installs the SyncCam site worker on a Windows site box (no admin rights
 # needed) and registers it to start automatically when the user signs in.
 #
-#   pwsh scripts/install_site_box.ps1 -Config D:\private\syncam-site.json
+#   pwsh scripts/install_site_box.ps1 -Config D:\private\syncam-site.json -PairingCode K7Q4-XM92
 #
-# The site key is stored as a user environment variable, never in the repo.
+# The box pairs itself with the one-time code from the dashboard and keeps its
+# site key encrypted (Windows DPAPI) in syncam-box.vault next to the config.
+# A SYNCAM_SITE_KEY user environment variable, if set, is still used instead.
 param(
     [Parameter(Mandatory = $true)][string]$Config,
     [string]$Venv = "D:\private\syncam-site-venv",
     [string]$Models = "D:\private\models",
+    # The 8-character code from the dashboard; asked for when not given.
+    [string]$PairingCode = "",
     [switch]$NoAutostart
 )
 
@@ -25,11 +29,13 @@ $python = Join-Path $Venv "Scripts\python.exe"
 
 & (Join-Path $PSScriptRoot "fetch_site_models.ps1") -Destination $Models
 
-if (-not [Environment]::GetEnvironmentVariable("SYNCAM_SITE_KEY", "User")) {
-    $secure = Read-Host "Paste the site key from the SyncCam dashboard (Configuration > Site boxes)" -AsSecureString
-    $plain = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure))
-    [Environment]::SetEnvironmentVariable("SYNCAM_SITE_KEY", $plain, "User")
-    $env:SYNCAM_SITE_KEY = $plain
+$vault = Join-Path (Split-Path -Parent (Resolve-Path $Config)) "syncam-box.vault"
+if (-not [Environment]::GetEnvironmentVariable("SYNCAM_SITE_KEY", "User") -and -not (Test-Path $vault)) {
+    if (-not $PairingCode) {
+        $PairingCode = Read-Host "Enter the pairing code from the SyncCam dashboard (Configuration > Site box > Pair a site box)"
+    }
+    & $python -m syncam_ai.site_worker pair --config $Config --code $PairingCode
+    if ($LASTEXITCODE -ne 0) { throw "Pairing failed. Create a new code in the dashboard and run this script again." }
 }
 
 Write-Host "Checking cameras, model and backend..."
