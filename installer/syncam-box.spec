@@ -7,11 +7,17 @@ datas = collect_data_files("tzdata")
 for package in ("opencv-python-headless", "openvino", "numpy", "cryptography", "tzdata", "syncam-ai-services"):
     datas += copy_metadata(package)
 
+# NumPy imports some modules from C code (e.g. numpy._core._exceptions), which
+# static analysis cannot see; collect them explicitly. Tests and f2py are left out.
+numpy_modules = collect_submodules(
+    "numpy", filter=lambda name: not any(part in name for part in (".tests", ".f2py", "._pyinstaller", ".distutils"))
+)
+
 a = Analysis(
     ["syncam_box.py"],
-    hiddenimports=collect_submodules("syncam_ai"),
+    hiddenimports=collect_submodules("syncam_ai") + numpy_modules,
     datas=datas,
-    excludes=["tkinter", "unittest", "pydoc", "matplotlib"],
+    excludes=["tkinter", "matplotlib"],
     noarchive=False,
 )
 pyz = PYZ(a.pure)
