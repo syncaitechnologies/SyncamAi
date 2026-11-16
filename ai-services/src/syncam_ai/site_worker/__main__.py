@@ -316,8 +316,22 @@ def command_selftest() -> int:
 
     Ed25519PrivateKey.generate()
     ZoneInfo("Asia/Kolkata")
-    devices = openvino.Core().available_devices
+    core = openvino.Core()
+    devices = core.available_devices
     print(f"syncam-box {VERSION}: numpy {numpy.__version__}, opencv {cv2.__version__}, openvino {openvino.__version__} ({', '.join(devices)})")
+    if "CPU" not in devices:
+        print("FAILED: OpenVINO has no CPU device; its plugins are missing from this build.")
+        return 1
+    # Compile a one-layer model on the CPU: the same path the detector takes.
+    from openvino import opset13 as ops
+
+    data = ops.parameter([1, 3, 8, 8], numpy.float32)
+    compiled = core.compile_model(openvino.Model([ops.relu(data)], [data]), "CPU")
+    output = compiled(numpy.full((1, 3, 8, 8), -1.0, dtype=numpy.float32))[compiled.output(0)]
+    if float(output.max()) != 0.0:
+        print("FAILED: OpenVINO returned a wrong result on the CPU.")
+        return 1
+    print("OpenVINO compiled and ran a test model on the CPU.")
     return 0
 
 
