@@ -59,7 +59,8 @@ export type FoundDevice = {
   model: string;
   onvif: boolean;
 };
-export type ProbedChannel = { channel: number; thumbnail?: string; width?: number; height?: number };
+/** `vehicles` and `people` are what the site box detected in the channel's picture. */
+export type ProbedChannel = { channel: number; thumbnail?: string; width?: number; height?: number; vehicles?: number; people?: number };
 export type ProbeResult = { device_id: string; family: string | null; brand: string; channels: ProbedChannel[]; error: string };
 export type TelegramTarget = {
   id: string;
@@ -88,7 +89,7 @@ export type AttendanceRecord = {
   confidence: number;
 };
 
-export const vehicleClasses =["bicycle", "bus", "car", "motorcycle", "truck", "van"];
+export { vehicleClasses } from "./subject-classes";
 
 function data<T>(payload: unknown): T {
   if (typeof payload !== "object" || payload === null || !("data" in payload)) {

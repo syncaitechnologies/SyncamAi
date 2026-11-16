@@ -73,6 +73,22 @@ def vault_camera_sources(vault: BoxVault) -> dict[str, str]:
     return sources
 
 
+PARKED_VEHICLES = frozenset({"car", "truck", "bus", "van"})
+
+
+def scene_counter(detector: Any, *, minimum_confidence: float = 0.4) -> Callable[[Any], dict[str, Any]]:
+    """Counts people and vehicles in a channel's picture for the setup suggestion."""
+
+    def inspect(frame: Any) -> dict[str, Any]:
+        found = detector.detect(frame, minimum_confidence=minimum_confidence)
+        return {
+            "vehicles": sum(1 for item in found if item.subject_class in PARKED_VEHICLES),
+            "people": sum(1 for item in found if item.subject_class == "person"),
+        }
+
+    return inspect
+
+
 class SetupAgent:
     def __init__(
         self,

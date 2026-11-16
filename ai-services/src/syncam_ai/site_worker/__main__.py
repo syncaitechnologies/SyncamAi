@@ -408,7 +408,16 @@ def command_run(config: LocalConfig) -> int:
     )
 
     # One poll carries both live-view requests and "Find cameras" tasks.
-    agent = SetupAgent(client, vault, streams) if vault is not None and vault.exists() else None
+    agent = None
+    if vault is not None and vault.exists():
+        from functools import partial
+
+        from .discovery import grab_thumbnail
+        from .setup_agent import scene_counter
+
+        # Pictures taken by Find cameras also report vehicles and people, so the
+        # dashboard can suggest "Car park watch".
+        agent = SetupAgent(client, vault, streams, thumbnail=partial(grab_thumbnail, inspect=scene_counter(detector)))
     relay = LiveRelay(client, streams, on_tasks=agent.handle if agent else None, send_frames=config.live_view)
     relay.start()
     if config.live_view:

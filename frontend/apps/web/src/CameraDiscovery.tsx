@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { adoptPayload, channelChoices, deviceTitle, isPrivateIPv4, manualDevice, validChoices, type ChannelChoice } from "./camera-discovery-model";
 import { Icon } from "./icon";
+import { protectionTemplates, templateById, templateZone, type TemplateId } from "./protection-templates";
 import { encryptCredentials } from "./setup-crypto";
 import type { FoundDevice, ProbeResult, SetupBox, SyncamApi } from "./syncam-api";
 
@@ -13,7 +14,7 @@ type Step =
   | { kind: "checking"; device: FoundDevice }
   | { kind: "channels"; device: FoundDevice; deviceId: string; brand: string; choices: ChannelChoice[]; note: string }
   | { kind: "adding"; count: number }
-  | { kind: "done"; count: number };
+  | { kind: "done"; count: number; protectedCount: number; failed: number };
 
 /**
  * "Find cameras": the site box scans its network, checks a recorder with its
@@ -21,9 +22,10 @@ type Step =
  * channel, and starts the ones the user picks. No IP addresses, RTSP paths or
  * config files to type.
  */
-export function CameraDiscovery({ api, siteId, onNotify, onAdded, onClose }: {
+export function CameraDiscovery({ api, siteId, timezone, onNotify, onAdded, onClose }: {
   api: SyncamApi;
   siteId: string;
+  timezone: string;
   onNotify: (message: string) => void;
   onAdded: () => void;
   onClose: () => void;
@@ -100,12 +102,24 @@ export function CameraDiscovery({ api, siteId, onNotify, onAdded, onClose }: {
       const created = [];
       for (const choice of picked) {
         const camera = await api.createCamera(siteId, choice.name.trim());
-        created.push({ camera_id: camera.id, channel: choice.channel });
+        created.push({ camera_id: camera.id, channel: choice.channel, protection: choice.protection });
       }
       onAdded();
       await api.runSetupTask(siteId, "adopt", adoptPayload(deviceId, created), { signal, timeoutMs: 60_000 });
-      onNotify(`${created.length} camera${created.length === 1 ? "" : "s"} added. Pictures appear within a minute.`);
-      setStep({ kind: "done", count: created.length });
+      let protectedCount = 0;
+      for (const camera of created) {
+        const template = templateById(camera.protection);
+        if (!template) continue;
+        try {
+          await api.createZone(templateZone(template, { siteId, cameraId: camera.camera_id, timezone }));
+          protectedCount += 1;
+        } catch {
+          // The camera is added either way; protection can be added in Zones & rules.
+        }
+      }
+      const failed = created.filter((camera) => camera.protection !== "none").length - protectedCount;
+      onNotify(`${created.length} camera${created.length === 1 ? "" : "s"} added${protectedCount ? `, ${protectedCount} protected` : ""}. Pictures appear within a minute.`);
+      setStep({ kind: "done", count: created.length, protectedCount, failed });
       onAdded();
     }, { kind: "start" });
   };
@@ -189,6 +203,13 @@ export function CameraDiscovery({ api, siteId, onNotify, onAdded, onClose }: {
                   : <span className="discovery-nopic">No picture</span>}
                 <label className="discovery-pick"><input type="checkbox" checked={choice.selected} onChange={(event) => updateChoice(index, { selected: event.target.checked })} />Channel {choice.channel}</label>
                 <input value={choice.name} maxLength={120} aria-label={`Name for channel ${choice.channel}`} onChange={(event) => updateChoice(index, { name: event.target.value })} />
+                <label className="discovery-protect">
+                  <span>Protection{(choice.vehicles ?? 0) > 0 && <span className="discovery-suggested" title={`The site box saw ${choice.vehicles} vehicle${choice.vehicles === 1 ? "" : "s"} in this picture`}>Vehicles seen</span>}</span>
+                  <select value={choice.protection} aria-label={`Protection for channel ${choice.channel}`} onChange={(event) => updateChoice(index, { protection: event.target.value as TemplateId | "none" })}>
+                    {protectionTemplates.map((template) => <option key={template.id} value={template.id}>{template.label}</option>)}
+                    <option value="none">None (draw zones later)</option>
+                  </select>
+                </label>
               </li>
             ))}
           </ul>
@@ -204,7 +225,8 @@ export function CameraDiscovery({ api, siteId, onNotify, onAdded, onClose }: {
       {step.kind === "adding" && <p className="discovery-wait" role="status">Adding {step.count} camera{step.count === 1 ? "" : "s"}…</p>}
       {step.kind === "done" && (
         <div className="discovery-body">
-          <p className="live-banner ok"><Icon name="check" size={14} />{step.count} camera{step.count === 1 ? "" : "s"} added. Draw zones for them in Zones &amp; rules.</p>
+          <p className="live-banner ok"><Icon name="check" size={14} />{step.count} camera{step.count === 1 ? "" : "s"} added{step.protectedCount ? `, ${step.protectedCount} with protection on` : ""}. Fine-tune or draw more zones in Zones &amp; rules.</p>
+          {step.failed > 0 && <p className="live-banner bad">Protection could not be added to {step.failed} camera{step.failed === 1 ? "" : "s"}; add it in Zones &amp; rules.</p>}
           <button type="button" className="live-link" onClick={scan}>Find more cameras</button>
         </div>
       )}
