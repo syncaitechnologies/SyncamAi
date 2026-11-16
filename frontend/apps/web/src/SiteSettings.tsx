@@ -176,6 +176,10 @@ export function SiteSettings({ workspace, onNotify }: { workspace: WorkspaceData
             <Icon name={boxOnline ? "check" : "clock"} size={14} />
             {boxOnline ? "Site box online" : activeKeys.length ? "Site box has not checked in during the last few minutes" : "No site box connected yet"}
           </p>
+          <div className="live-download">
+            <a className="live-link" href={BOX_INSTALLER_URL} rel="noopener noreferrer"><Icon name="download" size={14} />Download SyncCamSetup.exe</a>
+            <small className="live-muted">Windows 10 or 11, 64-bit. Run it on a PC at the site that stays on and is on the same network as the cameras, then pair it with a code below.</small>
+          </div>
           <ul className="live-list">
             {keys.map((key) => (
               <li key={key.id}>

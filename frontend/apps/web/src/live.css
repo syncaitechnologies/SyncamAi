@@ -117,6 +117,8 @@
 /* Site box pairing code */
 .live-pairing .live-pairing-code { display: block; margin: 10px 0; padding: 12px 14px; font: 600 28px "DM Mono", monospace; letter-spacing: .18em; text-align: center; color: #e9fff6; background: #0c1a15; border: 1px dashed #3d7d64; border-radius: 8px; }
 .live-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.live-download { display: grid; gap: 4px; margin: 0 0 12px; }
+.live-download a { display: inline-flex; align-items: center; gap: 6px; justify-self: start; }
 
 /* Find cameras wizard */
 .discovery { margin: 4px 0 14px; padding: 14px; background: #0f171d; border: 1px solid #26333e; border-radius: 10px; }
