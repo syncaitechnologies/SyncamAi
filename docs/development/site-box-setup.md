@@ -250,6 +250,11 @@ Each template is an ordinary zone over the whole picture, so it can be paused
 or replaced by drawn zones later. A camera shows "Added" for a template it
 already has.
 
+"Near vehicles" means a vehicle's centre is within 0.3 of the picture's size
+of the person's centre (`NEAR_VEHICLE_DISTANCE` in `site_worker/rules.py`).
+A car on the far side of a whole-view zone does not count, and this applies
+to drawn loitering-near-vehicles zones too.
+
 ### Telegram alerts
 
 **Configuration → Telegram alerts → Link a Telegram chat** shows a QR code:
