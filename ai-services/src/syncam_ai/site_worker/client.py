@@ -107,14 +107,24 @@ class BackendClient:
         body = json.dumps(sighting, separators=(",", ":")).encode()
         self._request("POST", "/v1/site-ingest/attendance", body=body, content_type="application/json")
 
+    def poll(self) -> dict[str, Any]:
+        """The box's regular poll: watched cameras and pending setup tasks."""
+
+        response = self._request("GET", "/v1/site-ingest/live")
+        data = (response or {}).get("data", {})
+        cameras, tasks = data.get("cameras", []), data.get("tasks", [])
+        if not isinstance(cameras, list) or not isinstance(tasks, list):
+            raise BackendError("live view response is invalid", retryable=False)
+        return {"cameras": [str(camera_id) for camera_id in cameras], "tasks": [task for task in tasks if isinstance(task, dict)]}
+
     def live_requests(self) -> list[str]:
         """Camera IDs of this site that someone is watching in the dashboard."""
 
-        response = self._request("GET", "/v1/site-ingest/live")
-        cameras = (response or {}).get("data", {}).get("cameras", [])
-        if not isinstance(cameras, list):
-            raise BackendError("live view response is invalid", retryable=False)
-        return [str(camera_id) for camera_id in cameras]
+        return self.poll()["cameras"]
+
+    def post_setup_result(self, task_id: str, body: Mapping[str, object]) -> None:
+        payload = json.dumps(body, separators=(",", ":")).encode()
+        self._request("POST", f"/v1/site-ingest/setup/tasks/{urllib.parse.quote(task_id)}/result", body=payload, content_type="application/json")
 
     def put_live_frame(self, camera_id: str, jpeg: bytes) -> bool:
         """Upload one live frame; False once nobody is watching that camera."""

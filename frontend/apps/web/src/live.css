@@ -117,3 +117,22 @@
 /* Site box pairing code */
 .live-pairing .live-pairing-code { display: block; margin: 10px 0; padding: 12px 14px; font: 600 28px "DM Mono", monospace; letter-spacing: .18em; text-align: center; color: #e9fff6; background: #0c1a15; border: 1px dashed #3d7d64; border-radius: 8px; }
 .live-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+
+/* Find cameras wizard */
+.discovery { margin: 4px 0 14px; padding: 14px; background: #0f171d; border: 1px solid #26333e; border-radius: 10px; }
+.discovery-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; color: #e6f0f4; }
+.discovery-body { display: grid; gap: 10px; }
+.discovery-wait { margin: 6px 0; color: #9fb3bd; }
+.discovery-wait::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border: 2px solid #8fe3c0; border-right-color: transparent; border-radius: 50%; animation: discovery-spin .8s linear infinite; vertical-align: -1px; }
+.discovery-devices { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.discovery-devices li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; background: #131e25; border: 1px solid #26333e; border-radius: 8px; }
+.discovery-devices small { display: block; margin-top: 2px; color: #7f939d; }
+.discovery-channels { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.discovery-channels li { display: grid; gap: 6px; padding: 8px; background: #131e25; border: 1px solid #26333e; border-radius: 8px; }
+.discovery-channels li.on { border-color: #3d7d64; }
+.discovery-channels img, .discovery-nopic { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; background: #05080a; }
+.discovery-nopic { display: grid; place-items: center; color: #6d808a; font-size: 12px; }
+.discovery-pick { display: flex; align-items: center; gap: 6px; color: #cfdbe1; font-size: 13px; }
+.live-banner.bad { color: #ffd2d2; background: #3a1c1f; border-color: #6a2d32; }
+@keyframes discovery-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .discovery-wait::before { animation: none; } }

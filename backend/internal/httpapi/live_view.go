@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/authz"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/boxsetup"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/device"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/livefeed"
@@ -117,8 +118,13 @@ func (s *Server) siteLiveRequests(w http.ResponseWriter, r *http.Request) {
 	if s.siteIngest.Live != nil {
 		cameras = s.siteIngest.Live.Wanted(scope.TenantID, scope.SiteID)
 	}
+	// The same poll carries "Find cameras" tasks for this box.
+	tasks := []boxsetup.Delivery{}
+	if s.siteIngest.Setup != nil {
+		tasks = s.siteIngest.Setup.Deliver(scope.TenantID, scope.SiteID)
+	}
 	w.Header().Set("Cache-Control", "no-store")
-	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{"cameras": cameras, "fps": 2}})
+	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{"cameras": cameras, "fps": 2, "tasks": tasks}})
 }
 
 func (s *Server) uploadLiveFrame(w http.ResponseWriter, r *http.Request) {

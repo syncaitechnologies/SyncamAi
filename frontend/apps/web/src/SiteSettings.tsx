@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 import { selectSite } from "./alert-client";
+import { CameraDiscovery } from "./CameraDiscovery";
 import { Icon } from "./icon";
 import type { PairingCode, SiteKey, TelegramTarget } from "./syncam-api";
 import type { WorkspaceData } from "./use-workspace";
@@ -30,6 +31,7 @@ export function SiteSettings({ workspace, onNotify }: { workspace: WorkspaceData
   const [secret, setSecret] = useState("");
   const [link, setLink] = useState<{ code: string; bot: string; expires_at: string } | null>(null);
   const [pairing, setPairing] = useState<PairingCode | null>(null);
+  const [finding, setFinding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
 
@@ -128,7 +130,10 @@ export function SiteSettings({ workspace, onNotify }: { workspace: WorkspaceData
         </section>
 
         <section className="panel live-card">
-          <header><span className="live-step">2</span><div><h2>Cameras</h2><p>Add each existing camera, then put its ID and RTSP address in the site box config.</p></div></header>
+          <header><span className="live-step">2</span><div><h2>Cameras</h2><p>Let the site box find the recorder and its cameras, or add a camera by hand.</p></div></header>
+          {manage && site && (finding
+            ? <CameraDiscovery api={api} siteId={site.id} onNotify={onNotify} onAdded={reload} onClose={() => setFinding(false)} />
+            : <button type="button" className="live-primary" onClick={() => setFinding(true)}><Icon name="search" size={14} />Find cameras</button>)}
           <ul className="live-list">
             {cameras.length === 0 && <li className="live-muted">No cameras yet.</li>}
             {cameras.map((camera) => {
@@ -144,7 +149,7 @@ export function SiteSettings({ workspace, onNotify }: { workspace: WorkspaceData
           </ul>
           {manage && site && (
             <form className="live-inline-form" onSubmit={addCamera}>
-              <input name="name" placeholder="Camera name, e.g. Gate 1" required maxLength={120} />
+              <input name="name" placeholder="Or add one by hand, e.g. Gate 1" required maxLength={120} />
               <button type="submit" disabled={busy}><Icon name="plus" size={14} />Add camera</button>
             </form>
           )}

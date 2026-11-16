@@ -227,9 +227,18 @@ def command_forget(config: LocalConfig, staff_id: str) -> int:
 
 
 def command_run(config: LocalConfig) -> int:
+    from .capture import StreamSet
+    from .live import LiveRelay
+    from .setup_agent import SetupAgent, vault_camera_sources
+    from .vault import BoxVault
+
     client = BackendClient(config.backend_url, config.site_key)
     detector = _detector(config)
-    streams = _start_streams(config)
+    vault = BoxVault(config.vault) if config.vault is not None else None
+    streams = StreamSet(_start_streams(config))
+    if vault is not None:
+        for camera_id, source in vault_camera_sources(vault).items():
+            streams.add(camera_id, CameraStream(camera_id, source))
     worker = SiteWorker(
         backend=client,
         detector=detector,
@@ -240,26 +249,28 @@ def command_run(config: LocalConfig) -> int:
         processors=_processors(config, client),
     )
 
-    relay = None
+    # One poll carries both live-view requests and "Find cameras" tasks.
+    agent = SetupAgent(client, vault, streams) if vault is not None and vault.exists() else None
+    relay = LiveRelay(client, streams, on_tasks=agent.handle if agent else None, send_frames=config.live_view)
+    relay.start()
     if config.live_view:
-        from .live import LiveRelay
-
-        relay = LiveRelay(client, streams)
-        relay.start()
         _LOG.info("live view available: frames are sent only while someone watches in the dashboard")
     else:
         _LOG.info("live view disabled in the site config")
+    if agent is None:
+        _LOG.info("Find cameras is off: pair this box with a code from the dashboard to use it")
 
     def _stop(*_: object) -> None:
         _LOG.info("stopping site worker")
-        if relay is not None:
-            relay.stop()
+        relay.stop()
         worker.stop()
         for stream in streams.values():
             stream.stop()
 
     signal.signal(signal.SIGINT, _stop)
     signal.signal(signal.SIGTERM, _stop)
+    if not len(streams):
+        _LOG.info("no cameras yet: add them with Find cameras in the dashboard (Configuration > Cameras)")
     _LOG.info("site worker running with %d camera(s) at %.1f fps", len(streams), config.fps)
     worker.run()
     return 0

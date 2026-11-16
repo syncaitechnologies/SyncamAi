@@ -55,9 +55,13 @@ class LiveRelay:
         fps: float = 2.0,
         encode: Callable[[Any, datetime | None], bytes] = encode_live_frame,
         clock: Callable[[], float] = time.monotonic,
+        on_tasks: Callable[[list[Any]], None] | None = None,
+        send_frames: bool = True,
     ) -> None:
         self._backend = backend
         self._streams = streams
+        self._on_tasks = on_tasks
+        self._send_frames = send_frames
         self._poll_seconds = poll_seconds
         self._interval = 1.0 / fps
         self._encode = encode
@@ -75,10 +79,16 @@ class LiveRelay:
     def _refresh(self, now: float) -> None:
         self._last_poll = now
         try:
-            requested = set(self._backend.live_requests())
+            if hasattr(self._backend, "poll"):
+                data = self._backend.poll()
+            else:
+                data = {"cameras": self._backend.live_requests(), "tasks": []}
         except BackendError as error:
             _LOG.debug("live view poll failed: %s", error)
             return
+        if data.get("tasks") and self._on_tasks is not None:
+            self._on_tasks(list(data["tasks"]))
+        requested = set(data.get("cameras", [])) if self._send_frames else set()
         started = requested - self._wanted
         ended = self._wanted - requested
         for camera_id in sorted(started):

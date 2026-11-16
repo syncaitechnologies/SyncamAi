@@ -12,6 +12,7 @@ import (
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/alerting"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/attendance"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/authz"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/boxsetup"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/livefeed"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/siteingest"
@@ -34,6 +35,8 @@ type SiteIngestOptions struct {
 	LiveAudit livefeed.Auditor
 	// Pairing issues short codes that a new site box redeems for its key.
 	Pairing siteingest.PairingStore
+	// Setup relays "Find cameras" tasks between the dashboard and the box.
+	Setup *boxsetup.Hub
 }
 
 type siteScopeContextKey struct{}
@@ -59,6 +62,7 @@ func (s *Server) registerSiteIngestRoutes() {
 	s.registerAttendanceRoutes()
 	s.registerLiveViewRoutes()
 	s.registerPairingRoutes()
+	s.registerSetupRoutes()
 }
 
 // authenticateSite verifies a site key and runs the handler as a principal

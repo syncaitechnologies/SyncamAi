@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping
 from uuid import UUID
@@ -37,6 +37,7 @@ class LocalConfig:
     liveness_model: Path | None = None
     face_liveness_threshold: float = 0.8
     live_view: bool = True
+    vault: Path | None = None
 
 
 def _path(value: object, field_name: str) -> Path:
@@ -54,8 +55,9 @@ def parse_local_config(raw: Mapping[str, Any], *, environ: Mapping[str, str] | N
     site_key = environment.get(key_env) or raw.get("site_key")
     if not isinstance(site_key, str) or not site_key.strip():
         raise ValueError(f"this box is not paired: run 'python -m syncam_ai.site_worker pair --config <file> --code <code from the dashboard>' (or set {key_env})")
-    cameras = raw.get("cameras")
-    if not isinstance(cameras, Mapping) or not cameras:
+    # Optional: cameras added with "Find cameras" in the dashboard live in the vault.
+    cameras = raw.get("cameras", {})
+    if not isinstance(cameras, Mapping):
         raise ValueError("cameras must map camera IDs from the dashboard to RTSP addresses")
     parsed_cameras: dict[str, str] = {}
     for camera_id, source in cameras.items():
@@ -127,12 +129,13 @@ def load_local_config(path: Path) -> LocalConfig:
     raw = json.loads(path.read_text(encoding="utf-8"))
     environment = dict(os.environ)
     key_env = str(raw.get("site_key_env", "SYNCAM_SITE_KEY"))
+    vault = vault_path_for(raw, path)
     if not environment.get(key_env) and not raw.get("site_key"):
         # A box paired with a code keeps its site key in the encrypted vault.
         from .pairing import vault_site_key
         from .vault import BoxVault
 
-        paired_key = vault_site_key(BoxVault(vault_path_for(raw, path)))
+        paired_key = vault_site_key(BoxVault(vault))
         if paired_key:
             environment[key_env] = paired_key
-    return parse_local_config(raw, environ=environment)
+    return replace(parse_local_config(raw, environ=environment), vault=vault)
