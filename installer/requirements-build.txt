@@ -1,0 +1,4 @@
+# Build-time only: bundles the site box into syncam-box.exe. PyInstaller is
+# GPL-2.0 with its bootloader exception, which allows distributing the bundled
+# program under any licence; it is not shipped as a dependency.
+pyinstaller==6.11.1

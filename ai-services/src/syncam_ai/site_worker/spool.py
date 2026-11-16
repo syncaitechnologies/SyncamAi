@@ -42,6 +42,9 @@ class Spool:
         self._directory = directory
         self._directory.mkdir(parents=True, exist_ok=True)
 
+    def pending(self) -> int:
+        return len(list(self._directory.glob("*.json")))
+
     def enqueue(self, event: dict[str, object], snapshot: bytes | None) -> Path:
         entries = sorted(self._directory.glob("*.json"))
         if len(entries) >= MAX_ENTRIES:

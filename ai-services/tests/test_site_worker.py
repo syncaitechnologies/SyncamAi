@@ -368,6 +368,13 @@ class RunnerTest(BackendFixture):
             self.assertEqual(step(0.30, 0), 0)
             self.assertEqual(step(0.40, 1), 0)
             self.assertEqual(step(0.55, 2), 1, "walking into the yard raises one intrusion alert")
+            status = worker.status()
+            self.assertEqual((status["alerts_queued"], status["alerts_pending"]), (1, 1))
+            self.assertEqual(status["last_alert_at"], START.isoformat())
+            self.assertEqual(status["connected_at"], START.isoformat())
+            self.assertGreaterEqual(status["zones"], 1)
+            self.assertEqual([camera["id"] for camera in status["cameras"]], [CAMERA])
+            self.assertNotIn("rtsp", json.dumps(status).lower(), "the status page never shows camera addresses")
             stream.online = False
             clock[0] += 1
             self.assertEqual(worker.tick(), 0)

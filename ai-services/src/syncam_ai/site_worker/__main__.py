@@ -5,24 +5,41 @@
     python -m syncam_ai.site_worker run      --config site.json
     python -m syncam_ai.site_worker liveness --config site.json [--camera <id>]
     python -m syncam_ai.site_worker pair     --config site.json --code K7Q4-XM92
+
+The installed program (syncam-box.exe) takes the same commands; without
+--config it uses the box folder (%ProgramData%\\SyncCam, see home.py):
+
+    syncam-box.exe setup --code-file <file>   create the folder, download the model, pair
+    syncam-box.exe run --log-file <file>      what the start-up task runs
+    syncam-box.exe update-check | selftest | --version
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import logging
+import logging.handlers
 import signal
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 from .capture import CameraStream, redact
 from .client import BackendClient, BackendError
-from .config import LocalConfig, load_local_config
+from .config import LocalConfig, NotPairedError, load_local_config
 from .runner import FrameProcessor, SiteWorker
 from .spool import Spool
+from .version import VERSION
 
 _LOG = logging.getLogger("syncam.site_worker")
+
+
+def _installed() -> bool:
+    """True inside the PyInstaller build that SyncCamSetup.exe installs."""
+
+    return bool(getattr(sys, "frozen", False))
 
 
 def _detector(config: LocalConfig):  # type: ignore[no-untyped-def]
@@ -218,6 +235,126 @@ def command_pair(config_path: Path, code: str, name: str | None) -> int:
     return 0
 
 
+def command_setup(code: str | None, name: str | None, backend_url: str) -> int:
+    """What the installer runs: box folder, detection model and pairing."""
+
+    from .home import box_home, ensure_home
+    from .model_download import fetch_model
+    from .pairing import pair_box
+    from .vault import BoxVault
+
+    result = 0
+    home = box_home()
+    try:
+        config_path = ensure_home(home, backend_url)
+        raw = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        _LOG.error("could not create the box folder %s: %s", home, error)
+        return 2
+    _LOG.info("box folder: %s", home)
+    try:
+        detector = Path(str(raw["models"]["detector"]))
+        _LOG.info("detection model %s: %s", detector, "downloaded and verified" if fetch_model(detector) else "already present and verified")
+    except (OSError, ValueError, KeyError) as error:
+        _LOG.error("could not download the detection model (the box retries at start): %s", error)
+        result = 1
+    vault = BoxVault(Path(str(raw.get("vault") or home / "syncam-box.vault")))
+    if vault.exists():
+        _LOG.info("this box is already paired")
+    elif code:
+        try:
+            paired = pair_box(vault, str(raw["backend_url"]), code, label=name)
+            _LOG.info("paired with site %s", paired.site_id)
+        except (ValueError, BackendError) as error:
+            _LOG.error("pairing failed: %s. Create a new code in the dashboard and run: syncam-box.exe pair --code <code>", error)
+            result = 1
+    else:
+        _LOG.warning("not paired yet: run syncam-box.exe pair --code <code from the dashboard>")
+    return result
+
+
+def command_fetch_models(config_path: Path) -> int:
+    from .model_download import fetch_model
+
+    raw = json.loads(config_path.read_text(encoding="utf-8"))
+    detector = Path(str((raw.get("models") or {}).get("detector", "")))
+    try:
+        fetch_model(detector)
+    except (OSError, ValueError) as error:
+        print(f"Model download failed: {error}")
+        return 1
+    print(f"Detection model ready: {detector}")
+    return 0
+
+
+def command_update_check() -> int:
+    from .updater import UpdatesDisabled, check_for_update
+
+    try:
+        info = check_for_update(VERSION)
+    except UpdatesDisabled as error:
+        print(error)
+        return 1
+    except Exception as error:
+        print(f"Update check failed: {error}")
+        return 1
+    print(f"Version {info.version} is available: {info.url}" if info else f"Version {VERSION} is up to date.")
+    return 0
+
+
+def command_selftest() -> int:
+    """Check that the bundled libraries load (used by the installer build)."""
+
+    from zoneinfo import ZoneInfo
+
+    import cv2
+    import numpy
+    import openvino
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from .updater import verify_manifest  # noqa: F401 - import check only
+
+    Ed25519PrivateKey.generate()
+    ZoneInfo("Asia/Kolkata")
+    devices = openvino.Core().available_devices
+    print(f"syncam-box {VERSION}: numpy {numpy.__version__}, opencv {cv2.__version__}, openvino {openvino.__version__} ({', '.join(devices)})")
+    return 0
+
+
+def _status_server(port: int, provider: Any) -> Any:
+    if not port:
+        return None
+    from .status import StatusServer
+
+    try:
+        server = StatusServer(provider, port=port)
+    except OSError as error:
+        _LOG.warning("status page not started on port %d: %s", port, error)
+        return None
+    server.start()
+    _LOG.info("status page: http://127.0.0.1:%d", server.port)
+    return server
+
+
+def wait_until_paired(config_path: Path, *, poll_seconds: float = 5.0) -> LocalConfig:
+    """Keep an unpaired installed box alive, with its status page, until it is paired."""
+
+    raw = json.loads(config_path.read_text(encoding="utf-8"))
+    message = {"message": f"Version {VERSION}. Waiting for pairing."}
+    server = _status_server(int(raw.get("status_port", 8790)), lambda: {"version": VERSION, "paired": False, "worker": {}, "update": message})
+    _LOG.warning("this box is not paired: run syncam-box.exe pair --code <code from the dashboard>")
+    try:
+        while True:
+            time.sleep(poll_seconds)
+            try:
+                return load_local_config(config_path)
+            except NotPairedError:
+                continue
+    finally:
+        if server is not None:
+            server.stop()
+
+
 def command_forget(config: LocalConfig, staff_id: str) -> int:
     from .faces import FaceGallery
 
@@ -232,6 +369,11 @@ def command_run(config: LocalConfig) -> int:
     from .setup_agent import SetupAgent, vault_camera_sources
     from .vault import BoxVault
 
+    if _installed() and not config.detector_model.is_file():
+        from .model_download import fetch_model
+
+        _LOG.info("downloading the detection model")
+        fetch_model(config.detector_model)  # on failure the start-up task retries in a minute
     client = BackendClient(config.backend_url, config.site_key)
     detector = _detector(config)
     vault = BoxVault(config.vault) if config.vault is not None else None
@@ -260,8 +402,32 @@ def command_run(config: LocalConfig) -> int:
     if agent is None:
         _LOG.info("Find cameras is off: pair this box with a code from the dashboard to use it")
 
+    updater = None
+    if config.auto_update and _installed():
+        from .updater import Updater
+
+        updates = (config.vault.parent if config.vault is not None else config.spool_dir.parent) / "updates"
+        updater = Updater(VERSION, updates, install=sys.platform == "win32")
+        updater.start()
+
+    def _status() -> dict[str, Any]:
+        return {
+            "version": VERSION,
+            "paired": True,
+            "find_cameras": agent is not None,
+            "live_view": config.live_view,
+            "worker": worker.status(),
+            "update": updater.state() if updater else {"message": f"Version {VERSION}. Automatic updates run only in the installed box."},
+        }
+
+    status_server = _status_server(config.status_port, _status)
+
     def _stop(*_: object) -> None:
         _LOG.info("stopping site worker")
+        if updater is not None:
+            updater.stop()
+        if status_server is not None:
+            status_server.stop()
         relay.stop()
         worker.stop()
         for stream in streams.values():
@@ -276,10 +442,27 @@ def command_run(config: LocalConfig) -> int:
     return 0
 
 
+def _logging(verbose: bool, log_file: Path | None) -> None:
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    if log_file is not None:
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        handlers.append(logging.handlers.RotatingFileHandler(log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"))
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s", handlers=handlers)
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m syncam_ai.site_worker", description="SyncCam AI site box")
-    parser.add_argument("command", choices=["run", "check", "snapshot", "enroll", "forget", "face-key", "liveness", "pair"])
-    parser.add_argument("--config", type=Path, help="local site JSON file (outside Git)")
+    from .home import DEFAULT_BACKEND, default_config_path
+
+    parser = argparse.ArgumentParser(prog="syncam-box" if _installed() else "python -m syncam_ai.site_worker", description="SyncCam AI site box")
+    parser.add_argument("--version", action="version", version=f"SyncCam Box {VERSION}")
+    parser.add_argument(
+        "command",
+        choices=["run", "check", "snapshot", "enroll", "forget", "face-key", "liveness", "pair", "setup", "fetch-models", "update-check", "selftest"],
+    )
+    parser.add_argument("--config", type=Path, help="site JSON file (default: the box folder's syncam-site.json)")
+    parser.add_argument("--code-file", type=Path, help="file holding the pairing code (setup)")
+    parser.add_argument("--backend", default=DEFAULT_BACKEND, help="SyncCam API for a new box folder (setup)")
+    parser.add_argument("--log-file", type=Path, help="also write logs to this file (rotated at 5 MB)")
     parser.add_argument("--camera", help="camera ID for the snapshot command")
     parser.add_argument("--out", type=Path, default=Path("snapshot.jpg"))
     parser.add_argument("--staff-id", help="staff ID from the dashboard for enroll/forget")
@@ -289,7 +472,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--name", help="name for this box in the dashboard (default: the computer name)")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args(argv)
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    _logging(args.verbose, args.log_file)
+    if args.command == "selftest":
+        return command_selftest()
+    if args.command == "update-check":
+        return command_update_check()
+    if args.command == "setup":
+        code = args.code
+        if args.code_file is not None:
+            try:
+                code = args.code_file.read_text(encoding="utf-8").strip()
+            except OSError as error:
+                _LOG.error("could not read the pairing code file: %s", error)
+                return 2
+        return command_setup(code or None, args.name, args.backend)
+    if args.config is None:
+        args.config = default_config_path()
+    if args.command == "fetch-models":
+        return command_fetch_models(args.config)
     if args.command == "face-key":
         from .faces import FaceGallery
 
@@ -297,14 +497,17 @@ def main(argv: list[str] | None = None) -> int:
         print("Losing it means re-enrolling staff; never copy it to the cloud or into Git.")
         print(FaceGallery.new_key())
         return 0
-    if args.config is None:
-        parser.error("--config is required")
     if args.command == "pair":
         if not args.code:
             parser.error("--code is required for pair")
         return command_pair(args.config, args.code, args.name)
     try:
         config = load_local_config(args.config)
+    except NotPairedError as error:
+        if args.command != "run" or not _installed():
+            print(f"config error: {error}", file=sys.stderr)
+            return 2
+        config = wait_until_paired(args.config)
     except (OSError, ValueError) as error:
         print(f"config error: {error}", file=sys.stderr)
         return 2

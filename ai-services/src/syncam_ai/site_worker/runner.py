@@ -152,10 +152,31 @@ class SiteWorker:
         self._delivery_wakeup = threading.Event()
         self._stopped = threading.Event()
         self.alerts_queued = 0
+        self.last_alert_at: datetime | None = None
+        self._config_ok_at: datetime | None = None
 
     @property
     def rules(self) -> SiteRules | None:
         return self._rules
+
+    def status(self) -> dict[str, Any]:
+        """What the local status page shows. No addresses, passwords or keys."""
+
+        now = self._now()
+        cameras = []
+        for camera_id, stream in self._streams.items():
+            latest = stream.latest()
+            age = round((now - latest[2]).total_seconds(), 1) if latest is not None else None
+            cameras.append({"id": camera_id, "name": self._known_cameras.get(camera_id, ""), "last_frame_seconds": age})
+        return {
+            "site": self._site_name,
+            "connected_at": self._config_ok_at.isoformat() if self._config_ok_at else None,
+            "zones": len(self._rules.zones) if self._rules is not None else 0,
+            "cameras": cameras,
+            "alerts_queued": self.alerts_queued,
+            "last_alert_at": self.last_alert_at.isoformat() if self.last_alert_at else None,
+            "alerts_pending": self._spool.pending(),
+        }
 
     def refresh_config(self) -> bool:
         """Pull cameras, zones and schedules. Returns True when zones changed."""
@@ -170,6 +191,7 @@ class SiteWorker:
             if camera_id not in self._known_cameras:
                 _LOG.warning("camera %s is in the local config but not registered for this site in the dashboard", camera_id)
         changed = self._rules.apply_zones(list(data.get("zones", [])))
+        self._config_ok_at = self._now()
         if changed:
             _LOG.info("activated %d zone rule(s) for %s", len(self._rules.zones), self._site_name or site_id)
         return changed
@@ -270,6 +292,7 @@ class SiteWorker:
                 _LOG.error("snapshot failed for %s: %s", candidate.event.get("event_id"), error)
         self._spool.enqueue(dict(candidate.event), snapshot)
         self.alerts_queued += 1
+        self.last_alert_at = self._now()
         _LOG.info("ALERT %s on camera %s", candidate.title, self._known_cameras.get(camera_id, camera_id))
 
     def _check_health(self, camera_id: str, stream: Stream, moment: float) -> int:

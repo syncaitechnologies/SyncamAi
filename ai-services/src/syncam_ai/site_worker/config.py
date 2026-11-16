@@ -38,6 +38,14 @@ class LocalConfig:
     face_liveness_threshold: float = 0.8
     live_view: bool = True
     vault: Path | None = None
+    # Local status page on 127.0.0.1 (0 turns it off).
+    status_port: int = 8790
+    # Installed boxes install signed updates by themselves (see updater.py).
+    auto_update: bool = True
+
+
+class NotPairedError(ValueError):
+    """The box has no site key yet."""
 
 
 def _path(value: object, field_name: str) -> Path:
@@ -54,7 +62,7 @@ def parse_local_config(raw: Mapping[str, Any], *, environ: Mapping[str, str] | N
     key_env = str(raw.get("site_key_env", "SYNCAM_SITE_KEY"))
     site_key = environment.get(key_env) or raw.get("site_key")
     if not isinstance(site_key, str) or not site_key.strip():
-        raise ValueError(f"this box is not paired: run 'python -m syncam_ai.site_worker pair --config <file> --code <code from the dashboard>' (or set {key_env})")
+        raise NotPairedError(f"this box is not paired: run 'python -m syncam_ai.site_worker pair --config <file> --code <code from the dashboard>' (or set {key_env})")
     # Optional: cameras added with "Find cameras" in the dashboard live in the vault.
     cameras = raw.get("cameras", {})
     if not isinstance(cameras, Mapping):
@@ -94,6 +102,9 @@ def parse_local_config(raw: Mapping[str, Any], *, environ: Mapping[str, str] | N
         raise ValueError("face_liveness_threshold must be between 0.3 and 0.99")
     spool_dir = _path(raw.get("spool_dir", "syncam-spool"), "spool_dir")
     gallery = raw.get("face_gallery")
+    status_port = int(raw.get("status_port", 8790))
+    if status_port != 0 and not 1024 <= status_port <= 65535:
+        raise ValueError("status_port must be 0 (off) or between 1024 and 65535")
     return LocalConfig(
         backend_url=backend_url.strip(),
         site_key=site_key.strip(),
@@ -113,6 +124,8 @@ def parse_local_config(raw: Mapping[str, Any], *, environ: Mapping[str, str] | N
         liveness_model=_path(liveness, "models.liveness") if liveness else None,
         face_liveness_threshold=liveness_threshold,
         live_view=bool(raw.get("live_view", True)),
+        status_port=status_port,
+        auto_update=bool(raw.get("auto_update", True)),
     )
 
 

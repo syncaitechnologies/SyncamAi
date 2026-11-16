@@ -7,6 +7,9 @@ import type { PairingCode, SiteKey, TelegramTarget } from "./syncam-api";
 import type { WorkspaceData } from "./use-workspace";
 import { canManage, readWorkspace } from "./workspace";
 
+/** Latest signed release of the Windows site box (built by .github/workflows/site-box-installer.yml). */
+const BOX_INSTALLER_URL = "https://github.com/syncaitechnologies/SyncamAi/releases/latest/download/SyncCamSetup.exe";
+
 function ago(value?: string) {
   if (!value) return "never";
   const minutes = Math.round((Date.now() - Date.parse(value)) / 60000);
@@ -180,7 +183,7 @@ export function SiteSettings({ workspace, onNotify }: { workspace: WorkspaceData
                 <button type="button" onClick={() => copy(secret, onNotify)}>Copy key</button>
                 <button type="button" className="secondary" onClick={() => setSecret("")}>I saved it</button>
               </div>
-              <small>On the site box run <code>pwsh scripts/install_site_box.ps1 -Config D:\private\syncam-site.json</code> and paste the key when asked.</small>
+              <small>For a box installed from source: set it as the <code>SYNCAM_SITE_KEY</code> environment variable on the box (see the site box guide).</small>
             </div>
           )}
           {pairing && (
@@ -188,8 +191,9 @@ export function SiteSettings({ workspace, onNotify }: { workspace: WorkspaceData
               <strong>Pairing code for {site?.name ?? "this site"}</strong>
               <code className="live-pairing-code" aria-label={`Pairing code ${pairing.code.split("").join(" ")}`}>{pairing.code}</code>
               <small>
-                Type it on the site box: <code>python -m syncam_ai.site_worker pair --config &lt;file&gt; --code {pairing.code}</code>.
-                It works once and expires at {new Date(pairing.expires_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.
+                On a Windows PC at the site that stays on, <a href={BOX_INSTALLER_URL} rel="noopener noreferrer">download SyncCamSetup.exe</a> and
+                type this code when it asks. If Windows SmartScreen warns, choose <em>More info → Run anyway</em>.
+                The code works once and expires at {new Date(pairing.expires_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.
               </small>
               <div>
                 <button type="button" onClick={() => copy(pairing.code, onNotify)}>Copy code</button>
