@@ -168,8 +168,12 @@ class SiteWorker:
             latest = stream.latest()
             age = round((now - latest[2]).total_seconds(), 1) if latest is not None else None
             cameras.append({"id": camera_id, "name": self._known_cameras.get(camera_id, ""), "last_frame_seconds": age})
+        # Connected means a config refresh (every minute) succeeded recently,
+        # not just once since start.
+        connected = self._config_ok_at is not None and (now - self._config_ok_at).total_seconds() < 3 * CONFIG_REFRESH_SECONDS
         return {
             "site": self._site_name,
+            "connected": connected,
             "connected_at": self._config_ok_at.isoformat() if self._config_ok_at else None,
             "zones": len(self._rules.zones) if self._rules is not None else 0,
             "cameras": cameras,

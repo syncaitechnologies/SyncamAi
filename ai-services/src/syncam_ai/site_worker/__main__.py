@@ -383,11 +383,13 @@ def command_run(config: LocalConfig) -> int:
     from .setup_agent import SetupAgent, vault_camera_sources
     from .vault import BoxVault
 
-    if _installed() and not config.detector_model.is_file():
+    if _installed():
         from .model_download import fetch_model
 
-        _LOG.info("downloading the detection model")
-        fetch_model(config.detector_model)  # on failure the start-up task retries in a minute
+        # Checks the pinned hash every start and replaces a missing or damaged
+        # file; on failure the start-up task retries in a minute.
+        if fetch_model(config.detector_model):
+            _LOG.info("detection model downloaded and verified")
     client = BackendClient(config.backend_url, config.site_key)
     detector = _detector(config)
     vault = BoxVault(config.vault) if config.vault is not None else None

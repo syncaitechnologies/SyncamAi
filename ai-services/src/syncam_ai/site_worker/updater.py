@@ -136,14 +136,53 @@ def download_installer(info: UpdateInfo, directory: Path, *, fetch: Fetch = fetc
     return target
 
 
+def update_task_xml(installer: Path, log_file: Path) -> str:
+    """A Task Scheduler definition with no trigger: it runs only when started.
+
+    Defined in XML rather than with ``/SC ONCE /ST`` because a one-time task
+    needs a start time that is not in the past, and ``/SD`` dates depend on the
+    computer's language settings.
+    """
+
+    from xml.sax.saxutils import escape
+
+    arguments = f'/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG="{log_file}"'
+    return f"""<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo><Description>Installs a verified SyncCam Box update.</Description></RegistrationInfo>
+  <Principals>
+    <Principal id="System">
+      <UserId>S-1-5-18</UserId>
+      <RunLevel>HighestAvailable</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <ExecutionTimeLimit>PT1H</ExecutionTimeLimit>
+    <Enabled>true</Enabled>
+  </Settings>
+  <Actions Context="System">
+    <Exec>
+      <Command>{escape(str(installer))}</Command>
+      <Arguments>{escape(arguments)}</Arguments>
+    </Exec>
+  </Actions>
+</Task>
+"""
+
+
 def schedule_installer(installer: Path, log_file: Path, *, run: Callable[..., Any] = subprocess.run) -> None:
     """Run the installer as a one-off SYSTEM task, outside this process."""
 
-    command = f'"{installer}" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG="{log_file}"'
-    run(
-        ["schtasks", "/Create", "/TN", UPDATE_TASK, "/TR", command, "/SC", "ONCE", "/ST", "00:00", "/RU", "SYSTEM", "/RL", "HIGHEST", "/F"],
-        check=True, capture_output=True,
-    )
+    definition = installer.with_name(installer.name + ".task.xml")
+    definition.write_text(update_task_xml(installer, log_file), encoding="utf-16")
+    try:
+        run(["schtasks", "/Create", "/TN", UPDATE_TASK, "/XML", str(definition), "/F"], check=True, capture_output=True)
+    finally:
+        definition.unlink(missing_ok=True)
     run(["schtasks", "/Run", "/TN", UPDATE_TASK], check=True, capture_output=True)
 
 

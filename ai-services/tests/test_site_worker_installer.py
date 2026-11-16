@@ -96,6 +96,7 @@ class StatusPageTest(unittest.TestCase):
             "paired": True,
             "worker": {
                 "site": "Main <office>",
+                "connected": True,
                 "connected_at": "2026-11-16T10:00:00+00:00",
                 "cameras": [{"id": "c1", "name": "<b>Gate</b>", "last_frame_seconds": 1.2}, {"id": "c2", "name": "", "last_frame_seconds": None}],
                 "alerts_queued": 2,
@@ -141,6 +142,9 @@ class StatusPageTest(unittest.TestCase):
         page = status.render_status_html({"version": "0.1.0", "paired": False, "worker": {}, "update": {}})
         self.assertIn("pair --code", page)
         self.assertIn("Find cameras", page)
+        offline = status.render_status_html({"paired": True, "worker": {"connected": False, "connected_at": "2026-11-16T10:00:00+00:00"}})
+        self.assertIn("&#10007; Connected to SyncCam", offline, "an old connection is not shown as connected")
+        self.assertIn("Last reached SyncCam at 2026-11-16T10:00:00+00:00", offline)
 
 
 def _keys(seed: int):
@@ -218,13 +222,30 @@ class UpdaterTest(unittest.TestCase):
             self.assertEqual((path.name, path.read_bytes()), ("SyncCamSetup-0.2.0.exe", b"installer"))
 
     def test_installer_runs_as_a_separate_system_task(self) -> None:
-        calls = []
-        self.updater.schedule_installer(pathlib.Path(r"C:\ProgramData\SyncCam\updates\SyncCamSetup-0.2.0.exe"), pathlib.Path("install.log"), run=lambda args, **kwargs: calls.append(args))
+        import xml.etree.ElementTree as ElementTree
+
+        calls, definitions = [], []
+
+        def run(args, **kwargs):
+            calls.append(args)
+            if "/XML" in args:
+                definitions.append(pathlib.Path(args[args.index("/XML") + 1]).read_text(encoding="utf-16"))
+
+        with tempfile.TemporaryDirectory() as directory:
+            installer = pathlib.Path(directory) / "Sync & Cam" / "SyncCamSetup-0.2.0.exe"
+            installer.parent.mkdir()
+            self.updater.schedule_installer(installer, installer.parent / "install.log", run=run)
+            self.assertEqual(list(installer.parent.iterdir()), [], "the task definition file is removed")
         create, start = calls
-        self.assertEqual(create[:3], ["schtasks", "/Create", "/TN"])
-        self.assertIn("/VERYSILENT", create[create.index("/TR") + 1])
-        self.assertEqual(create[create.index("/RU") + 1], "SYSTEM")
+        self.assertEqual(create[:4], ["schtasks", "/Create", "/TN", self.updater.UPDATE_TASK])
+        self.assertNotIn("/ST", create, "no start time that can be in the past")
         self.assertEqual(start, ["schtasks", "/Run", "/TN", self.updater.UPDATE_TASK])
+        namespace = {"t": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
+        task = ElementTree.fromstring(definitions[0].split("\n", 1)[1])
+        self.assertIsNone(task.find("t:Triggers", namespace), "it runs only when started")
+        self.assertEqual(task.findtext("t:Principals/t:Principal/t:UserId", namespaces=namespace), "S-1-5-18")
+        self.assertEqual(task.findtext("t:Actions/t:Exec/t:Command", namespaces=namespace), str(installer))
+        self.assertIn("/VERYSILENT", task.findtext("t:Actions/t:Exec/t:Arguments", namespaces=namespace))
 
     def test_updater_states(self) -> None:
         info = self.updater.UpdateInfo("0.2.0", REPO + "box-v0.2.0/SyncCamSetup-0.2.0.exe", "0" * 64)
@@ -336,6 +357,13 @@ class SetupCommandTest(unittest.TestCase):
         self.assertEqual(exit_code.exception.code, 0)
         self.assertIn("SyncCam Box", output.getvalue())
         self.assertEqual(self._main("check"), 2, "the default config of an unset-up box is missing")
+
+    def test_installed_box_rechecks_the_model_every_start(self) -> None:
+        config = mock.Mock(detector_model=self.home / "models" / "yolox_s.onnx", backend_url="https://api.example", site_key="sck_x")
+        with mock.patch.object(self.cli, "_installed", return_value=True), mock.patch.object(self.cli, "_detector", side_effect=RuntimeError("stop here")):
+            with self.assertRaises(RuntimeError):
+                self.cli.command_run(config)
+        self.fetch.assert_called_once_with(self.home / "models" / "yolox_s.onnx")
 
     def test_unpaired_installed_box_waits_for_pairing(self) -> None:
         home.ensure_home(self.home)

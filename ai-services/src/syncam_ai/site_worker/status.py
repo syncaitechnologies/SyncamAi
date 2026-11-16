@@ -34,7 +34,13 @@ def render_status_html(status: Mapping[str, Any]) -> str:
     update = status.get("update") or {}
     cameras = worker.get("cameras") or []
     paired = bool(status.get("paired"))
-    connected = bool(worker.get("connected_at"))
+    connected = bool(worker.get("connected"))
+    last_contact = worker.get("connected_at")
+    offline_hint = (
+        f"Last reached SyncCam at {escape(str(last_contact))}. Check the internet connection of this computer."
+        if last_contact
+        else "Check the internet connection of this computer."
+    )
     rows = "".join(
         f"<tr><td>{escape(str(camera.get('name') or camera.get('id', '')))}</td>"
         f"<td class=\"{'ok' if camera.get('last_frame_seconds') is not None and float(camera['last_frame_seconds']) < 15 else 'bad'}\">"
@@ -43,7 +49,7 @@ def render_status_html(status: Mapping[str, Any]) -> str:
     ) or '<tr><td colspan="2">No cameras yet. In the dashboard open Configuration &gt; Cameras &gt; Find cameras.</td></tr>'
     checks = [
         ("Paired with SyncCam", paired, "Run the installer again, or: syncam-box.exe pair --code &lt;code&gt;"),
-        ("Connected to SyncCam", connected, "Check the internet connection of this computer."),
+        ("Connected to SyncCam", connected, offline_hint),
     ]
     check_rows = "".join(
         f"<li class=\"{'ok' if passed else 'bad'}\">{'&#10003;' if passed else '&#10007;'} {label}"

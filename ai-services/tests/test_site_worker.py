@@ -349,6 +349,16 @@ class _Detector:
 
 
 class RunnerTest(BackendFixture):
+    def test_status_connected_expires_after_failed_refreshes(self) -> None:
+        moment = [START]
+        with tempfile.TemporaryDirectory() as directory:
+            worker = SiteWorker(backend=self.client, detector=_Detector(), streams={}, spool=Spool(pathlib.Path(directory)), now=lambda: moment[0])
+            self.assertFalse(worker.status()["connected"])
+            worker.refresh_config()
+            self.assertTrue(worker.status()["connected"])
+            moment[0] = START + timedelta(minutes=4)  # refreshes failed since
+            self.assertFalse(worker.status()["connected"])
+
     def test_end_to_end_intrusion_and_camera_offline(self) -> None:
         clock = [0.0]
         stream, detector = _Stream(), _Detector()

@@ -128,8 +128,15 @@ begin
   Script := '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\configure-box.ps1') + '"';
   Log := BoxHome + '\logs\setup.log';
 
-  { Lock the box folder before the vault is written. }
-  RunHidden(PowerShell, Script + ' -LockOnly');
+  { Lock the box folder before the vault is written. A machine-scope DPAPI
+    vault in a folder other accounts can read would expose the site key, so
+    stop here if the lock fails. }
+  if RunHidden(PowerShell, Script + ' -LockOnly') <> 0 then
+  begin
+    SuppressibleMsgBox('SyncCam Box could not restrict access to ' + BoxHome + ', so it did not pair this computer or store any keys. ' +
+      'Run the installer again as Administrator.', mbCriticalError, MB_OK, IDOK);
+    Exit;
+  end;
 
   WizardForm.StatusLabel.Caption := 'Downloading the detection model and pairing this computer...';
   Params := 'setup --name "' + GetComputerNameString + '" --log-file "' + Log + '"';
