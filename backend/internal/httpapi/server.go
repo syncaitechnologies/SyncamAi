@@ -51,6 +51,7 @@ type Server struct {
 	privacyMasks            privacymasks.Repository
 	privacyReleaseTransport privacymasks.ReleaseTransportRepository
 	siteIngest              SiteIngestOptions
+	pairingLimiter          *attemptLimiter
 	mux                     *http.ServeMux
 }
 
@@ -114,6 +115,8 @@ func NewWithPrivacyMaskReleaseTransport(verifier identity.Verifier, tenants tena
 // linking to the complete control plane.
 func NewWithSiteIngest(verifier identity.Verifier, tenants tenant.Repository, events eventing.Repository, alerts alerting.Repository, realtimeRepository realtime.Repository, tickets realtime.TicketStore, cameras device.Repository, enrollment device.EnrollmentRepository, deviceStatus device.StatusRepository, deviceVerifier device.DeviceIdentityVerifier, zoneRepository zones.Repository, configuration configdelivery.Repository, privacyMasks privacymasks.Repository, privacyReleaseTransport privacymasks.ReleaseTransportRepository, siteIngest SiteIngestOptions) http.Handler {
 	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, realtime: realtimeRepository, tickets: tickets, cameras: cameras, enrollment: enrollment, deviceStatus: deviceStatus, deviceVerifier: deviceVerifier, zones: zoneRepository, configuration: configuration, privacyMasks: privacyMasks, privacyReleaseTransport: privacyReleaseTransport, siteIngest: siteIngest, mux: http.NewServeMux()}
+	// 10 pairing attempts per caller and 300 overall per 10 minutes.
+	server.pairingLimiter = newAttemptLimiter(10*time.Minute, 10, 300)
 	server.mux.HandleFunc("GET /healthz", server.health)
 	server.mux.Handle("GET /v1/auth/me", server.authenticate(http.HandlerFunc(server.me)))
 	server.mux.Handle("POST /v1/auth/ws-ticket", server.authenticate(http.HandlerFunc(server.issueRealtimeTicket)))

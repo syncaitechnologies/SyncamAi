@@ -54,6 +54,8 @@ type SiteKey struct {
 	RevokedAt    *time.Time              `json:"revoked_at,omitempty"`
 	LastSeenAt   *time.Time              `json:"last_seen_at,omitempty"`
 	CameraStatus map[string]CameraStatus `json:"camera_status"`
+	// BoxPublicKey is set when the box paired with a code (PEM, P-256).
+	BoxPublicKey string `json:"box_public_key,omitempty"`
 }
 
 type KeyStore interface {
@@ -151,7 +153,7 @@ func (s *PostgresKeyStore) List(ctx context.Context, tenantID, siteID string) ([
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	rows, err := tx.Query(ctx, `
-		SELECT id::text, tenant_id::text, site_id::text, label, created_at, revoked_at, last_seen_at, camera_status
+		SELECT id::text, tenant_id::text, site_id::text, label, created_at, revoked_at, last_seen_at, camera_status, COALESCE(box_public_key, '')
 		FROM platform.site_keys
 		WHERE ($1::uuid IS NULL OR site_id = $1::uuid)
 		ORDER BY created_at DESC
@@ -164,7 +166,7 @@ func (s *PostgresKeyStore) List(ctx context.Context, tenantID, siteID string) ([
 	for rows.Next() {
 		var key SiteKey
 		var status []byte
-		if err := rows.Scan(&key.ID, &key.TenantID, &key.SiteID, &key.Label, &key.CreatedAt, &key.RevokedAt, &key.LastSeenAt, &status); err != nil {
+		if err := rows.Scan(&key.ID, &key.TenantID, &key.SiteID, &key.Label, &key.CreatedAt, &key.RevokedAt, &key.LastSeenAt, &status, &key.BoxPublicKey); err != nil {
 			return nil, fmt.Errorf("scan site key: %w", err)
 		}
 		key.CameraStatus = map[string]CameraStatus{}
@@ -239,10 +241,11 @@ func nullableUUID(value string) any {
 
 // MemoryKeyStore is a deterministic store for tests and local development.
 type MemoryKeyStore struct {
-	mu     sync.Mutex
-	keys   map[string]SiteKey
-	hashes map[string]string
-	sites  map[string]bool
+	mu       sync.Mutex
+	keys     map[string]SiteKey
+	hashes   map[string]string
+	sites    map[string]bool
+	pairings map[string]*memoryPairing
 }
 
 // NewMemoryKeyStore accepts the "tenant:site" pairs that exist.

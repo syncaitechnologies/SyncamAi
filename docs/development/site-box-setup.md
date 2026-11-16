@@ -121,17 +121,28 @@ about 18 ms per frame on the Iris Xe GPU and 80 ms on the CPU, enough for about
 
 ## Install (Windows)
 
-1. In the dashboard, register the site's cameras and create a **site key**
-   (Configuration → Site boxes). Copy the key; it is shown once.
+1. In the dashboard, register the site's cameras, then under
+   **Configuration → Site box** press **Pair a site box**. It shows an
+   8-character code such as `K7Q4-XM92` that works once for 30 minutes.
 2. Copy `ai-services/site-worker.example.json` to a private folder outside Git,
    e.g. `D:\private\syncam-site.json`, and map each dashboard camera ID to its
    RTSP address. Use the camera's **sub-stream** (lower resolution) — it is
    plenty for detection and saves CPU. Put passwords in environment variables
    (`${CAM1_PASSWORD}`) rather than in the file where possible.
-3. Run `pwsh scripts/install_site_box.ps1 -Config D:\private\syncam-site.json`.
+3. Run `pwsh scripts/install_site_box.ps1 -Config D:\private\syncam-site.json -PairingCode K7Q4-XM92`.
    It creates a Python 3.12 environment, installs the `site-worker` extra,
-   downloads and verifies the models, asks for the site key, runs a check and
+   downloads and verifies the models, **pairs the box**, runs a check and
    registers an auto-start task.
+
+Pairing: the box creates its own key pair, sends the code and its public key,
+and receives a site key that only it holds. The key is stored in
+`syncam-box.vault` next to the config, encrypted with Windows DPAPI (machine
+scope: unreadable on any other computer; a Fernet key file is used on Linux).
+Nothing has to be copied from the dashboard. To move a box to another site,
+revoke its key in the dashboard, delete the vault file and pair again. You can
+also pair by hand: `python -m syncam_ai.site_worker pair --config <file> --code <code>`.
+The older way, a site key from **Advanced: create a site key instead** in the
+`SYNCAM_SITE_KEY` environment variable, still works and takes precedence.
 
 Common RTSP formats:
 

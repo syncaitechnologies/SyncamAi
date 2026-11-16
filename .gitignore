@@ -52,3 +52,8 @@ evidence/
 secrets/
 *.sqlite
 *.db
+
+# Site box secrets (encrypted, but never commit them)
+*.vault
+*.vault.key
+*.vault.tmp

@@ -113,3 +113,7 @@
 .spotlight-details .wall-live-action { width: 100%; min-height: 37px; margin-top: 12px; }
 @keyframes live-feed-pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .live-feed-chip i { animation: none; } }
+
+/* Site box pairing code */
+.live-pairing .live-pairing-code { display: block; margin: 10px 0; padding: 12px 14px; font: 600 28px "DM Mono", monospace; letter-spacing: .18em; text-align: center; color: #e9fff6; background: #0c1a15; border: 1px dashed #3d7d64; border-radius: 8px; }
+.live-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }

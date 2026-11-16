@@ -72,8 +72,8 @@ func TestPostgresKeyStoreResolveCreateListRevokeHeartbeat(t *testing.T) {
 
 	seen := time.Now()
 	expectTenantTx(mock, pgx.ReadOnly)
-	mock.ExpectQuery("FROM platform.site_keys").WithArgs(testSite).WillReturnRows(pgxmock.NewRows([]string{"id", "tenant_id", "site_id", "label", "created_at", "revoked_at", "last_seen_at", "camera_status"}).
-		AddRow(testKeyID, testTenant, testSite, "Box", seen, nil, &seen, []byte(`{"c":{"online":true}}`)))
+	mock.ExpectQuery("FROM platform.site_keys").WithArgs(testSite).WillReturnRows(pgxmock.NewRows([]string{"id", "tenant_id", "site_id", "label", "created_at", "revoked_at", "last_seen_at", "camera_status", "box_public_key"}).
+		AddRow(testKeyID, testTenant, testSite, "Box", seen, nil, &seen, []byte(`{"c":{"online":true}}`), ""))
 	mock.ExpectCommit()
 	keys, err := store.List(ctx, testTenant, testSite)
 	if err != nil || len(keys) != 1 || !keys[0].CameraStatus["c"].Online || keys[0].LastSeenAt == nil {

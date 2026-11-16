@@ -32,6 +32,8 @@ type SiteIngestOptions struct {
 	// each viewing session. Both are required for live view.
 	Live      *livefeed.Hub
 	LiveAudit livefeed.Auditor
+	// Pairing issues short codes that a new site box redeems for its key.
+	Pairing siteingest.PairingStore
 }
 
 type siteScopeContextKey struct{}
@@ -56,6 +58,7 @@ func (s *Server) registerSiteIngestRoutes() {
 	s.mux.Handle("DELETE /v1/notifications/telegram/{id}", s.authenticate(http.HandlerFunc(s.deleteTelegramTarget)))
 	s.registerAttendanceRoutes()
 	s.registerLiveViewRoutes()
+	s.registerPairingRoutes()
 }
 
 // authenticateSite verifies a site key and runs the handler as a principal
