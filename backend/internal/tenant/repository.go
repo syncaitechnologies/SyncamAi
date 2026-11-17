@@ -26,7 +26,36 @@ var (
 	ErrSiteConflict = errors.New("site conflicts with existing tenant state")
 	// ErrTenantNotFound means the verified tenant has not been provisioned.
 	ErrTenantNotFound = errors.New("tenant not found")
+	// ErrPlanLimit means the tenant's plan allows no more sites.
+	ErrPlanLimit = errors.New("plan limit reached")
+	// ErrRegistrationInvalid means workspace registration input was rejected.
+	ErrRegistrationInvalid = errors.New("workspace registration input is invalid")
+	// ErrMembershipInactive means the user's existing membership is suspended or revoked.
+	ErrMembershipInactive = errors.New("membership is not active")
 )
+
+// RegisterWorkspaceCommand creates a first workspace for a verified user with
+// no membership (ADR-016). UserID comes only from the verified token subject.
+type RegisterWorkspaceCommand struct {
+	UserID    string
+	RequestID string
+	Company   string
+	SiteName  string
+	Timezone  string
+}
+
+// RegisterWorkspaceResult names the user's workspace; Created is false when
+// the user already had one.
+type RegisterWorkspaceResult struct {
+	TenantID string `json:"tenant_id"`
+	SiteID   string `json:"site_id"`
+	Created  bool   `json:"created"`
+}
+
+// Registrar creates self-service workspaces.
+type Registrar interface {
+	RegisterWorkspace(context.Context, RegisterWorkspaceCommand) (RegisterWorkspaceResult, error)
+}
 
 // Site is a facility owned by exactly one tenant.
 type Site struct {
@@ -164,6 +193,21 @@ func (r *PostgresRepository) CreateSite(ctx context.Context, command CreateSiteC
 		return CreateSiteResult{}, fmt.Errorf("read idempotency key: %w", err)
 	}
 
+	var overLimit bool
+	if err := tx.QueryRow(ctx, `
+		SELECT t.site_limit IS NOT NULL
+		   AND (SELECT count(*) FROM config.sites s WHERE s.tenant_id = t.id AND s.status <> 'retired') >= t.site_limit
+		FROM identity.tenants t WHERE t.id = $1::uuid`, command.TenantID,
+	).Scan(&overLimit); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return CreateSiteResult{}, ErrTenantNotFound
+		}
+		return CreateSiteResult{}, fmt.Errorf("check site_limit: %w", err)
+	}
+	if overLimit {
+		return CreateSiteResult{}, ErrPlanLimit
+	}
+
 	site := Site{
 		ID: uuid.NewString(), TenantID: command.TenantID, Name: strings.TrimSpace(command.Name),
 		Address: strings.TrimSpace(command.Address), Timezone: command.Timezone, Status: "provisioning",
@@ -201,6 +245,51 @@ func (r *PostgresRepository) CreateSite(ctx context.Context, command CreateSiteC
 		return CreateSiteResult{}, fmt.Errorf("commit site creation: %w", err)
 	}
 	return CreateSiteResult{Site: site}, nil
+}
+
+// RegisterWorkspace calls the narrow database routine that creates the tenant,
+// first site, Super Admin membership and audit events in one transaction.
+func (r *PostgresRepository) RegisterWorkspace(ctx context.Context, command RegisterWorkspaceCommand) (RegisterWorkspaceResult, error) {
+	if r == nil || r.pool == nil {
+		return RegisterWorkspaceResult{}, fmt.Errorf("postgres tenant repository is unavailable")
+	}
+	if _, err := uuid.Parse(command.UserID); err != nil {
+		return RegisterWorkspaceResult{}, ErrRegistrationInvalid
+	}
+	if _, err := uuid.Parse(command.RequestID); err != nil {
+		return RegisterWorkspaceResult{}, ErrRegistrationInvalid
+	}
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadWrite})
+	if err != nil {
+		return RegisterWorkspaceResult{}, fmt.Errorf("begin workspace registration: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var result RegisterWorkspaceResult
+	var siteID *string
+	err = tx.QueryRow(ctx, `
+		SELECT tenant_id::text, site_id::text, created
+		FROM identity.register_workspace($1::uuid, $2::uuid, $3, $4, $5)`,
+		command.UserID, command.RequestID, command.Company, command.SiteName, command.Timezone,
+	).Scan(&result.TenantID, &siteID, &result.Created)
+	if err != nil {
+		var postgresError *pgconn.PgError
+		if errors.As(err, &postgresError) {
+			switch postgresError.Code {
+			case "22023":
+				return RegisterWorkspaceResult{}, ErrRegistrationInvalid
+			case "42501":
+				return RegisterWorkspaceResult{}, ErrMembershipInactive
+			}
+		}
+		return RegisterWorkspaceResult{}, fmt.Errorf("register workspace: %w", err)
+	}
+	if siteID != nil {
+		result.SiteID = *siteID
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return RegisterWorkspaceResult{}, fmt.Errorf("commit workspace registration: %w", err)
+	}
+	return result, nil
 }
 
 func beginTenantTx(ctx context.Context, pool transactionPool, tenantID string, accessMode pgx.TxAccessMode) (pgx.Tx, error) {
@@ -249,6 +338,36 @@ type MemoryRepository struct {
 	mu          sync.Mutex
 	sites       []Site
 	idempotency map[string]memoryReplay
+	workspaces  map[string]RegisterWorkspaceResult
+	// SiteLimit, when positive, caps sites per tenant (plan-limit tests).
+	SiteLimit int
+}
+
+// RegisterWorkspace gives each user exactly one workspace, like the database routine.
+func (r *MemoryRepository) RegisterWorkspace(_ context.Context, command RegisterWorkspaceCommand) (RegisterWorkspaceResult, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, err := uuid.Parse(command.UserID); err != nil {
+		return RegisterWorkspaceResult{}, ErrRegistrationInvalid
+	}
+	company, siteName := strings.TrimSpace(command.Company), strings.TrimSpace(command.SiteName)
+	if len(company) < 2 || len(company) > 120 || len(siteName) < 2 || len(siteName) > 120 {
+		return RegisterWorkspaceResult{}, ErrRegistrationInvalid
+	}
+	if _, err := time.LoadLocation(command.Timezone); err != nil || command.Timezone == "" {
+		return RegisterWorkspaceResult{}, ErrRegistrationInvalid
+	}
+	if r.workspaces == nil {
+		r.workspaces = make(map[string]RegisterWorkspaceResult)
+	}
+	if existing, ok := r.workspaces[command.UserID]; ok {
+		existing.Created = false
+		return existing, nil
+	}
+	result := RegisterWorkspaceResult{TenantID: uuid.NewString(), SiteID: uuid.NewString(), Created: true}
+	r.sites = append(r.sites, Site{ID: result.SiteID, TenantID: result.TenantID, Name: siteName, Timezone: command.Timezone, Status: "provisioning", CreatedAt: time.Now().UTC()})
+	r.workspaces[command.UserID] = result
+	return result, nil
 }
 
 type memoryReplay struct {
@@ -289,6 +408,17 @@ func (r *MemoryRepository) CreateSite(_ context.Context, command CreateSiteComma
 			return CreateSiteResult{}, ErrIdempotencyConflict
 		}
 		return CreateSiteResult{Site: replay.site, Replayed: true}, nil
+	}
+	if r.SiteLimit > 0 {
+		count := 0
+		for _, existing := range r.sites {
+			if existing.TenantID == command.TenantID && existing.Status != "retired" {
+				count++
+			}
+		}
+		if count >= r.SiteLimit {
+			return CreateSiteResult{}, ErrPlanLimit
+		}
 	}
 	site := Site{ID: uuid.NewString(), TenantID: command.TenantID, Name: strings.TrimSpace(command.Name), Address: strings.TrimSpace(command.Address), Timezone: command.Timezone, Status: "provisioning", CreatedAt: time.Now().UTC()}
 	r.sites = append(r.sites, site)

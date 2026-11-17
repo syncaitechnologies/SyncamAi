@@ -60,6 +60,41 @@ Authentication → URL configuration → Redirect URLs.
 2. On the site box follow [site-box-setup.md](site-box-setup.md).
 3. **Zones & rules**: draw zones on the camera pictures and set schedules.
 
+## 5a. Self-service sign-up (ADR-016)
+
+Clients can create their own account and workspace at the dashboard URL
+(`?signup` opens the sign-up form). Before sharing it:
+
+1. Apply `20261117090000_self_service_workspace.sql`. It changes the access-token
+   hook (users with no workspace now get a token without workspace claims) and
+   adds `identity.register_workspace` plus trial columns on `identity.tenants`.
+2. **Email sender.** Supabase's built-in email reaches only your own team and is
+   heavily rate-limited. Set up custom SMTP (for example Resend, free tier):
+   verify a sender domain, then Authentication → Emails → SMTP settings.
+3. Authentication → Sign In / Providers → Email: turn on **Confirm email**,
+   minimum password length **15**, leave sign-ups on.
+4. Authentication → Emails → templates "Confirm signup" and "Reset password":
+   include the 6-digit code `{{ .Token }}`, for example
+   "Your SyncCam code is {{ .Token }}. It expires in one hour."
+5. Authentication → URL configuration: Site URL = the Vercel URL.
+6. Recommended: Authentication → Attack protection → CAPTCHA with Cloudflare
+   Turnstile (free). The dashboard does not send a CAPTCHA token yet, so turn
+   this on only after that small change ships.
+7. Optional Vercel variables: `VITE_SYNCAM_TERMS_URL`, `VITE_SYNCAM_PRIVACY_URL`
+   (https pages, once the texts are approved) and `VITE_SYNCAM_CONTACT_EMAIL`
+   (shown on the trial banner).
+
+New workspaces get a 14-day trial with 1 site and 10 cameras. To extend or
+activate one (SQL editor, as the project owner):
+
+```sql
+update identity.tenants set trial_ends_at = now() + interval '14 days' where slug = '<slug>';
+update identity.tenants set plan = 'active', site_limit = null, camera_limit = null where slug = '<slug>';
+```
+
+Users see the change after their next token refresh (within an hour, or at once
+after signing out and in).
+
 ## 6. End-to-end test
 
 - Walk into an armed zone: a Telegram photo arrives within seconds and the

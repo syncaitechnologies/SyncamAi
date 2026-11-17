@@ -83,6 +83,10 @@ func (s *Server) authenticateSite(next http.Handler) http.Handler {
 			writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Authentication required.")
 			return
 		}
+		if scope.TrialEnded {
+			writeTrialEnded(w)
+			return
+		}
 		principal := identity.Principal{
 			UserID: "site-key:" + scope.KeyID, TenantID: scope.TenantID, SiteIDs: []string{scope.SiteID},
 			Roles: []identity.Role{identity.RoleSiteAdmin}, Scopes: siteKeyScopes,

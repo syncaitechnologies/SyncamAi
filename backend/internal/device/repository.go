@@ -18,6 +18,7 @@ import (
 var (
 	ErrCameraNotFound      = errors.New("camera not found")
 	ErrSiteNotFound        = errors.New("site not found")
+	ErrPlanLimit           = errors.New("plan camera limit reached")
 	ErrSerialConflict      = errors.New("camera serial conflicts with tenant state")
 	ErrIdempotencyConflict = errors.New("idempotency key reused with a different request")
 	ErrVersionConflict     = errors.New("camera configuration version conflict")

@@ -51,6 +51,8 @@ def render_status_html(status: Mapping[str, Any]) -> str:
         ("Paired with SyncCam", paired, "Run the installer again, or: syncam-box.exe pair --code &lt;code&gt;"),
         ("Connected to SyncCam", connected, offline_hint),
     ]
+    if worker.get("trial_ended"):
+        checks.append(("SyncCam plan active", False, "The free trial of this workspace has ended, so alerts are not sent. Contact SyncCam to keep using it."))
     check_rows = "".join(
         f"<li class=\"{'ok' if passed else 'bad'}\">{'&#10003;' if passed else '&#10007;'} {label}"
         f"{'' if passed else ' <small>' + hint + '</small>'}</li>"

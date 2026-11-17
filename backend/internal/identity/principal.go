@@ -4,7 +4,29 @@ package identity
 import (
 	"errors"
 	"strings"
+	"time"
 )
+
+// Workspace plans (ADR-016). An empty plan, from tokens issued before plans
+// existed, means active.
+const (
+	PlanTrial     = "trial"
+	PlanActive    = "active"
+	PlanSuspended = "suspended"
+)
+
+// PlanEnded reports whether a workspace may no longer use the service: it is
+// suspended, or its trial end has passed.
+func PlanEnded(plan string, trialEndsAt *time.Time, now time.Time) bool {
+	switch plan {
+	case PlanSuspended:
+		return true
+	case PlanTrial:
+		return trialEndsAt != nil && !now.Before(*trialEndsAt)
+	default:
+		return false
+	}
+}
 
 // Role is one of the canonical seed roles carried in a verified token.
 type Role string
@@ -28,6 +50,15 @@ type Principal struct {
 	Scopes      []string
 	DataClasses []string
 	MFALevel    string
+	// Plan and TrialEndsAt describe the tenant's workspace plan (ADR-016).
+	Plan        string
+	TrialEndsAt *time.Time
+}
+
+// TrialEnded reports whether the principal's workspace trial is over or the
+// workspace is suspended.
+func (p Principal) TrialEnded(now time.Time) bool {
+	return PlanEnded(p.Plan, p.TrialEndsAt, now)
 }
 
 // Validate rejects tokens that cannot be safely used for authorization.

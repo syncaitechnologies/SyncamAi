@@ -205,6 +205,110 @@ func TestOIDCVerifierAcceptsSupabaseAppMetadataClaimsOnly(t *testing.T) {
 	}
 }
 
+func supabaseTestVerifier(t *testing.T) (*OIDCVerifier, *rsa.PrivateKey) {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifier, err := NewOIDCVerifierWithKeySetForProfile(OIDCProfileSupabase, "https://ref.supabase.co/auth/v1", "authenticated",
+		&oidc.StaticKeySet{PublicKeys: []crypto.PublicKey{&key.PublicKey}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return verifier, key
+}
+
+func baseSupabaseClaims() map[string]any {
+	return map[string]any{
+		"iss": "https://ref.supabase.co/auth/v1", "aud": "authenticated",
+		"sub": "11111111-1111-4111-8111-111111111111", "role": "authenticated", "aal": "aal1",
+		"email": "new@example.test",
+		"exp":   time.Now().Add(time.Minute).Unix(), "iat": time.Now().Add(-time.Minute).Unix(),
+	}
+}
+
+func TestVerifyIdentityAcceptsUsersWithoutAWorkspace(t *testing.T) {
+	verifier, key := supabaseTestVerifier(t)
+	claims := baseSupabaseClaims()
+	claims["app_metadata"] = map[string]any{"provider": "email", "syncam_registration": map[string]any{"email_verified": true}}
+	user, err := verifier.VerifyIdentity(context.Background(), signedToken(t, key, claims))
+	if err != nil || user.UserID != "11111111-1111-4111-8111-111111111111" || !user.EmailVerified || user.HasWorkspace || user.Email != "new@example.test" {
+		t.Fatalf("new user: %+v %v", user, err)
+	}
+	if _, err := verifier.Verify(context.Background(), signedToken(t, key, claims)); err == nil {
+		t.Fatal("a token without workspace claims must still be refused by normal routes")
+	}
+	// A self-asserted flag in user_metadata is never trusted.
+	claims["app_metadata"] = map[string]any{"provider": "email"}
+	claims["user_metadata"] = map[string]any{"email_verified": true}
+	if user, err := verifier.VerifyIdentity(context.Background(), signedToken(t, key, claims)); err != nil || user.EmailVerified {
+		t.Fatalf("user_metadata must not verify an email: %+v %v", user, err)
+	}
+	claims["is_anonymous"] = true
+	if _, err := verifier.VerifyIdentity(context.Background(), signedToken(t, key, claims)); err == nil {
+		t.Fatal("anonymous users cannot register")
+	}
+	claims["is_anonymous"] = false
+	claims["sub"] = "not-a-uuid"
+	if _, err := verifier.VerifyIdentity(context.Background(), signedToken(t, key, claims)); err == nil {
+		t.Fatal("a non-UUID subject cannot register")
+	}
+	generic, err := NewOIDCVerifierWithKeySet("https://ref.supabase.co/auth/v1", "authenticated", &oidc.StaticKeySet{PublicKeys: []crypto.PublicKey{&key.PublicKey}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims["sub"] = "11111111-1111-4111-8111-111111111111"
+	if _, err := generic.VerifyIdentity(context.Background(), signedToken(t, key, claims)); err == nil {
+		t.Fatal("registration requires the Supabase profile")
+	}
+}
+
+func TestSupabaseTrialClaims(t *testing.T) {
+	verifier, key := supabaseTestVerifier(t)
+	claims := baseSupabaseClaims()
+	ends := time.Now().Add(-time.Hour).UTC().Format("2006-01-02T15:04:05.000000+00:00")
+	claims["app_metadata"] = map[string]any{"syncam": map[string]any{
+		"tenant_id": "22222222-2222-4222-8222-222222222222", "site_ids": []string{},
+		"roles": []string{"super_admin"}, "scopes": []string{"sites:read"}, "data_class": []string{"metadata"},
+		"plan": "trial", "trial_ends_at": ends, "site_limit": 1, "camera_limit": 10,
+	}}
+	principal, err := verifier.Verify(context.Background(), signedToken(t, key, claims))
+	if err != nil || principal.Plan != PlanTrial || principal.TrialEndsAt == nil || !principal.TrialEnded(time.Now()) {
+		t.Fatalf("ended trial: %+v %v", principal, err)
+	}
+	user, err := verifier.VerifyIdentity(context.Background(), signedToken(t, key, claims))
+	if err != nil || !user.HasWorkspace {
+		t.Fatalf("members are reported as having a workspace: %+v %v", user, err)
+	}
+	claims["app_metadata"].(map[string]any)["syncam"].(map[string]any)["plan"] = "gold"
+	if _, err := verifier.Verify(context.Background(), signedToken(t, key, claims)); err == nil {
+		t.Fatal("an unknown plan must be refused")
+	}
+	claims["app_metadata"].(map[string]any)["syncam"].(map[string]any)["plan"] = "trial"
+	claims["app_metadata"].(map[string]any)["syncam"].(map[string]any)["trial_ends_at"] = "soon"
+	if _, err := verifier.Verify(context.Background(), signedToken(t, key, claims)); err == nil {
+		t.Fatal("a malformed trial end must be refused")
+	}
+}
+
+func TestPlanEnded(t *testing.T) {
+	now := time.Date(2026, 11, 17, 12, 0, 0, 0, time.UTC)
+	past, future := now.Add(-time.Second), now.Add(time.Hour)
+	for _, test := range []struct {
+		plan  string
+		ends  *time.Time
+		ended bool
+	}{
+		{"", nil, false}, {PlanActive, &past, false}, {PlanTrial, &future, false},
+		{PlanTrial, &past, true}, {PlanTrial, &now, true}, {PlanSuspended, nil, true},
+	} {
+		if got := PlanEnded(test.plan, test.ends, now); got != test.ended {
+			t.Errorf("PlanEnded(%q, %v) = %v", test.plan, test.ends, got)
+		}
+	}
+}
+
 func TestOIDCVerifierRejectsUnsupportedProfile(t *testing.T) {
 	if _, err := NewOIDCVerifierWithKeySetForProfile("unknown", "https://issuer.example.test", "client", &oidc.StaticKeySet{}); err == nil {
 		t.Fatal("unsupported OIDC profile was accepted")

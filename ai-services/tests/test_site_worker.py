@@ -371,6 +371,35 @@ class RunnerTest(BackendFixture):
             moment[0] = START + timedelta(minutes=4)  # refreshes failed since
             self.assertFalse(worker.status()["connected"])
 
+    def test_an_ended_trial_pauses_the_box_and_shows_on_the_status_page(self) -> None:
+        from syncam_ai.site_worker.client import BackendError
+        from syncam_ai.site_worker.status import render_status_html
+
+        class _EndedTrialBackend:
+            answer: Exception | None = BackendError("GET /v1/site-ingest/config failed with HTTP 402", status=402, retryable=False)
+
+            def config(self):
+                if self.answer is not None:
+                    raise self.answer
+                return {"tenant_id": "t", "site_id": "s", "site": {"name": "Shop"}, "cameras": [], "zones": []}
+
+            def heartbeat(self, cameras):
+                pass
+
+        backend = _EndedTrialBackend()
+        with tempfile.TemporaryDirectory() as directory:
+            worker = SiteWorker(backend=backend, detector=_Detector(), streams={}, spool=Spool(pathlib.Path(directory)), clock=lambda: 1000.0)
+            worker.tick()
+            self.assertTrue(worker.status()["trial_ended"])
+            self.assertIsNone(worker.rules)
+            page = render_status_html({"paired": True, "worker": worker.status(), "update": {}})
+            self.assertIn("free trial of this workspace has ended", page)
+            backend.answer = None
+            worker._last_config = -1e9
+            worker.tick()
+            self.assertFalse(worker.status()["trial_ended"])
+            self.assertIsNotNone(worker.rules)
+
     def test_end_to_end_intrusion_and_camera_offline(self) -> None:
         clock = [0.0]
         stream, detector = _Stream(), _Detector()

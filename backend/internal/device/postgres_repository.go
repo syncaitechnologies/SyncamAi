@@ -123,6 +123,20 @@ func (r *PostgresRepository) Create(ctx context.Context, command CreateCameraCom
 	if !siteExists {
 		return CreateCameraResult{}, ErrSiteNotFound
 	}
+	var overLimit bool
+	if err := tx.QueryRow(ctx, `
+		SELECT t.camera_limit IS NOT NULL
+		   AND (SELECT count(*) FROM config.cameras c WHERE c.tenant_id = t.id AND c.lifecycle_status <> 'retired') >= t.camera_limit
+		FROM identity.tenants t WHERE t.id = $1::uuid`, command.TenantID,
+	).Scan(&overLimit); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return CreateCameraResult{}, ErrSiteNotFound
+		}
+		return CreateCameraResult{}, fmt.Errorf("check camera_limit: %w", err)
+	}
+	if overLimit {
+		return CreateCameraResult{}, ErrPlanLimit
+	}
 
 	camera := Camera{
 		ID: uuid.NewString(), TenantID: command.TenantID, SiteID: command.SiteID,

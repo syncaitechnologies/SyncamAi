@@ -154,6 +154,8 @@ class SiteWorker:
         self.alerts_queued = 0
         self.last_alert_at: datetime | None = None
         self._config_ok_at: datetime | None = None
+        # Set when the backend answers 402: the workspace trial has ended.
+        self.trial_ended = False
 
     @property
     def rules(self) -> SiteRules | None:
@@ -180,6 +182,7 @@ class SiteWorker:
             "alerts_queued": self.alerts_queued,
             "last_alert_at": self.last_alert_at.isoformat() if self.last_alert_at else None,
             "alerts_pending": self._spool.pending(),
+            "trial_ended": self.trial_ended,
         }
 
     def refresh_config(self) -> bool:
@@ -207,7 +210,17 @@ class SiteWorker:
         if moment - self._last_config >= CONFIG_REFRESH_SECONDS:
             try:
                 self.refresh_config()
-            except (BackendError, KeyError, ValueError) as error:
+                self.trial_ended = False
+            except BackendError as error:
+                if error.status == 402:
+                    if not self.trial_ended:
+                        _LOG.warning("the SyncCam trial of this workspace has ended; alerts are paused until it is extended")
+                    self.trial_ended = True
+                    # Without a plan nothing may be analysed or sent.
+                    self._rules = None
+                else:
+                    _LOG.warning("configuration refresh failed: %s", error)
+            except (KeyError, ValueError) as error:
                 _LOG.warning("configuration refresh failed: %s", error)
             self._last_config = moment
         if self._rules is None:

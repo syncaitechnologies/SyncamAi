@@ -23,7 +23,30 @@ function readSelectedSiteReady() {
 }
 import { useWorkspace } from "./use-workspace";
 import { useLiveAlertNotifications } from "./live-notifications";
+import { trialStatus } from "./signup-model";
+import { readWorkspace } from "./workspace";
 import "./live.css";
+
+function contactLink(subject: string) {
+  const email = String(import.meta.env.VITE_SYNCAM_CONTACT_EMAIL ?? "").trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    ? <a href={`mailto:${email}?subject=${encodeURIComponent(subject)}`}>{email}</a>
+    : "SyncCam";
+}
+
+function TrialEnded({ label, onSignOut }: { label: string; onSignOut?: () => void }) {
+  return (
+    <main className="auth-shell">
+      <section className="auth-card" aria-labelledby="trial-ended-title">
+        <span className="auth-mark" aria-hidden="true">SC</span>
+        <p className="eyebrow">SyncCam AI</p>
+        <h1 id="trial-ended-title">{label}</h1>
+        <p className="auth-copy">Your cameras, zones and settings are kept, but alerts are paused. Contact {contactLink("Continue my SyncCam workspace")} to keep using SyncCam.</p>
+        {onSignOut && <button type="button" className="auth-secondary auth-exit" onClick={onSignOut}>Sign out</button>}
+      </section>
+    </main>
+  );
+}
 
 type Filter = "all" | "critical" | "unacknowledged" | "acknowledged";
 type View = "dashboard" | "alerts" | "cameras" | "zones" | "models" | "onboarding" | "vision" | "local-camera" | "settings" | "attendance";
@@ -234,6 +257,14 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
     live && !readSelectedSiteReady() ? "settings" : initialLocalCameraView(window.location.search, dataMode) ?? initialDemoView(window.location.search, dataMode),
   );
   const [now, setNow] = useState(() => new Date());
+  const trial = live ? trialStatus(readWorkspace()?.plan, workspace.cameras.length, now) : null;
+  // A brand-new workspace has a site but no cameras: start on the setup cards.
+  const openedSetup = useRef(false);
+  useEffect(() => {
+    if (!live || openedSetup.current || workspace.loading || workspace.error) return;
+    openedSetup.current = true;
+    if (workspace.site && workspace.cameras.length === 0) setActiveView("settings");
+  }, [live, workspace.loading, workspace.error, workspace.site, workspace.cameras.length]);
   const [selectedId, setSelectedId] = useState(firstAlert.id);
   const [filter, setFilter] = useState<Filter>("all");
   const [site, setSite] = useState("Northstar Distribution");
@@ -433,6 +464,9 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
     setDismissId(null);
     setToast(`Alert dismissed · ${reason}`);
   }
+  if (live && (trial?.ended || workspace.errorCode === "TRIAL_ENDED")) {
+    return <TrialEnded label={trial?.label ?? "Your free trial has ended"} onSignOut={onSignOut} />;
+  }
   return (
     <div className={activeView === "local-camera" ? "app-shell camera-shell" : activeView === "vision" ? "app-shell vision-shell" : "app-shell"}>
       <aside className="sidebar" aria-label="Primary navigation">
@@ -595,6 +629,12 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
         </div>
       </aside>
       <main className="main-content">
+        {trial && (
+          <div className={trial.daysLeft !== null && trial.daysLeft <= 3 ? "trial-banner ending" : "trial-banner"} role="status">
+            <span>{trial.label}{trial.cameraText ? ` · ${trial.cameraText}` : ""}</span>
+            <small>{trial.atCameraLimit ? "Camera limit reached. " : ""}To keep SyncCam after the trial, contact {contactLink("Upgrade my SyncCam trial")}.</small>
+          </div>
+        )}
         <header className="topbar">
           <div className="breadcrumbs">
             <span>Monitor</span>

@@ -1,6 +1,12 @@
 // The signed-in user's tenant and sites, taken from verified token claims by
 // the MFA gate. UI routing only: the Go API re-verifies every request.
-export type Workspace = { tenantId: string; siteIds: string[]; roles: string[] };
+export type Workspace = {
+  tenantId: string;
+  siteIds: string[];
+  roles: string[];
+  // Trial details (ADR-016); absent for workspaces without a plan claim.
+  plan?: { plan: string; trialEndsAt: string | null; siteLimit: number | null; cameraLimit: number | null };
+};
 
 const workspaceKey = "syncam.workspace";
 

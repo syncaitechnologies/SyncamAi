@@ -132,6 +132,9 @@ func (s *Server) createCamera(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, device.ErrSiteNotFound):
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found.")
 		return
+	case errors.Is(err, device.ErrPlanLimit):
+		writeError(w, http.StatusConflict, "PLAN_LIMIT", "Your plan's camera limit is reached. Contact us to add more cameras.")
+		return
 	case err != nil:
 		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Camera repository unavailable.")
 		return

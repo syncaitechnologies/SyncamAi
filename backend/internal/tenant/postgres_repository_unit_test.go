@@ -60,6 +60,7 @@ func TestPostgresRepositoryCreatesAuditedIdempotentSite(t *testing.T) {
 	mock.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs(unitTenantID + ":create-site").WillReturnResult(pgxmock.NewResult("SELECT", 1))
 	mock.ExpectExec("DELETE FROM platform.idempotency_keys").WithArgs(unitTenantID, "create-site").WillReturnResult(pgxmock.NewResult("DELETE", 0))
 	mock.ExpectQuery("SELECT request_hash, response_body").WithArgs(unitTenantID, "create-site").WillReturnRows(pgxmock.NewRows([]string{"request_hash", "response_body"}))
+	mock.ExpectQuery("site_limit").WithArgs(unitTenantID).WillReturnRows(pgxmock.NewRows([]string{"over"}).AddRow(false))
 	mock.ExpectQuery("INSERT INTO config.sites").
 		WithArgs(pgxmock.AnyArg(), unitTenantID, "Pilot", "Pune", "Asia/Kolkata", "user-1").
 		WillReturnRows(pgxmock.NewRows([]string{"created_at"}).AddRow(createdAt))
@@ -134,6 +135,94 @@ func TestPostgresRepositoryReplaysExactResponseAndRejectsDifferentBody(t *testin
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestPostgresRepositoryRefusesSitesOverThePlanLimit(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mock.Close()
+	command := CreateSiteCommand{TenantID: unitTenantID, ActorID: "user-1", RequestID: unitRequestID, IdempotencyKey: "second-site", Name: "Second", Timezone: "UTC"}
+	mock.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadWrite})
+	mock.ExpectExec("SELECT set_config").WithArgs(unitTenantID).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+	mock.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs(unitTenantID + ":second-site").WillReturnResult(pgxmock.NewResult("SELECT", 1))
+	mock.ExpectExec("DELETE FROM platform.idempotency_keys").WithArgs(unitTenantID, "second-site").WillReturnResult(pgxmock.NewResult("DELETE", 0))
+	mock.ExpectQuery("SELECT request_hash, response_body").WithArgs(unitTenantID, "second-site").WillReturnRows(pgxmock.NewRows([]string{"request_hash", "response_body"}))
+	mock.ExpectQuery("site_limit").WithArgs(unitTenantID).WillReturnRows(pgxmock.NewRows([]string{"over"}).AddRow(true))
+	mock.ExpectRollback()
+	if _, err := NewPostgresRepository(mock).CreateSite(context.Background(), command); !errors.Is(err, ErrPlanLimit) {
+		t.Fatalf("expected plan limit, got %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryRegistersWorkspaceThroughTheNarrowRoutine(t *testing.T) {
+	const userID = "44444444-4444-4444-8444-444444444444"
+	siteID := "55555555-5555-4555-8555-555555555555"
+	command := RegisterWorkspaceCommand{UserID: userID, RequestID: unitRequestID, Company: "Acme", SiteName: "Head office", Timezone: "America/Toronto"}
+	for _, test := range []struct {
+		name    string
+		rows    *pgxmock.Rows
+		err     error
+		want    error
+		created bool
+	}{
+		{name: "created", rows: pgxmock.NewRows([]string{"tenant_id", "site_id", "created"}).AddRow(unitTenantID, &siteID, true), created: true},
+		{name: "existing", rows: pgxmock.NewRows([]string{"tenant_id", "site_id", "created"}).AddRow(unitTenantID, &siteID, false)},
+		{name: "invalid", err: &pgconn.PgError{Code: "22023"}, want: ErrRegistrationInvalid},
+		{name: "suspended", err: &pgconn.PgError{Code: "42501"}, want: ErrMembershipInactive},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			mock, err := pgxmock.NewPool()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer mock.Close()
+			mock.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadWrite})
+			query := mock.ExpectQuery("identity.register_workspace").WithArgs(userID, unitRequestID, "Acme", "Head office", "America/Toronto")
+			if test.err != nil {
+				query.WillReturnError(test.err)
+				mock.ExpectRollback()
+			} else {
+				query.WillReturnRows(test.rows)
+				mock.ExpectCommit()
+			}
+			result, err := NewPostgresRepository(mock).RegisterWorkspace(context.Background(), command)
+			if !errors.Is(err, test.want) {
+				t.Fatalf("expected %v, got %v", test.want, err)
+			}
+			if test.want == nil && (result.TenantID != unitTenantID || result.Created != test.created) {
+				t.Fatalf("unexpected result: %+v", result)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+	if _, err := NewPostgresRepository(nil).RegisterWorkspace(context.Background(), command); err == nil {
+		t.Fatal("expected unavailable repository error")
+	}
+}
+
+func TestMemoryRepositoryGivesEachUserOneWorkspace(t *testing.T) {
+	repository := NewMemoryRepository(nil)
+	command := RegisterWorkspaceCommand{UserID: "44444444-4444-4444-8444-444444444444", RequestID: unitRequestID, Company: "Acme", SiteName: "Head office", Timezone: "UTC"}
+	first, err := repository.RegisterWorkspace(context.Background(), command)
+	if err != nil || !first.Created {
+		t.Fatalf("first: %+v %v", first, err)
+	}
+	command.Company = "Other"
+	again, err := repository.RegisterWorkspace(context.Background(), command)
+	if err != nil || again.Created || again.TenantID != first.TenantID {
+		t.Fatalf("repeat: %+v %v", again, err)
+	}
+	command.UserID, command.Company = "66666666-6666-4666-8666-666666666666", "X"
+	if _, err := repository.RegisterWorkspace(context.Background(), command); !errors.Is(err, ErrRegistrationInvalid) {
+		t.Fatalf("short company: %v", err)
 	}
 }
 
