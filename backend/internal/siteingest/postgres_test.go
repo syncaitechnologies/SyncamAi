@@ -43,10 +43,21 @@ func TestPostgresKeyStoreResolveCreateListRevokeHeartbeat(t *testing.T) {
 	}
 	mock.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadOnly})
 	mock.ExpectQuery("resolve_site_key").WithArgs(HashKey(raw)).WillReturnRows(pgxmock.NewRows([]string{"key_id", "tenant_id", "site_id"}).AddRow(testKeyID, testTenant, testSite))
+	mock.ExpectExec("SELECT set_config").WithArgs(testTenant).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+	mock.ExpectQuery("SELECT plan, trial_ends_at").WithArgs(testTenant).WillReturnRows(pgxmock.NewRows([]string{"plan", "trial_ends_at"}).AddRow("active", (*time.Time)(nil)))
 	mock.ExpectCommit()
 	scope, err := store.Resolve(ctx, raw)
-	if err != nil || scope.KeyID != testKeyID || scope.SiteID != testSite {
+	if err != nil || scope.KeyID != testKeyID || scope.SiteID != testSite || scope.TrialEnded {
 		t.Fatalf("resolve: %v %+v", err, scope)
+	}
+	ended := time.Now().Add(-time.Hour)
+	mock.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	mock.ExpectQuery("resolve_site_key").WithArgs(HashKey(raw)).WillReturnRows(pgxmock.NewRows([]string{"key_id", "tenant_id", "site_id"}).AddRow(testKeyID, testTenant, testSite))
+	mock.ExpectExec("SELECT set_config").WithArgs(testTenant).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+	mock.ExpectQuery("SELECT plan, trial_ends_at").WithArgs(testTenant).WillReturnRows(pgxmock.NewRows([]string{"plan", "trial_ends_at"}).AddRow("trial", &ended))
+	mock.ExpectCommit()
+	if scope, err := store.Resolve(ctx, raw); err != nil || !scope.TrialEnded {
+		t.Fatalf("ended trial: %v %+v", err, scope)
 	}
 	mock.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadOnly})
 	mock.ExpectQuery("resolve_site_key").WithArgs(HashKey(raw)).WillReturnRows(pgxmock.NewRows([]string{"key_id", "tenant_id", "site_id"}))

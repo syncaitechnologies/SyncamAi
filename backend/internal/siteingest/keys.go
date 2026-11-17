@@ -19,6 +19,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
 )
 
 // KeyPrefix marks SyncCam site keys so they are recognisable in secret scans.
@@ -35,6 +36,9 @@ type Scope struct {
 	KeyID    string
 	TenantID string
 	SiteID   string
+	// TrialEnded is true when the site's workspace trial is over or the
+	// workspace is suspended (ADR-016); the box is then refused with 402.
+	TrialEnded bool
 }
 
 // CameraStatus is the box's latest view of one camera stream.
@@ -113,6 +117,19 @@ func (s *PostgresKeyStore) Resolve(ctx context.Context, rawKey string) (Scope, e
 	if err != nil {
 		return Scope{}, fmt.Errorf("resolve site key: %w", err)
 	}
+	if _, err := tx.Exec(ctx, "SELECT set_config('app.tenant_id', $1, true)", scope.TenantID); err != nil {
+		return Scope{}, fmt.Errorf("set site key tenant context: %w", err)
+	}
+	var plan string
+	var trialEndsAt *time.Time
+	err = tx.QueryRow(ctx, `SELECT plan, trial_ends_at FROM identity.tenants WHERE id = $1::uuid`, scope.TenantID).Scan(&plan, &trialEndsAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Scope{}, ErrInvalidKey
+	}
+	if err != nil {
+		return Scope{}, fmt.Errorf("read site key plan: %w", err)
+	}
+	scope.TrialEnded = identity.PlanEnded(plan, trialEndsAt, time.Now())
 	return scope, tx.Commit(ctx)
 }
 

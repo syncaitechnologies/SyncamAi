@@ -2,8 +2,11 @@ import type { Session } from "@supabase/supabase-js";
 import type { AuthClient } from "./supabase-auth.ts";
 
 export type MfaFactor = { id: string; friendly_name?: string };
+// Workspace plan from the token (ADR-016). Absent for workspaces made before plans.
+export type WorkspacePlan = { plan: "trial" | "active" | "suspended"; trialEndsAt: string | null; siteLimit: number | null; cameraLimit: number | null };
 export type SessionDecision =
-  | { kind: "ready"; tenantId: string; siteIds: string[]; roles: string[] }
+  | { kind: "ready"; tenantId: string; siteIds: string[]; roles: string[]; plan?: WorkspacePlan }
+  | { kind: "needs_workspace"; emailVerified: boolean }
   | { kind: "enroll" }
   | { kind: "challenge"; factors: MfaFactor[] }
   | { kind: "blocked"; message: string };
@@ -20,14 +23,41 @@ function strings(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string" && item.trim() !== "");
 }
 
+function limit(value: unknown): number | null | undefined {
+  if (value === null || value === undefined) return null;
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
+}
+
+// The plan claims, or undefined when absent; null when present but malformed.
+function workspacePlan(membership: Record<string, unknown>): WorkspacePlan | undefined | null {
+  if (membership.plan === undefined) return undefined;
+  const plan = membership.plan;
+  if (plan !== "trial" && plan !== "active" && plan !== "suspended") return null;
+  const trialEndsAt = membership.trial_ends_at ?? null;
+  if (trialEndsAt !== null && (typeof trialEndsAt !== "string" || Number.isNaN(Date.parse(trialEndsAt)))) return null;
+  const siteLimit = limit(membership.site_limit);
+  const cameraLimit = limit(membership.camera_limit);
+  if (siteLimit === undefined || cameraLimit === undefined) return null;
+  return { plan, trialEndsAt, siteLimit, cameraLimit };
+}
+
 // UI routing only. Call with getClaims-verified claims, never session.user metadata.
 // The Go API independently verifies the JWT and enforces authorization and MFA.
 export function decideSession(
   claims: Record<string, unknown>,
   factors: { id: string; factor_type: string; status: string; friendly_name?: string }[],
 ): SessionDecision {
-  const membership = record(record(claims.app_metadata)?.syncam);
-  if (claims.is_anonymous === true || !membership || typeof membership.tenant_id !== "string" || !membership.tenant_id.trim()
+  if (claims.is_anonymous === true) return { kind: "blocked", message: missingMembership };
+  const appMetadata = record(claims.app_metadata);
+  // The token hook omits the syncam claim only for a user with no membership at
+  // all (ADR-016): they may create their first workspace. A present but
+  // malformed claim still fails closed.
+  if (!appMetadata || appMetadata.syncam === undefined) {
+    return { kind: "needs_workspace", emailVerified: record(appMetadata?.syncam_registration)?.email_verified === true };
+  }
+  const membership = record(appMetadata.syncam);
+  const plan = membership ? workspacePlan(membership) : null;
+  if (!membership || plan === null || typeof membership.tenant_id !== "string" || !membership.tenant_id.trim()
     || !strings(membership.roles) || !membership.roles.length
     || membership.roles.some((role) => !roles.has(role))
     || !strings(membership.scopes) || !membership.scopes.length
@@ -47,7 +77,7 @@ export function decideSession(
     if (totp.length) return { kind: "challenge", factors: totp };
     return { kind: "blocked", message: "This account uses a factor not supported by this screen. Contact your administrator; MFA cannot be skipped." };
   }
-  return { kind: "ready", tenantId: membership.tenant_id, siteIds: membership.site_ids, roles: membership.roles };
+  return { kind: "ready", tenantId: membership.tenant_id, siteIds: membership.site_ids, roles: membership.roles, ...(plan ? { plan } : {}) };
 }
 
 export async function inspectSession(client: AuthClient, session: Session): Promise<SessionDecision> {

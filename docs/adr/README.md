@@ -13,12 +13,13 @@ Architecture decisions are immutable records: supersede an accepted ADR with a n
 | [ADR-007](ADR-007-seed-roles.md) | Five seed roles | Accepted |
 | [ADR-008](ADR-008-composite-deployment.md) | Composite MVP deployables | Accepted |
 | [ADR-009](ADR-009-supabase-cloudflare-mvp-backend.md) | Temporary Supabase + Cloudflare MVP backend | Accepted |
-| [ADR-010](ADR-010-initial-super-admin-bootstrap.md) | Initial Super Admin bootstrap | Accepted |
+| [ADR-010](ADR-010-initial-super-admin-bootstrap.md) | Initial Super Admin bootstrap | Accepted; self-service clause superseded by ADR-016 |
 | [ADR-011](ADR-011-identity-provider-lifecycle-delivery.md) | Identity-provider lifecycle delivery | Accepted |
 | [ADR-012](ADR-012-free-prototype-runtime-access.md) | Restricted free prototype runtime access | Engineering decision; not GA approval |
 | [ADR-013](ADR-013-mobile-three-feature-demo.md) | Mobile walkthrough for three AI workflows | Engineering decision; synthetic only |
 | [ADR-014](ADR-014-real-phone-camera-prototype.md) | Real local phone camera and proposed three-feature prototype | Camera-capture decision; inference and biometric gates remain |
 | [ADR-015](ADR-015-local-person-inference-bridge.md) | Development-only local person-inference bridge | Engineering decision; no production or biometric approval |
+| [ADR-016](ADR-016-self-service-workspace-registration.md) | Self-service workspace registration with a 14-day trial | Accepted |
 
 Every ADR must state its operational and security consequences. ADR-001 remains a release blocker until legal approval is recorded.
 

@@ -4,6 +4,7 @@ import type { Session } from "@supabase/supabase-js";
 import { App } from "./App";
 import { inspectSession, type SessionDecision } from "./auth-session";
 import { syncAccessToken, type AuthClient } from "./supabase-auth";
+import { WorkspaceSetup } from "./WorkspaceSetup";
 import { storeWorkspace } from "./workspace";
 
 type Enrollment = { id: string; qr: string; secret: string };
@@ -30,7 +31,7 @@ export function MfaGate({ client, session, onSignOut, notice, signingOut }: {
       if (!active) return;
       if (decision.kind === "ready") {
         syncAccessToken(session);
-        storeWorkspace({ tenantId: decision.tenantId, siteIds: decision.siteIds, roles: decision.roles });
+        storeWorkspace({ tenantId: decision.tenantId, siteIds: decision.siteIds, roles: decision.roles, ...(decision.plan ? { plan: decision.plan } : {}) });
       }
       setResult({ token: session.access_token, decision });
     }).catch(() => {
@@ -40,6 +41,9 @@ export function MfaGate({ client, session, onSignOut, notice, signingOut }: {
   }, [client, session.access_token, session.user.id, retry, signingOut]);
 
   const decision = result?.token === session.access_token ? result.decision : null;
+  if (decision?.kind === "needs_workspace" && !signingOut) {
+    return <WorkspaceSetup client={client} session={session} emailVerified={decision.emailVerified} onSignOut={onSignOut} />;
+  }
   if (decision?.kind === "ready" && !signingOut) {
     return <>
       {notice && <p className="auth-session-notice" role="alert">{notice}</p>}
@@ -120,7 +124,7 @@ function MfaForm({ client, decision, onVerified }: {
   }
 
   return <>
-    <p className="auth-copy">{decision.kind === "enroll" ? "Your role requires multi-factor authentication. Add SyncCam AI to your authenticator app, then verify a code to continue." : "Enter the current six-digit code from your registered authenticator. MFA cannot be skipped."}</p>
+    <p className="auth-copy">{decision.kind === "enroll" ? "Administrators sign in with two steps. Install an authenticator app on your phone (for example Google Authenticator or Microsoft Authenticator), add SyncCam AI to it, then enter the 6-digit code it shows." : "Enter the current six-digit code from your registered authenticator. MFA cannot be skipped."}</p>
     {decision.kind === "enroll" && !enrollment && <button type="button" className="auth-primary auth-exit" disabled={busy} onClick={() => void enroll()}>{busy ? "Preparing…" : "Set up authenticator"}</button>}
     {enrollment && <div className="auth-enrollment">
       <img className="auth-qr" src={enrollment.qr} alt="Scan this private setup QR code with your authenticator app" />

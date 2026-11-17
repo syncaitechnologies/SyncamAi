@@ -46,8 +46,32 @@ test("multiple verified TOTP factors remain selectable and pending ones are excl
 
 test("never trusts editable user metadata, top-level roles or an MFA flag", () => {
   const trusted = claims();
-  assert.equal(decideSession({ user_metadata: trusted.app_metadata, roles: ["super_admin"], aal: "aal2" }, []).kind, "blocked");
+  // Without the hook's syncam claim the user only gets the "create a workspace" screen.
+  assert.deepEqual(decideSession({ user_metadata: { ...trusted.app_metadata, syncam_registration: { email_verified: true } }, roles: ["super_admin"], aal: "aal2" }, []),
+    { kind: "needs_workspace", emailVerified: false });
   assert.equal(decideSession({ ...claims("super_admin"), mfa_complete: true }, []).kind, "enroll");
+});
+
+test("a user with no membership is sent to workspace setup, never into the app", () => {
+  assert.deepEqual(decideSession({ sub: "user-1", aal: "aal1", app_metadata: { provider: "email", syncam_registration: { email_verified: true } } }, []),
+    { kind: "needs_workspace", emailVerified: true });
+  assert.deepEqual(decideSession({ sub: "user-1", aal: "aal1", app_metadata: { provider: "email" } }, []),
+    { kind: "needs_workspace", emailVerified: false });
+  assert.equal(decideSession({ sub: "user-1", aal: "aal1", is_anonymous: true, app_metadata: {} }, []).kind, "blocked");
+});
+
+test("trial plan claims reach the app and malformed ones fail closed", () => {
+  const trial = { ...claims("super_admin", "aal2"), app_metadata: { syncam: { ...claims("super_admin").app_metadata.syncam,
+    plan: "trial", trial_ends_at: "2026-12-01T10:00:00.000000+00:00", site_limit: 1, camera_limit: 10 } } };
+  assert.deepEqual(decideSession(trial, [totp]), {
+    kind: "ready", tenantId: "tenant-1", siteIds: [], roles: ["super_admin"],
+    plan: { plan: "trial", trialEndsAt: "2026-12-01T10:00:00.000000+00:00", siteLimit: 1, cameraLimit: 10 },
+  });
+  const unlimited = { ...trial, app_metadata: { syncam: { ...trial.app_metadata.syncam, plan: "active", trial_ends_at: null, site_limit: null, camera_limit: null } } };
+  assert.deepEqual((decideSession(unlimited, [totp]) as { plan?: unknown }).plan, { plan: "active", trialEndsAt: null, siteLimit: null, cameraLimit: null });
+  for (const broken of [{ plan: "gold" }, { trial_ends_at: "soon" }, { camera_limit: -1 }, { site_limit: "1" }]) {
+    assert.equal(decideSession({ ...trial, app_metadata: { syncam: { ...trial.app_metadata.syncam, ...broken } } }, [totp]).kind, "blocked");
+  }
 });
 
 test("missing, malformed and unsupported membership or assurance fails closed", () => {

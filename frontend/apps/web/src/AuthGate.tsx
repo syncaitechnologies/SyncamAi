@@ -2,13 +2,20 @@ import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 
 import { App } from "./App";
+import {
+  ForgotPassword,
+  NewPasswordForm,
+  ResetCode,
+  SignInForm,
+  SignUpForm,
+  VerifyEmailCode,
+  type AuthView,
+} from "./AuthForms";
 import { MfaGate } from "./MfaGate";
 import { observeSession } from "./auth-session";
 import {
   createSupabaseAuthClient,
-  currentAuthRedirect,
   readAuthRuntimeConfig,
-  ssoDomainFromEmail,
   syncAccessToken,
 } from "./supabase-auth";
 
@@ -22,11 +29,21 @@ function AuthScreen({ message }: { message?: string }) {
   );
   const [state, setState] = useState<AuthState>("loading");
   const [session, setSession] = useState<Session | null>(null);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [notice, setNotice] = useState(message ?? "");
-  const [submitting, setSubmitting] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [view, setView] = useState<AuthView>(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("signup") !== null
+      ? { name: "sign-up" } : { name: "sign-in" });
+  // A password-reset session must set a new password before the dashboard opens.
+  const [recovering, setRecovering] = useState(false);
+
+  useEffect(() => {
+    if (!client) return;
+    const { data } = client.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setRecovering(true);
+    });
+    return () => data.subscription.unsubscribe();
+  }, [client]);
 
   useEffect(() => {
     if (!client) {
@@ -41,7 +58,7 @@ function AuthScreen({ message }: { message?: string }) {
       if (!next || next.access_token !== lastAccessToken) syncAccessToken(null);
       lastAccessToken = next?.access_token;
       setSession(next);
-      setPassword("");
+      if (!next) setRecovering(false);
       setState(next ? "loading" : "signed_out");
     }, () => {
       syncAccessToken(null);
@@ -56,44 +73,6 @@ function AuthScreen({ message }: { message?: string }) {
     };
   }, [client]);
 
-  async function signIn(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!client) return;
-    setSubmitting(true);
-    setNotice("");
-    try {
-      const { error } = await client.auth.signInWithPassword({ email: email.trim(), password });
-      if (error) throw error;
-    } catch {
-      setNotice("Sign-in was not successful. Check your details and connection, then try again.");
-    } finally {
-      setPassword("");
-      setSubmitting(false);
-    }
-  }
-
-  async function signInWithSso() {
-    if (!client) return;
-    const domain = ssoDomainFromEmail(email);
-    if (!domain) {
-      setNotice("Enter your work email to continue with single sign-on.");
-      return;
-    }
-    setSubmitting(true);
-    setNotice("");
-    try {
-      const { error } = await client.auth.signInWithSSO({
-        domain,
-        options: { redirectTo: currentAuthRedirect() },
-      });
-      if (error) throw error;
-    } catch {
-      setNotice("Single sign-on could not be started. Check your connection or contact your administrator.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   async function signOut() {
     if (!client || signingOut) return;
     setSigningOut(true);
@@ -103,6 +82,8 @@ function AuthScreen({ message }: { message?: string }) {
       const { error } = await client.auth.signOut();
       if (error) throw error;
       setSession(null);
+      setRecovering(false);
+      setView({ name: "sign-in" });
       setState("signed_out");
     } catch {
       setNotice("Sign-out could not be completed. Check your connection and retry. Your provider session may still be active.");
@@ -115,6 +96,9 @@ function AuthScreen({ message }: { message?: string }) {
   if (config.mode === "misconfigured") {
     return <AuthConfigurationRequired message={config.message} />;
   }
+  if (session && client && recovering) {
+    return <NewPasswordForm client={client} onDone={() => setRecovering(false)} onSignOut={() => void signOut()} />;
+  }
   if (session && client) {
     return <MfaGate key={session.user.id} client={client} session={session} notice={notice} signingOut={signingOut} onSignOut={() => void signOut()} />;
   }
@@ -125,55 +109,21 @@ function AuthScreen({ message }: { message?: string }) {
       </main>
     );
   }
+  if (!client) return <AuthConfigurationRequired message="Authentication is not available." />;
 
-  return (
-    <main className="auth-shell">
-      <section className="auth-card" aria-labelledby="sign-in-title">
-        <span className="auth-mark" aria-hidden="true">SC</span>
-        <p className="eyebrow">SyncCam AI operations</p>
-        <h1 id="sign-in-title">Sign in to your workspace</h1>
-        <p className="auth-copy">
-          Use the account provisioned by your organization. Workspace access is
-          verified by the SyncCam API after sign-in.
-        </p>
-        <form onSubmit={signIn} className="auth-form">
-          <label>
-            Work email
-            <input
-              autoComplete="email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-            />
-          </label>
-          <label>
-            Password
-            <input
-              autoComplete="current-password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
-          </label>
-          <button type="submit" disabled={submitting} className="auth-primary">
-            {submitting ? "Signing in…" : "Sign in"}
-          </button>
-        </form>
-        <div className="auth-divider" aria-hidden="true"><span>or</span></div>
-        <button
-          type="button"
-          disabled={submitting}
-          onClick={() => void signInWithSso()}
-          className="auth-secondary"
-        >
-          Continue with single sign-on
-        </button>
-        {notice && <p className="auth-notice" role="alert">{notice}</p>}
-      </section>
-    </main>
-  );
+  const go = (next: AuthView) => { setNotice(""); setView(next); };
+  switch (view.name) {
+    case "sign-up":
+      return <SignUpForm client={client} go={go} />;
+    case "verify":
+      return <VerifyEmailCode client={client} go={go} email={view.email} />;
+    case "forgot":
+      return <ForgotPassword client={client} go={go} />;
+    case "reset-code":
+      return <ResetCode client={client} go={go} email={view.email} onRecovering={setRecovering} />;
+    default:
+      return <SignInForm key={notice} client={client} go={go} notice={notice || view.notice} />;
+  }
 }
 
 function AuthConfigurationRequired({ message }: { message: string }) {

@@ -85,6 +85,7 @@ func TestPostgresRepositoryCreatesAuditedCameraAndReplays(t *testing.T) {
 	mock.ExpectExec("DELETE FROM platform.idempotency_keys").WithArgs(tenantA, "create-camera").WillReturnResult(pgxmock.NewResult("DELETE", 0))
 	mock.ExpectQuery("SELECT request_hash, response_body").WithArgs(tenantA, "create-camera").WillReturnRows(pgxmock.NewRows([]string{"request_hash", "response_body"}))
 	mock.ExpectQuery("SELECT EXISTS").WithArgs(siteA, tenantA).WillReturnRows(pgxmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectQuery("camera_limit").WithArgs(tenantA).WillReturnRows(pgxmock.NewRows([]string{"over"}).AddRow(false))
 	mock.ExpectQuery("INSERT INTO config.cameras").WithArgs(pgxmock.AnyArg(), tenantA, siteA, "SN-01", "Gate", "Perimeter", pgxmock.AnyArg(), "user-1").WillReturnRows(pgxmock.NewRows([]string{"created_at", "updated_at"}).AddRow(createdAt, createdAt))
 	mock.ExpectExec("INSERT INTO platform.idempotency_keys").WithArgs(tenantA, "create-camera", pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	expectAudit(mock, "camera.created", pgxmock.AnyArg(), createdAt)
@@ -126,10 +127,12 @@ func TestPostgresRepositoryRejectsCreateConflicts(t *testing.T) {
 		name       string
 		hash       string
 		siteExists bool
+		overLimit  bool
 		want       error
 	}{
 		{name: "idempotency", hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", want: ErrIdempotencyConflict},
 		{name: "site", hash: hash, siteExists: false, want: ErrSiteNotFound},
+		{name: "plan limit", hash: hash, siteExists: true, overLimit: true, want: ErrPlanLimit},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			mock, err := pgxmock.NewPool()
@@ -145,6 +148,9 @@ func TestPostgresRepositoryRejectsCreateConflicts(t *testing.T) {
 			} else {
 				mock.ExpectQuery("SELECT request_hash, response_body").WithArgs(tenantA, "create-camera").WillReturnRows(pgxmock.NewRows([]string{"request_hash", "response_body"}))
 				mock.ExpectQuery("SELECT EXISTS").WithArgs(siteA, tenantA).WillReturnRows(pgxmock.NewRows([]string{"exists"}).AddRow(test.siteExists))
+				if test.siteExists {
+					mock.ExpectQuery("camera_limit").WithArgs(tenantA).WillReturnRows(pgxmock.NewRows([]string{"over"}).AddRow(test.overLimit))
+				}
 			}
 			mock.ExpectRollback()
 			if _, err := NewPostgresRepository(mock).Create(context.Background(), command); !errors.Is(err, test.want) {

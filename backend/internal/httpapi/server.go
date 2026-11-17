@@ -52,6 +52,7 @@ type Server struct {
 	privacyReleaseTransport privacymasks.ReleaseTransportRepository
 	siteIngest              SiteIngestOptions
 	pairingLimiter          *attemptLimiter
+	registrationLimiter     *attemptLimiter
 	mux                     *http.ServeMux
 }
 
@@ -117,6 +118,8 @@ func NewWithSiteIngest(verifier identity.Verifier, tenants tenant.Repository, ev
 	server := &Server{verifier: verifier, tenants: tenants, events: events, alerts: alerts, realtime: realtimeRepository, tickets: tickets, cameras: cameras, enrollment: enrollment, deviceStatus: deviceStatus, deviceVerifier: deviceVerifier, zones: zoneRepository, configuration: configuration, privacyMasks: privacyMasks, privacyReleaseTransport: privacyReleaseTransport, siteIngest: siteIngest, mux: http.NewServeMux()}
 	// 10 pairing attempts per caller and 300 overall per 10 minutes.
 	server.pairingLimiter = newAttemptLimiter(10*time.Minute, 10, 300)
+	// 5 workspace registrations per caller and 100 overall per hour.
+	server.registrationLimiter = newAttemptLimiter(time.Hour, 5, 100)
 	server.mux.HandleFunc("GET /healthz", server.health)
 	server.mux.Handle("GET /v1/auth/me", server.authenticate(http.HandlerFunc(server.me)))
 	server.mux.Handle("POST /v1/auth/ws-ticket", server.authenticate(http.HandlerFunc(server.issueRealtimeTicket)))
@@ -150,6 +153,7 @@ func NewWithSiteIngest(verifier identity.Verifier, tenants tenant.Repository, ev
 	server.mux.Handle("POST /v1/alerts/{id}/acknowledge", server.authenticate(http.HandlerFunc(server.acknowledgeAlert)))
 	server.mux.HandleFunc("GET /ws/v1/alerts", server.streamAlerts)
 	server.registerSiteIngestRoutes()
+	server.registerRegistrationRoutes()
 	return server.mux
 }
 
@@ -334,6 +338,11 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 			writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Authentication required.")
 			return
 		}
+		// An ended trial or suspended workspace keeps only "who am I" (ADR-016).
+		if principal.TrialEnded(time.Now()) && r.URL.Path != "/v1/auth/me" {
+			writeTrialEnded(w)
+			return
+		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalContextKey{}, principal)))
 	})
 }
@@ -377,6 +386,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 		"id": principal.UserID, "email": principal.Email, "tenant_id": principal.TenantID,
 		"site_ids": principal.SiteIDs, "roles": principal.Roles, "scopes": principal.Scopes,
 		"data_class": principal.DataClasses, "mfa_level": principal.MFALevel,
+		"plan": principal.Plan, "trial_ends_at": principal.TrialEndsAt,
 	}})
 }
 
@@ -492,6 +502,9 @@ func (s *Server) createSite(w http.ResponseWriter, r *http.Request) {
 		return
 	case errors.Is(err, tenant.ErrSiteConflict):
 		writeError(w, http.StatusConflict, "RESOURCE_CONFLICT", "A site with this name already exists.")
+		return
+	case errors.Is(err, tenant.ErrPlanLimit):
+		writeError(w, http.StatusConflict, "PLAN_LIMIT", "Your plan's site limit is reached. Contact us to add more sites.")
 		return
 	case errors.Is(err, tenant.ErrTenantNotFound):
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found.")
