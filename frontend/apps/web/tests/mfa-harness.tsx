@@ -5,7 +5,35 @@ import { createRoot } from "react-dom/client";
 import type { Session } from "@supabase/supabase-js";
 import type { AuthClient } from "../src/supabase-auth";
 import { MfaGate } from "../src/MfaGate";
-import { ForgotPassword, ResetCode, SignInForm, SignUpForm, VerifyEmailCode, type AuthView } from "../src/AuthForms";
+import { ForgotPassword, NewPasswordForm, ResetCode, SignInForm, SignUpForm, VerifyEmailCode, type AuthView } from "../src/AuthForms";
+
+// Synthetic password reset for an account with an authenticator: Supabase
+// refuses the new password until the authenticator code has been verified.
+function ResetWithAuthenticator() {
+  const [log, setLog] = useState("none");
+  const client = useMemo(() => {
+    let aal2 = false;
+    return { auth: {
+      mfa: {
+        async listFactors() { return { error: null, data: { all: [{ id: "synthetic-factor", status: "verified", factor_type: "totp" }] } }; },
+        async challengeAndVerify({ code }: { code: string }) {
+          if (code !== "123456") return { error: new Error("Synthetic invalid code"), data: null };
+          aal2 = true;
+          return { error: null, data: {} };
+        },
+      },
+      async updateUser() {
+        setLog(aal2 ? "updateUser accepted" : "updateUser refused: insufficient_aal");
+        return aal2 ? { error: null, data: {} } : { error: Object.assign(new Error("AAL2 required"), { code: "insufficient_aal" }), data: {} };
+      },
+    } } as unknown as AuthClient;
+  }, []);
+  const [done, setDone] = useState(false);
+  return <>
+    <p role="status" style={{ padding: "0 16px" }}>Last call: {log}</p>
+    {done ? <p role="status">Synthetic password saved.</p> : <NewPasswordForm client={client} onDone={() => setDone(true)} onSignOut={() => setLog("signed out")} />}
+  </>;
+}
 import "../src/styles.css";
 
 // Synthetic sign-in, sign-up, code and reset screens with a fake client.
@@ -39,10 +67,10 @@ function Fixture() {
   return <><aside style={{ padding: 16 }}>
     <strong>Synthetic MFA fixture — no provider or live API requests</strong>
     <label> Scenario <select value={scenario} onChange={(event) => setScenario(event.target.value)}>
-      {["enroll", "challenge", "check-error", "unsupported", "missing-membership", "needs-workspace", "auth-screens"].map((value) => <option key={value}>{value}</option>)}
+      {["enroll", "challenge", "check-error", "unsupported", "missing-membership", "needs-workspace", "auth-screens", "reset-with-authenticator"].map((value) => <option key={value}>{value}</option>)}
     </select></label>
     <p>Fixture code: 123456. Any other six-digit code fails. Never use real account details here.</p>
-  </aside>{scenario === "auth-screens" ? <AuthScreens /> : <Scenario key={scenario} scenario={scenario} />}</>;
+  </aside>{scenario === "auth-screens" ? <AuthScreens /> : scenario === "reset-with-authenticator" ? <ResetWithAuthenticator /> : <Scenario key={scenario} scenario={scenario} />}</>;
 }
 
 function Scenario({ scenario }: { scenario: string }) {

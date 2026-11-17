@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { currentAuthRedirect, ssoDomainFromEmail, type AuthClient } from "./supabase-auth";
 import {
   MIN_PASSWORD_LENGTH,
+  needsAuthenticator,
   normalizeCode,
+  passwordUpdateMessage,
   validateEmail,
   validatePassword,
   validateSignUp,
@@ -297,8 +299,25 @@ export function ResetCode({ client, go, email, onRecovering }: FormProps & { ema
 
 export function NewPasswordForm({ client, onDone, onSignOut }: { client: AuthClient; onDone: () => void; onSignOut: () => void }) {
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  // The account's authenticator, when it has one: Supabase then needs its code
+  // before it accepts a new password.
+  const [factorId, setFactorId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  async function loadAuthenticator(): Promise<string | null> {
+    const { data, error } = await client.auth.mfa.listFactors();
+    if (error) return null;
+    const totp = data.all.find((factor) => factor.factor_type === "totp" && factor.status === "verified");
+    return totp?.id ?? null;
+  }
+
+  useEffect(() => {
+    let active = true;
+    void loadAuthenticator().then((id) => { if (active && id) setFactorId(id); }).catch(() => {});
+    return () => { active = false; };
+  }, [client]);
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -307,16 +326,29 @@ export function NewPasswordForm({ client, onDone, onSignOut }: { client: AuthCli
       setNotice(issue);
       return;
     }
+    if (factorId && !validCode(code)) {
+      setNotice("Enter the 6-digit code from your authenticator app.");
+      return;
+    }
     setSubmitting(true);
     setNotice("");
     try {
+      if (factorId) {
+        const { error } = await client.auth.mfa.challengeAndVerify({ factorId, code });
+        setCode("");
+        if (error) {
+          setNotice("That authenticator code did not work. Enter the current code from the app and try again.");
+          return;
+        }
+      }
       const { error } = await client.auth.updateUser({ password });
       if (error) throw error;
-      onDone();
-    } catch {
-      setNotice("Your new password could not be saved. Choose a different one, or sign out and request a new code.");
-    } finally {
       setPassword("");
+      onDone();
+    } catch (error) {
+      if (needsAuthenticator(error) && !factorId) setFactorId(await loadAuthenticator().catch(() => null));
+      setNotice(passwordUpdateMessage(error));
+    } finally {
       setSubmitting(false);
     }
   }
@@ -328,6 +360,10 @@ export function NewPasswordForm({ client, onDone, onSignOut }: { client: AuthCli
           <input autoComplete="new-password" type="password" minLength={MIN_PASSWORD_LENGTH} value={password} onChange={(event) => setPassword(event.target.value)} required />
           <small className="auth-hint">At least {MIN_PASSWORD_LENGTH} characters.</small>
         </label>
+        {factorId && <label>Authenticator code
+          <input autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={code} disabled={submitting} onChange={(event) => setCode(normalizeCode(event.target.value))} required />
+          <small className="auth-hint">Your account uses an authenticator app. Enter the 6-digit code it shows now.</small>
+        </label>}
         <button type="submit" disabled={submitting} className="auth-primary">{submitting ? "Saving…" : "Save new password"}</button>
       </form>
       <button type="button" className="auth-secondary auth-exit" onClick={onSignOut}>Sign out</button>
