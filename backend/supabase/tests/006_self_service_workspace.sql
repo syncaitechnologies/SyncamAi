@@ -108,11 +108,23 @@ select throws_ok($$select identity.syncam_custom_access_token(jsonb_build_object
   'claims', jsonb_build_object('sub', '41600000-0000-4000-8000-000000000001')))$$,
   '42501', null, 'a suspended member still cannot get a token');
 
+-- pgTAP functions are not visible to the runtime role, so record the outcome
+-- in a table and assert it after switching back.
+create temporary table registration_observations (name text primary key, passed boolean);
+grant insert on registration_observations to syncam_render;
 set local role syncam_render;
-select throws_ok($$select * from identity.register_workspace('41600000-0000-4000-8000-000000000003',
-  '41600000-0000-4000-8000-000000000023', 'X', 'Site', 'UTC')$$,
-  '22023', null, 'a one-character company name is rejected');
+do $$ begin
+  begin
+    perform identity.register_workspace('41600000-0000-4000-8000-000000000003',
+      '41600000-0000-4000-8000-000000000023', 'X', 'Site', 'UTC');
+    insert into registration_observations values ('short_company', false);
+  exception when sqlstate '22023' then
+    insert into registration_observations values ('short_company', true);
+  end;
+end $$;
 reset role;
+select ok((select passed from registration_observations where name = 'short_company'),
+  'a one-character company name is rejected');
 
 select * from finish();
 rollback;
