@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  needsAuthenticator,
   normalizeCode,
+  passwordUpdateMessage,
   registerWorkspace,
   RegistrationError,
   trialStatus,
@@ -29,6 +31,18 @@ test("verification codes are six digits", () => {
   assert.equal(validCode("123456"), true);
   assert.equal(validCode("12345"), false);
   assert.equal(validCode("12345a"), false);
+});
+
+test("a password reset on an account with an authenticator asks for its code", () => {
+  const aal = { code: "insufficient_aal", message: "AAL2 session is required to update email or password when MFA is enabled." };
+  assert.equal(needsAuthenticator(aal), true);
+  assert.equal(needsAuthenticator({ code: "same_password" }), false);
+  assert.equal(needsAuthenticator(new Error("offline")), false);
+  assert.equal(needsAuthenticator(null), false);
+  assert.match(passwordUpdateMessage(aal), /authenticator app/);
+  assert.match(passwordUpdateMessage({ code: "same_password" }), /current password/);
+  assert.match(passwordUpdateMessage({ code: "weak_password" }), /too easy to guess/);
+  assert.match(passwordUpdateMessage(new Error("offline")), /could not be saved/);
 });
 
 test("workspace setup needs a company, a site and a timezone", () => {

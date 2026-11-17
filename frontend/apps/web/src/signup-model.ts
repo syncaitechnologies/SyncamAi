@@ -33,6 +33,21 @@ export function validCode(code: string): boolean {
   return /^\d{6}$/.test(code);
 }
 
+// Supabase refuses a password change from an email-code session when the
+// account has an authenticator app (error code insufficient_aal): the
+// authenticator code must be entered too.
+export function needsAuthenticator(error: unknown): boolean {
+  return typeof error === "object" && error !== null && (error as { code?: unknown }).code === "insufficient_aal";
+}
+
+export function passwordUpdateMessage(error: unknown): string {
+  const code = typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
+  if (code === "insufficient_aal") return "This account uses an authenticator app. Enter its 6-digit code as well, then save again.";
+  if (code === "same_password") return "That is your current password. Choose a different one.";
+  if (code === "weak_password") return "That password is too easy to guess. Choose a longer one that you do not use anywhere else.";
+  return "Your new password could not be saved. Try again, or sign out and request a new code.";
+}
+
 export type WorkspaceDraft = { company: string; siteName: string; timezone: string };
 
 export function validateWorkspaceDraft(draft: WorkspaceDraft): string | null {
