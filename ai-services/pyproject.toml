@@ -17,7 +17,7 @@ person-detector = [
 site-worker = [
   "numpy>=1.26,<3",
   "openvino>=2025.0,<2026.0",
-  "opencv-python-headless>=4.10,<5",
+  "opencv-python-headless>=4.10,<6",
   "tzdata>=2024.1",
   "cryptography>=43,<47",
 ]
