@@ -95,6 +95,23 @@ update identity.tenants set plan = 'active', site_limit = null, camera_limit = n
 Users see the change after their next token refresh (within an hour, or at once
 after signing out and in).
 
+## 5b. Live-view minutes (ADR-017)
+
+Every workspace gets 10 live-view minutes a month; the owner's own workspace
+is unlimited. To sell more minutes to a client, or to change the setting (SQL
+editor, as the project owner; applies within a minute):
+
+```sql
+update identity.tenants set live_view_minutes = 300 where slug = '<slug>';   -- 5 hours a month
+update identity.tenants set live_view_minutes = null where slug = '<slug>';  -- unlimited
+update identity.tenants set live_view_minutes = 0 where slug = '<slug>';     -- live view off
+-- This month's use, in minutes, for every workspace:
+select t.slug, t.live_view_minutes as allowance, round(coalesce(u.seconds_used, 0) / 60.0, 1) as used_minutes
+from identity.tenants t
+left join platform.live_view_usage u on u.tenant_id = t.id and u.month = date_trunc('month', now())::date
+order by used_minutes desc;
+```
+
 ## 6. End-to-end test
 
 - Walk into an armed zone: a Telegram photo arrives within seconds and the

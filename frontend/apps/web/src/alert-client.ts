@@ -98,6 +98,14 @@ export class AlertApiClient {
 
   /** Fetches an authenticated image (snapshot or reference frame) as an object URL. */
   async imageUrl(path: string, signal?: AbortSignal): Promise<string | null> {
+    return (await this.image(path, signal))?.url ?? null;
+  }
+
+  /**
+   * Like imageUrl, plus when the picture was taken if the server says so
+   * (X-Frame-Captured-At or Last-Modified); null when it does not.
+   */
+  async image(path: string, signal?: AbortSignal): Promise<{ url: string; capturedAt: string | null } | null> {
     const accessToken = sessionStorage.getItem("syncam.access_token");
     const response = await fetch(`${this.config.apiBaseUrl}${path}`, {
       method: "GET",
@@ -113,7 +121,8 @@ export class AlertApiClient {
     if (!response.ok) {
       throw new AlertApiError(`Image request failed with ${response.status}.`, response.status);
     }
-    return URL.createObjectURL(await response.blob());
+    const capturedAt = response.headers.get("X-Frame-Captured-At") ?? response.headers.get("Last-Modified");
+    return { url: URL.createObjectURL(await response.blob()), capturedAt };
   }
 
   async acknowledgeAlert(

@@ -21,7 +21,7 @@ const (
 
 type clock struct{ now time.Time }
 
-func (c *clock) Now() time.Time            { return c.now }
+func (c *clock) Now() time.Time             { return c.now }
 func (c *clock) Advance(step time.Duration) { c.now = c.now.Add(step) }
 
 func newTestHub() (*Hub, *clock) {
@@ -61,7 +61,7 @@ func TestFramesFlowOnlyWhileSomeoneWatches(t *testing.T) {
 	}
 
 	c.Advance(ViewerTTL + time.Second)
-	if hub.Watching(tenantA, siteA, camera1, "user-1") {
+	if _, watching := hub.Watching(tenantA, siteA, camera1, "user-1"); watching {
 		t.Fatal("a viewer that stopped polling expires")
 	}
 	if hub.Put(tenantA, siteA, camera1, []byte("frame-2")) {
@@ -93,6 +93,35 @@ func TestStopAndStaleFrames(t *testing.T) {
 	hub.Stop(tenantA, siteA, camera1, "user-2")
 	if len(hub.Wanted(tenantA, siteA)) != 0 {
 		t.Fatal("no viewers, nothing wanted")
+	}
+}
+
+func TestWatchingReportsViewingTimeAndPausesAfterFiveMinutes(t *testing.T) {
+	hub, c := newTestHub()
+	hub.Watch(tenantA, siteA, camera1, "user-1")
+	c.Advance(500 * time.Millisecond)
+	state, ok := hub.Watching(tenantA, siteA, camera1, "user-1")
+	if !ok || state.Elapsed != 500*time.Millisecond || state.Age != 500*time.Millisecond || state.Paused() {
+		t.Fatalf("first poll: %+v %v", state, ok)
+	}
+	// Keep polling every 5 seconds (inside ViewerTTL) for almost 5 minutes.
+	for index := 0; index < 59; index++ {
+		c.Advance(5 * time.Second)
+		state, ok = hub.Watching(tenantA, siteA, camera1, "user-1")
+	}
+	if !ok || state.Elapsed != 5*time.Second || state.Paused() {
+		t.Fatalf("before five minutes: %+v %v", state, ok)
+	}
+	c.Advance(5 * time.Second)
+	if state, ok = hub.Watching(tenantA, siteA, camera1, "user-1"); !ok || !state.Paused() || state.Age < MaxContinuous {
+		t.Fatalf("after five minutes: %+v %v", state, ok)
+	}
+	hub.Stop(tenantA, siteA, camera1, "user-1")
+	if started, _ := hub.Watch(tenantA, siteA, camera1, "user-1"); !started {
+		t.Fatal("continuing after a pause is a new, audited session")
+	}
+	if state, _ := hub.Watching(tenantA, siteA, camera1, "user-1"); state.Age != 0 {
+		t.Fatalf("the new session starts its own clock: %+v", state)
 	}
 }
 

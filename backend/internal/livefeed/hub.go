@@ -23,6 +23,9 @@ const (
 	FrameTTL = 10 * time.Second
 	// MaxViewersPerCamera bounds memory use per camera.
 	MaxViewersPerCamera = 32
+	// MaxContinuous is how long one viewing session may run before it pauses
+	// and the viewer has to confirm they are still watching (ADR-017).
+	MaxContinuous = 5 * time.Minute
 )
 
 type cameraKey struct{ tenantID, siteID, cameraID string }
@@ -32,11 +35,27 @@ type frame struct {
 	at   time.Time
 }
 
+type viewer struct {
+	started time.Time
+	seen    time.Time
+}
+
+// Session state returned by Watching: Elapsed is the viewing time since the
+// viewer's previous poll (what the meter charges), Age how long this session
+// has run (what the pause compares with MaxContinuous).
+type WatchState struct {
+	Elapsed time.Duration
+	Age     time.Duration
+}
+
+// Paused reports whether the session has run for MaxContinuous or longer.
+func (s WatchState) Paused() bool { return s.Age >= MaxContinuous }
+
 // Hub holds who is watching which camera and the newest frame for each.
 type Hub struct {
 	mu      sync.Mutex
 	now     func() time.Time
-	viewers map[cameraKey]map[string]time.Time
+	viewers map[cameraKey]map[string]viewer
 	frames  map[cameraKey]frame
 }
 
@@ -45,7 +64,7 @@ func NewHub() *Hub { return NewHubWithClock(time.Now) }
 
 // NewHubWithClock returns an empty hub with an injectable clock for tests.
 func NewHubWithClock(now func() time.Time) *Hub {
-	return &Hub{now: now, viewers: map[cameraKey]map[string]time.Time{}, frames: map[cameraKey]frame{}}
+	return &Hub{now: now, viewers: map[cameraKey]map[string]viewer{}, frames: map[cameraKey]frame{}}
 }
 
 // Watch marks viewerID as watching the camera. It reports whether this starts
@@ -59,30 +78,41 @@ func (h *Hub) Watch(tenantID, siteID, cameraID, viewerID string) (started, ok bo
 	h.pruneLocked(key, now)
 	viewers := h.viewers[key]
 	if viewers == nil {
-		viewers = map[string]time.Time{}
+		viewers = map[string]viewer{}
 		h.viewers[key] = viewers
 	}
-	_, watching := viewers[viewerID]
+	current, watching := viewers[viewerID]
 	if !watching && len(viewers) >= MaxViewersPerCamera {
 		return false, false
 	}
-	viewers[viewerID] = now
+	if !watching {
+		current.started = now
+	}
+	current.seen = now
+	viewers[viewerID] = current
 	return !watching, true
 }
 
 // Watching reports whether viewerID has an active session for the camera,
-// and refreshes it when it does.
-func (h *Hub) Watching(tenantID, siteID, cameraID, viewerID string) bool {
+// and refreshes it when it does. The returned state says how much viewing
+// time passed since the previous poll and how old the session is.
+func (h *Hub) Watching(tenantID, siteID, cameraID, viewerID string) (WatchState, bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	key := cameraKey{tenantID, siteID, cameraID}
 	now := h.now()
 	h.pruneLocked(key, now)
-	if _, ok := h.viewers[key][viewerID]; !ok {
-		return false
+	current, ok := h.viewers[key][viewerID]
+	if !ok {
+		return WatchState{}, false
 	}
-	h.viewers[key][viewerID] = now
-	return true
+	state := WatchState{Elapsed: now.Sub(current.seen), Age: now.Sub(current.started)}
+	if state.Elapsed < 0 {
+		state.Elapsed = 0
+	}
+	current.seen = now
+	h.viewers[key][viewerID] = current
+	return state, true
 }
 
 // Stop ends viewerID's session for the camera.
@@ -141,9 +171,9 @@ func (h *Hub) Latest(tenantID, siteID, cameraID string) ([]byte, time.Time, bool
 
 // pruneLocked drops expired viewers, and the frame once nobody watches.
 func (h *Hub) pruneLocked(key cameraKey, now time.Time) {
-	for viewer, seen := range h.viewers[key] {
-		if now.Sub(seen) > ViewerTTL {
-			delete(h.viewers[key], viewer)
+	for id, current := range h.viewers[key] {
+		if now.Sub(current.seen) > ViewerTTL {
+			delete(h.viewers[key], id)
 		}
 	}
 	if len(h.viewers[key]) == 0 {

@@ -27,7 +27,9 @@ _HEALTH_NAMESPACE = uuid.UUID("6a1f1c9e-3c3e-4b55-8a4c-8f1e2d7b9a10")
 CAMERA_OFFLINE_SECONDS = 60.0
 CONFIG_REFRESH_SECONDS = 60.0
 HEARTBEAT_SECONDS = 120.0
-REFERENCE_SECONDS = 1800.0
+# The reference picture is the still shown on the dashboard's camera wall and
+# used to draw zones (ADR-017), so it is refreshed every 5 minutes.
+REFERENCE_SECONDS = 300.0
 
 TITLES = {
     "intrusion": "Intrusion",

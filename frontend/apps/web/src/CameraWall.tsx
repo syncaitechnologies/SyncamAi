@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import type { AlertItem, Severity } from "./alert-contracts";
 import {
@@ -9,10 +9,22 @@ import {
   type CameraWallFilter,
   type CameraWallLayout,
 } from "./camera-wall-model";
+import type { ApiCamera } from "./camera-contracts";
 import { Icon } from "./icon";
 import { LiveCameraFeed } from "./LiveCameraFeed";
+import {
+  canStartLive,
+  contactHref,
+  isUnlimited,
+  limitMessage,
+  resetLabel,
+  stillAgeLabel,
+  usageLabel,
+  type LiveViewUsage,
+} from "./live-view-model";
 import type { SyncamApi } from "./syncam-api";
 import { useCameraInventory } from "./use-camera-inventory";
+import { useCameraStills, type CameraStill } from "./use-camera-stills";
 
 interface CameraWallProps {
   alerts: AlertItem[];
@@ -22,7 +34,13 @@ interface CameraWallProps {
   api?: SyncamApi | null;
   onOpenAlertCenter: (alertId?: string) => void;
   onNotify: (message: string) => void;
+  /** Shown when live view minutes run out. Defaults to VITE_SYNCAM_CONTACT_EMAIL. */
+  contactEmail?: string;
+  /** Synthetic cameras for browser fixtures; skips the camera list request. */
+  fixtureCameras?: ApiCamera[];
 }
+
+const USAGE_REFRESH_MS = 30_000;
 
 const layouts: CameraWallLayout[] = [1, 4, 9, 16, 25];
 const statusLabels: Record<CameraTile["status"], string> = {
@@ -38,7 +56,19 @@ function severityClass(severity: Severity) {
   return `wall-event-${severity.toLowerCase()}`;
 }
 
-function CameraVisual({ tile }: { tile: CameraTile }) {
+/**
+ * A tile's picture: the camera's reference still in live mode, or the
+ * synthetic scene graphic in demo mode and while no still exists.
+ */
+function CameraVisual({ tile, still, now }: { tile: CameraTile; still?: CameraStill | null; now: number }) {
+  if (still && tile.status !== "masked") {
+    return (
+      <div className="camera-visual camera-still" aria-hidden="true">
+        <img src={still.url} alt="" />
+        <span className="camera-still-age">{stillAgeLabel(still.capturedAt, now)}</span>
+      </div>
+    );
+  }
   return (
     <div
       className={`camera-visual camera-tone-${tile.tone} camera-${tile.status}`}
@@ -53,7 +83,9 @@ function CameraVisual({ tile }: { tile: CameraTile }) {
           ? "Masked zone"
           : tile.synthetic
             ? "No footage · demo visual"
-            : "Metadata only · stream not requested"}
+            : still === null
+              ? "No still picture yet"
+              : "Loading still picture"}
       </span>
     </div>
   );
@@ -76,23 +108,25 @@ export function CameraWall({
   api = null,
   onOpenAlertCenter,
   onNotify,
+  contactEmail = String(import.meta.env.VITE_SYNCAM_CONTACT_EMAIL ?? ""),
+  fixtureCameras,
 }: CameraWallProps) {
-  const [liveIds, setLiveIds] = useState<ReadonlySet<string>>(() => new Set());
   const canWatch = dataMode === "live" && api !== null;
-  const toggleLive = (id: string) =>
-    setLiveIds((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  // Only the spotlight camera can play live, so at most one stream runs.
+  const [live, setLive] = useState(false);
+  const [usage, setUsage] = useState<LiveViewUsage | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const refreshUsage = useCallback(() => {
+    if (!canWatch || !api) return;
+    api.liveViewUsage().then(setUsage, () => undefined);
+  }, [api, canWatch]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<CameraWallFilter>("all");
   const [layout, setLayout] = useState<CameraWallLayout>(9);
   const [showAlerts, setShowAlerts] = useState(true);
   const [spotlightId, setSpotlightId] = useState<string | null>(null);
   const wallRef = useRef<HTMLDivElement>(null);
-  const inventory = useCameraInventory(alerts, dataMode);
+  const inventory = useCameraInventory(alerts, dataMode, fixtureCameras);
   const tiles = inventory.tiles;
   const filteredTiles = useMemo(
     () => filterCameraWallTiles(tiles, query, filter),
@@ -100,6 +134,40 @@ export function CameraWall({
   );
   const visibleTiles = filteredTiles.slice(0, layout);
   const spotlight = tiles.find(({ id }) => id === spotlightId) ?? null;
+  const liveId = spotlight && live ? spotlight.id : null;
+  const stillIds = useMemo(() => {
+    if (!canWatch) return [];
+    const ids = visibleTiles.map(({ id }) => id);
+    if (spotlight && !ids.includes(spotlight.id)) ids.push(spotlight.id);
+    return ids;
+  }, [canWatch, spotlight, visibleTiles]);
+  const stills = useCameraStills(canWatch ? api : null, stillIds);
+  const allowed = canStartLive(usage);
+  const contact = contactHref(contactEmail, "More SyncCam live view minutes");
+
+  useEffect(() => {
+    refreshUsage();
+  }, [refreshUsage]);
+  // Keep the minutes-left figure current while a camera plays.
+  useEffect(() => {
+    if (!liveId) return;
+    const timer = window.setInterval(refreshUsage, USAGE_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [liveId, refreshUsage]);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const openSpotlight = (id: string, watch: boolean) => {
+    setSpotlightId(id);
+    setLive(watch);
+  };
+  const closeSpotlight = () => {
+    setSpotlightId(null);
+    setLive(false);
+  };
+  const blockedReason = allowed ? "" : limitMessage(usage);
   const activeAlerts = useMemo(() => groupCameraWallAlerts(alerts), [alerts]);
   const columns = wallColumnCount(layout);
 
@@ -149,13 +217,25 @@ export function CameraWall({
       <div className={`wall-boundary-banner ${dataMode === "live" ? "wall-boundary-live" : ""}`} role="status">
         <span className="wall-boundary-icon"><Icon name="shield" size={17} /></span>
         <span>
-          <strong>{dataMode === "demo" ? "Privacy-safe demonstration" : "Live view on request"}</strong>
+          <strong>{dataMode === "demo" ? "Privacy-safe demonstration" : "Still pictures, live on request"}</strong>
           <small>
             {dataMode === "demo"
               ? "Camera metadata and scene graphics are synthetic. No footage, stream credentials, or customer data are present."
-              : "Video stays on the site box until you press Watch live. Then it sends about 2 frames a second while you watch; every session is logged and frames are never stored."}
+              : "Tiles show a still picture from each camera, updated about every 5 minutes. Watch live plays one camera at a time at about 2 frames a second and pauses after 5 minutes; frames are never stored, every session is logged."}
           </small>
         </span>
+        {canWatch && usage && (
+          <span className={`wall-usage ${allowed ? "" : "wall-usage-out"}`} aria-label="Live view minutes this month">
+            <strong>{usageLabel(usage)}</strong>
+            <small>
+              {!allowed && usage.limit_minutes !== 0
+                ? <>Used up · {resetLabel(usage)}{contact && <> · <a href={contact}>Contact {contactEmail.trim()}</a></>}</>
+                : !allowed
+                  ? contact ? <a href={contact}>Contact {contactEmail.trim()} to turn it on</a> : "Ask your SyncCam contact to turn it on"
+                  : isUnlimited(usage) ? "This workspace has no monthly cap" : resetLabel(usage)}
+            </small>
+          </span>
+        )}
       </div>
 
       <div className="camera-wall-toolbar" aria-label="Camera Wall controls">
@@ -192,7 +272,7 @@ export function CameraWall({
                 aria-pressed={layout === value}
                 onClick={() => {
                   setLayout(value);
-                  setSpotlightId(null);
+                  closeSpotlight();
                 }}
               >
                 {value}
@@ -231,17 +311,25 @@ export function CameraWall({
       ) : (
         <div className={`camera-wall-content ${showAlerts ? "with-alert-rail" : ""}`}>
           <div className="camera-wall-main">
-            {spotlight ? (
+            {spotlight && (
               <article className={`wall-spotlight ${spotlight.alert ? severityClass(spotlight.alert.severity) : ""}`}>
                 <div className="spotlight-visual">
-                  {canWatch && api && liveIds.has(spotlight.id) ? (
-                    <LiveCameraFeed api={api} cameraId={spotlight.id} cameraName={spotlight.name} />
+                  {canWatch && api && liveId === spotlight.id ? (
+                    <LiveCameraFeed
+                      key={spotlight.id}
+                      api={api}
+                      cameraId={spotlight.id}
+                      cameraName={spotlight.name}
+                      usage={usage}
+                      contactEmail={contactEmail}
+                      onSessionChange={refreshUsage}
+                    />
                   ) : (
-                    <CameraVisual tile={spotlight} />
+                    <CameraVisual tile={spotlight} still={stills[spotlight.id]} now={now} />
                   )}
                 </div>
                 <div className="spotlight-details">
-                  <button className="spotlight-close" type="button" onClick={() => setSpotlightId(null)} aria-label="Close spotlight">
+                  <button className="spotlight-close" type="button" onClick={closeSpotlight} aria-label="Close spotlight">
                     <Icon name="close" size={16} />
                   </button>
                   <span className={`camera-status camera-status-${spotlight.status}`}><i />{statusLabels[spotlight.status]}</span>
@@ -256,12 +344,22 @@ export function CameraWall({
                       <button type="button" onClick={() => onOpenAlertCenter(spotlight.alert?.id)}>Open alert record <Icon name="arrow" size={13} /></button>
                     </div>
                   ) : (
-                    <div className="spotlight-event spotlight-event-clear"><Icon name="check" /><strong>No active alert</strong><small>Metadata-only demo state</small></div>
+                    <div className="spotlight-event spotlight-event-clear"><Icon name="check" /><strong>No active alert</strong><small>{dataMode === "demo" ? "Metadata-only demo state" : "Nothing open for this camera"}</small></div>
                   )}
                   {canWatch ? (
-                    <button className="wall-live-action" type="button" aria-pressed={liveIds.has(spotlight.id)} onClick={() => toggleLive(spotlight.id)}>
-                      <Icon name="play" size={14} /> {liveIds.has(spotlight.id) ? "Stop live view" : "Watch live"}
-                    </button>
+                    <>
+                      <button
+                        className="wall-live-action"
+                        type="button"
+                        aria-pressed={liveId === spotlight.id}
+                        disabled={liveId !== spotlight.id && !allowed}
+                        title={liveId !== spotlight.id ? blockedReason || undefined : undefined}
+                        onClick={() => setLive((value) => !value)}
+                      >
+                        <Icon name="play" size={14} /> {liveId === spotlight.id ? "Stop live view" : "Watch live"}
+                      </button>
+                      {liveId !== spotlight.id && blockedReason && <small className="wall-live-blocked">{blockedReason}</small>}
+                    </>
                   ) : (
                     <button className="unavailable-stream-action" type="button" onClick={() => onNotify("Live view needs live mode with a connected site box.")}>
                       <Icon name="play" size={14} /> Request live session
@@ -269,39 +367,45 @@ export function CameraWall({
                   )}
                 </div>
               </article>
-            ) : visibleTiles.length ? (
+            )}
+            {visibleTiles.length ? (
               <div
                 ref={wallRef}
                 className={`camera-grid camera-grid-${columns}`}
-                aria-label={`${visibleTiles.length} ${dataMode === "demo" ? "synthetic" : "metadata-only"} camera tiles for ${site}`}
+                aria-label={`${visibleTiles.length} ${dataMode === "demo" ? "synthetic" : "still picture"} camera tiles for ${site}`}
               >
                 {visibleTiles.map((tile) => (
-                  <article key={tile.id} className={`camera-tile ${tile.alert ? severityClass(tile.alert.severity) : ""}`}>
-                    {canWatch && api && liveIds.has(tile.id) ? (
-                      <div className="camera-tile-surface camera-tile-live">
-                        <LiveCameraFeed api={api} cameraId={tile.id} cameraName={tile.name} />
-                        {tile.alert && <span className="camera-event-chip"><b>{tile.alert.severity}</b>{tile.alert.type}</span>}
-                      </div>
-                    ) : (
-                      <button
-                        className="camera-tile-surface"
-                        type="button"
-                        data-camera-tile
-                        onClick={() => setSpotlightId(tile.id)}
-                        onKeyDown={handleGridKeyDown}
-                        aria-label={`${tile.id}, ${tile.name}, ${statusLabels[tile.status]}${tile.alert ? `, active ${tile.alert.severity} alert ${tile.alert.title}` : ""}. ${tile.synthetic ? "Synthetic preview" : "Live metadata"}; no footage.`}
-                      >
-                        <CameraVisual tile={tile} />
-                        <span className={`camera-status camera-status-${tile.status}`}><i />{statusLabels[tile.status]}</span>
-                        {tile.alert && <span className="camera-event-chip"><b>{tile.alert.severity}</b>{tile.alert.type}</span>}
-                        <span className="spotlight-hint"><Icon name="maximize" size={13} /> Spotlight</span>
-                      </button>
-                    )}
+                  <article
+                    key={tile.id}
+                    className={`camera-tile ${tile.alert ? severityClass(tile.alert.severity) : ""} ${tile.id === spotlightId ? "camera-tile-selected" : ""}`}
+                  >
+                    <button
+                      className="camera-tile-surface"
+                      type="button"
+                      data-camera-tile
+                      aria-current={tile.id === spotlightId ? "true" : undefined}
+                      onClick={() => openSpotlight(tile.id, false)}
+                      onKeyDown={handleGridKeyDown}
+                      aria-label={`${tile.id}, ${tile.name}, ${statusLabels[tile.status]}${tile.alert ? `, active ${tile.alert.severity} alert ${tile.alert.title}` : ""}. ${tile.synthetic ? "Synthetic preview; no footage" : stills[tile.id] ? "Still picture" : "No picture yet"}${tile.id === liveId ? "; playing live in the spotlight" : ""}.`}
+                    >
+                      <CameraVisual tile={tile} still={stills[tile.id]} now={now} />
+                      <span className={`camera-status camera-status-${tile.status}`}><i />{statusLabels[tile.status]}</span>
+                      {tile.id === liveId && <span className="camera-live-marker"><i /> Live in spotlight</span>}
+                      {tile.alert && <span className="camera-event-chip"><b>{tile.alert.severity}</b>{tile.alert.type}</span>}
+                      <span className="spotlight-hint"><Icon name="maximize" size={13} /> Spotlight</span>
+                    </button>
                     <footer className="camera-tile-footer">
                       <span><strong>{tile.synthetic ? `${tile.id} · ` : ""}{tile.name}</strong><small>{tile.location}</small></span>
                       {canWatch ? (
-                        <button className="wall-live-action" type="button" aria-pressed={liveIds.has(tile.id)} onClick={() => toggleLive(tile.id)}>
-                          <Icon name="play" size={13} /> {liveIds.has(tile.id) ? "Stop" : "Watch live"}
+                        <button
+                          className="wall-live-action"
+                          type="button"
+                          aria-pressed={tile.id === liveId}
+                          disabled={tile.id !== liveId && !allowed}
+                          title={tile.id !== liveId ? blockedReason || undefined : undefined}
+                          onClick={() => (tile.id === liveId ? setLive(false) : openSpotlight(tile.id, true))}
+                        >
+                          <Icon name="play" size={13} /> {tile.id === liveId ? "Stop" : "Watch live"}
                         </button>
                       ) : (
                         <ActivityBars values={tile.activity} />

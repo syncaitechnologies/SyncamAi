@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/device"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
@@ -172,6 +175,155 @@ func TestLiveViewFailsClosedWhenAuditFails(t *testing.T) {
 	}
 	if len(fixture.hub.Wanted(ingestTenant, ingestSite)) != 0 {
 		t.Fatal("no frames may be requested without an audit record")
+	}
+}
+
+type fakeLiveUsage struct {
+	limit *int
+	used  int64
+	fail  error
+}
+
+func (f *fakeLiveUsage) Load(context.Context, string, time.Time) (*int, int64, error) {
+	return f.limit, f.used, f.fail
+}
+
+func (f *fakeLiveUsage) Add(_ context.Context, _ string, _ time.Time, seconds int64) error {
+	if f.fail != nil {
+		return f.fail
+	}
+	f.used += seconds
+	return nil
+}
+
+type liveClock struct{ now time.Time }
+
+func (c *liveClock) Now() time.Time { return c.now }
+
+type meteredLiveFixture struct {
+	*liveFixture
+	clock *liveClock
+	store *fakeLiveUsage
+	meter *livefeed.Meter
+}
+
+// newMeteredLiveFixture wires a hub and meter sharing one fake clock.
+func newMeteredLiveFixture(t *testing.T, limitMinutes *int) *meteredLiveFixture {
+	t.Helper()
+	fixture := newLiveFixture(t, liveOperator())
+	clock := &liveClock{now: time.Date(2026, 11, 20, 18, 0, 0, 0, time.UTC)}
+	store := &fakeLiveUsage{limit: limitMinutes}
+	meter := livefeed.NewMeterWithClock(store, clock.Now)
+	fixture.hub = livefeed.NewHubWithClock(clock.Now)
+	cameras := device.NewMemoryRepository([]device.Camera{{ID: ingestCamera, TenantID: ingestTenant, SiteID: ingestSite, Name: "Gate 1", LifecycleStatus: "active"}})
+	options := SiteIngestOptions{Keys: fixture.keys, Live: fixture.hub, LiveAudit: fixture.auditor, LiveMeter: meter}
+	fixture.handler = NewWithSiteIngest(fakeVerifier{principal: liveOperator()}, ingestSites{}, nil, nil, nil, nil, cameras, nil, nil, nil, nil, nil, nil, nil, options)
+	return &meteredLiveFixture{liveFixture: fixture, clock: clock, store: store, meter: meter}
+}
+
+func intPointer(value int) *int { return &value }
+
+// watchFor polls the frame endpoint every step while the box keeps sending
+// frames, and returns the first response that is not a served frame.
+func (f *meteredLiveFixture) watchFor(t *testing.T, step time.Duration, polls int) *httptest.ResponseRecorder {
+	t.Helper()
+	framePath := "/v1/site-ingest/cameras/" + ingestCamera + "/live"
+	for index := 0; index < polls; index++ {
+		f.clock.now = f.clock.now.Add(step)
+		f.do(http.MethodPut, framePath, f.rawKey, testJPEG, "image/jpeg", nil)
+		response := f.do(http.MethodGet, "/v1/cameras/"+ingestCamera+"/live/frame", "valid", nil, "", viewerHeaders)
+		if response.Code != http.StatusOK {
+			return response
+		}
+	}
+	return nil
+}
+
+func errorCode(t *testing.T, response *httptest.ResponseRecorder) string {
+	t.Helper()
+	var body struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	_ = json.Unmarshal(response.Body.Bytes(), &body)
+	return body.Error.Code
+}
+
+func TestLiveViewStopsAtTheMonthlyAllowance(t *testing.T) {
+	fixture := newMeteredLiveFixture(t, intPointer(1))
+	response := fixture.do(http.MethodPost, "/v1/cameras/"+ingestCamera+"/live", "valid", nil, "", viewerHeaders)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"remaining_seconds":60`) || !strings.Contains(response.Body.String(), `"max_continuous_seconds":300`) {
+		t.Fatalf("start with a one-minute allowance: %d %s", response.Code, response.Body.String())
+	}
+	stopped := fixture.watchFor(t, 5*time.Second, 20)
+	if stopped == nil || stopped.Code != http.StatusForbidden || errorCode(t, stopped) != "LIVE_VIEW_LIMIT" {
+		t.Fatalf("viewing must stop when the minutes are used up: %v", stopped)
+	}
+	if got := wantedCameras(t, fixture.liveFixture); len(got) != 0 {
+		t.Fatalf("the box stops sending once the allowance is used: %v", got)
+	}
+	response = fixture.do(http.MethodPost, "/v1/cameras/"+ingestCamera+"/live", "valid", nil, "", viewerHeaders)
+	if response.Code != http.StatusForbidden || errorCode(t, response) != "LIVE_VIEW_LIMIT" || len(fixture.auditor.sessions) != 1 {
+		t.Fatalf("no new session once the allowance is used: %d %d", response.Code, len(fixture.auditor.sessions))
+	}
+	if err := fixture.meter.Flush(context.Background()); err != nil || fixture.store.used < 60 {
+		t.Fatalf("viewing time is saved: %d %v", fixture.store.used, err)
+	}
+}
+
+func TestLiveViewPausesAfterFiveMinutes(t *testing.T) {
+	fixture := newMeteredLiveFixture(t, nil)
+	if response := fixture.do(http.MethodPost, "/v1/cameras/"+ingestCamera+"/live", "valid", nil, "", viewerHeaders); response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"remaining_seconds":null`) {
+		t.Fatalf("unlimited start: %d %s", response.Code, response.Body.String())
+	}
+	paused := fixture.watchFor(t, 5*time.Second, 100)
+	if paused == nil || paused.Code != http.StatusConflict || errorCode(t, paused) != "LIVE_VIEW_PAUSED" {
+		t.Fatalf("an unlimited workspace still pauses after five minutes: %v", paused)
+	}
+	if got := wantedCameras(t, fixture.liveFixture); len(got) != 0 {
+		t.Fatalf("a paused camera is no longer wanted: %v", got)
+	}
+	response := fixture.do(http.MethodPost, "/v1/cameras/"+ingestCamera+"/live", "valid", nil, "", viewerHeaders)
+	if response.Code != http.StatusOK || len(fixture.auditor.sessions) != 2 {
+		t.Fatalf("\"still watching\" starts a new audited session: %d %d", response.Code, len(fixture.auditor.sessions))
+	}
+}
+
+func TestLiveViewOffWhenTheAllowanceIsZero(t *testing.T) {
+	fixture := newMeteredLiveFixture(t, intPointer(0))
+	response := fixture.do(http.MethodPost, "/v1/cameras/"+ingestCamera+"/live", "valid", nil, "", viewerHeaders)
+	if response.Code != http.StatusForbidden || errorCode(t, response) != "LIVE_VIEW_LIMIT" || !strings.Contains(response.Body.String(), "not included") {
+		t.Fatalf("live view off: %d %s", response.Code, response.Body.String())
+	}
+	if len(fixture.auditor.sessions) != 0 || len(fixture.hub.Wanted(ingestTenant, ingestSite)) != 0 {
+		t.Fatal("a refused start must not audit or request frames")
+	}
+}
+
+func TestLiveViewFailsClosedWhenTheAllowanceIsUnreadable(t *testing.T) {
+	fixture := newMeteredLiveFixture(t, intPointer(10))
+	fixture.store.fail = errors.New("database down")
+	response := fixture.do(http.MethodPost, "/v1/cameras/"+ingestCamera+"/live", "valid", nil, "", viewerHeaders)
+	if response.Code != http.StatusServiceUnavailable || len(fixture.auditor.sessions) != 0 {
+		t.Fatalf("an unreadable allowance must not start live view: %d", response.Code)
+	}
+}
+
+func TestLiveViewUsageReport(t *testing.T) {
+	fixture := newMeteredLiveFixture(t, intPointer(10))
+	fixture.store.used = 90
+	response := fixture.do(http.MethodGet, "/v1/live-view/usage", "valid", nil, "", viewerHeaders)
+	body := response.Body.String()
+	if response.Code != http.StatusOK || !strings.Contains(body, `"limit_minutes":10`) || !strings.Contains(body, `"used_seconds":90`) || !strings.Contains(body, `"month":"2026-11-01"`) || !strings.Contains(body, `"resets_at":"2026-12-01T00:00:00Z"`) {
+		t.Fatalf("usage report: %d %s", response.Code, body)
+	}
+	unlimited := newMeteredLiveFixture(t, nil)
+	if response := unlimited.do(http.MethodGet, "/v1/live-view/usage", "valid", nil, "", viewerHeaders); !strings.Contains(response.Body.String(), `"limit_minutes":null`) {
+		t.Fatalf("unlimited usage report: %s", response.Body.String())
+	}
+	if response := fixture.do(http.MethodGet, "/v1/live-view/usage", "valid", nil, "", nil); response.Code == http.StatusOK {
+		t.Fatal("the usage report needs the tenant header")
 	}
 }
 

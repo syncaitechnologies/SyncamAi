@@ -33,6 +33,9 @@ type SiteIngestOptions struct {
 	// each viewing session. Both are required for live view.
 	Live      *livefeed.Hub
 	LiveAudit livefeed.Auditor
+	// LiveMeter enforces each workspace's monthly live-view allowance
+	// (ADR-017). Without it live view is unlimited (local development).
+	LiveMeter *livefeed.Meter
 	// Pairing issues short codes that a new site box redeems for its key.
 	Pairing siteingest.PairingStore
 	// Setup relays "Find cameras" tasks between the dashboard and the box.

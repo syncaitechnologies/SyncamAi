@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,6 +20,7 @@ func (s *Server) registerLiveViewRoutes() {
 	s.mux.Handle("POST /v1/cameras/{id}/live", s.authenticate(http.HandlerFunc(s.startLiveView)))
 	s.mux.Handle("GET /v1/cameras/{id}/live/frame", s.authenticate(http.HandlerFunc(s.liveFrame)))
 	s.mux.Handle("DELETE /v1/cameras/{id}/live", s.authenticate(http.HandlerFunc(s.stopLiveView)))
+	s.mux.Handle("GET /v1/live-view/usage", s.authenticate(http.HandlerFunc(s.liveViewUsage)))
 	s.mux.Handle("GET /v1/site-ingest/live", s.authenticateSite(http.HandlerFunc(s.siteLiveRequests)))
 	s.mux.Handle("PUT /v1/site-ingest/cameras/{id}/live", s.authenticateSite(http.HandlerFunc(s.uploadLiveFrame)))
 }
@@ -54,7 +56,27 @@ func (s *Server) startLiveView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hub := s.siteIngest.Live
-	if !hub.Watching(tenantID, camera.SiteID, camera.ID, principal.UserID) {
+	// The monthly allowance is checked before anything is audited or sent.
+	usage, ok := s.liveUsage(w, r, tenantID)
+	if !ok {
+		return
+	}
+	if usage.Exhausted() {
+		writeLiveViewLimit(w, usage)
+		return
+	}
+	state, watching := hub.Watching(tenantID, camera.SiteID, camera.ID, principal.UserID)
+	if watching {
+		if usage, ok = s.chargeLiveView(w, r, tenantID, state.Elapsed); !ok {
+			return
+		}
+		if state.Paused() {
+			// "Still watching?": a paused session continues as a new one.
+			hub.Stop(tenantID, camera.SiteID, camera.ID, principal.UserID)
+			watching = false
+		}
+	}
+	if !watching {
 		// Audit first: no session (and so no frame) without a record of it.
 		err := s.siteIngest.LiveAudit.LiveViewStarted(r.Context(), livefeed.Session{
 			TenantID: tenantID, SiteID: camera.SiteID, CameraID: camera.ID,
@@ -73,6 +95,8 @@ func (s *Server) startLiveView(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{
 		"camera_id": camera.ID, "viewer": principal.Email, "audited": true,
 		"expires_in_seconds": int(livefeed.ViewerTTL / time.Second), "poll_interval_ms": 500,
+		"max_continuous_seconds": int(livefeed.MaxContinuous / time.Second),
+		"remaining_seconds":      remainingSeconds(usage),
 	}})
 }
 
@@ -82,14 +106,33 @@ func (s *Server) liveFrame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hub := s.siteIngest.Live
-	if !hub.Watching(tenantID, camera.SiteID, camera.ID, principal.UserID) {
+	state, watching := hub.Watching(tenantID, camera.SiteID, camera.ID, principal.UserID)
+	if !watching {
 		writeError(w, http.StatusConflict, "LIVE_SESSION_REQUIRED", "Start a live view session first.")
+		return
+	}
+	usage, ok := s.chargeLiveView(w, r, tenantID, state.Elapsed)
+	if !ok {
+		hub.Stop(tenantID, camera.SiteID, camera.ID, principal.UserID)
+		return
+	}
+	if usage.Exhausted() {
+		hub.Stop(tenantID, camera.SiteID, camera.ID, principal.UserID)
+		writeLiveViewLimit(w, usage)
+		return
+	}
+	if state.Paused() {
+		hub.Stop(tenantID, camera.SiteID, camera.ID, principal.UserID)
+		writeError(w, http.StatusConflict, "LIVE_VIEW_PAUSED", "Live view paused after 5 minutes. Press continue if you are still watching.")
 		return
 	}
 	data, at, ok := hub.Latest(tenantID, camera.SiteID, camera.ID)
 	if !ok {
 		writeError(w, http.StatusNotFound, "LIVE_FRAME_PENDING", "Waiting for the site box to send a frame.")
 		return
+	}
+	if usage.Limited() {
+		w.Header().Set("X-Live-View-Remaining-Seconds", strconv.FormatInt(int64(usage.Remaining()/time.Second), 10))
 	}
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Cache-Control", "no-store")
@@ -106,6 +149,71 @@ func (s *Server) stopLiveView(w http.ResponseWriter, r *http.Request) {
 	}
 	s.siteIngest.Live.Stop(tenantID, camera.SiteID, camera.ID, principal.UserID)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// liveUsage returns the workspace's live-view allowance. Without a meter
+// (local tests) live view is unlimited; with one, a read failure fails closed.
+func (s *Server) liveUsage(w http.ResponseWriter, r *http.Request, tenantID string) (livefeed.Usage, bool) {
+	if s.siteIngest.LiveMeter == nil {
+		return livefeed.Usage{}, true
+	}
+	usage, err := s.siteIngest.LiveMeter.Usage(r.Context(), tenantID)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Live view allowance could not be checked, so live view was not started.")
+		return livefeed.Usage{}, false
+	}
+	return usage, true
+}
+
+// chargeLiveView adds viewing time to the workspace's monthly use.
+func (s *Server) chargeLiveView(w http.ResponseWriter, r *http.Request, tenantID string, viewed time.Duration) (livefeed.Usage, bool) {
+	if s.siteIngest.LiveMeter == nil {
+		return livefeed.Usage{}, true
+	}
+	usage, err := s.siteIngest.LiveMeter.Charge(r.Context(), tenantID, viewed)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Live view allowance could not be checked, so live view was stopped.")
+		return livefeed.Usage{}, false
+	}
+	return usage, true
+}
+
+func remainingSeconds(usage livefeed.Usage) any {
+	if !usage.Limited() {
+		return nil
+	}
+	return int64(usage.Remaining() / time.Second)
+}
+
+func writeLiveViewLimit(w http.ResponseWriter, usage livefeed.Usage) {
+	message := "This workspace's live view minutes for this month are used up. Contact SyncCam to add more."
+	if usage.LimitMinutes != nil && *usage.LimitMinutes == 0 {
+		message = "Live view is not included for this workspace. Contact SyncCam to add it."
+	}
+	writeError(w, http.StatusForbidden, "LIVE_VIEW_LIMIT", message)
+}
+
+// liveViewUsage reports this month's live-view allowance and use.
+func (s *Server) liveViewUsage(w http.ResponseWriter, r *http.Request) {
+	_, tenantID, ok := s.userTenant(w, r, authz.CapabilityConfigRead)
+	if !ok {
+		return
+	}
+	if s.siteIngest.LiveMeter == nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Live view usage is unavailable.")
+		return
+	}
+	usage, err := s.siteIngest.LiveMeter.Usage(r.Context(), tenantID)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Live view usage is unavailable.")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{
+		"limit_minutes": usage.LimitMinutes, "used_seconds": int64(usage.Used / time.Second),
+		"month": usage.Month.Format("2006-01-02"), "resets_at": usage.ResetsAt(),
+		"max_continuous_seconds": int(livefeed.MaxContinuous / time.Second),
+	}})
 }
 
 func (s *Server) siteLiveRequests(w http.ResponseWriter, r *http.Request) {

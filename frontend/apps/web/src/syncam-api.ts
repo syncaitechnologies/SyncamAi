@@ -1,4 +1,7 @@
-import { AlertApiClient } from "./alert-client";
+import { AlertApiClient, AlertApiError } from "./alert-client";
+import { errorCode, frameProblem, type LiveFrameProblem, type LiveViewUsage } from "./live-view-model";
+
+export type { LiveFrameProblem, LiveViewUsage } from "./live-view-model";
 
 export type Site = { id: string; name: string; timezone: string; status: string };
 export type Camera = {
@@ -294,7 +297,21 @@ export class SyncamApi extends AlertApiClient {
     return this.imageUrl(`/v1/cameras/${encodeURIComponent(cameraId)}/reference`, signal);
   }
 
-  /** Starts (or keeps alive) an audited near-live viewing session. */
+  /** The camera's reference still (the site box refreshes it every few minutes), with its capture time when known. */
+  cameraStill(cameraId: string, signal?: AbortSignal) {
+    return this.image(`/v1/cameras/${encodeURIComponent(cameraId)}/reference`, signal);
+  }
+
+  /** This workspace's live view allowance for the current month. */
+  async liveViewUsage(signal?: AbortSignal) {
+    return data<LiveViewUsage>(await this.request("/v1/live-view/usage", { method: "GET", signal }));
+  }
+
+  /**
+   * Starts (or keeps alive) an audited near-live viewing session. Throws an
+   * AlertApiError whose `code` is "LIVE_VIEW_LIMIT" when the workspace's
+   * monthly minutes are used up or live view is off.
+   */
   async startLiveView(cameraId: string, signal?: AbortSignal) {
     return data<LiveViewSession>(
       await this.request(`/v1/cameras/${encodeURIComponent(cameraId)}/live`, {
@@ -309,8 +326,13 @@ export class SyncamApi extends AlertApiClient {
     await this.request(`/v1/cameras/${encodeURIComponent(cameraId)}/live`, { method: "DELETE", keepalive: true }).catch(() => undefined);
   }
 
-  /** The newest live frame, "pending" before the site box sends one, or "expired". */
-  async liveFrame(cameraId: string, signal?: AbortSignal): Promise<LiveFrame | "pending" | "expired"> {
+  /**
+   * The newest live frame, or why there is none: "pending" before the site box
+   * sends one, "expired" when the session lapsed (start a new one), "paused"
+   * after 5 minutes of continuous viewing, "limit" when the monthly minutes
+   * ran out. The server has already stopped the session for paused and limit.
+   */
+  async liveFrame(cameraId: string, signal?: AbortSignal): Promise<LiveFrame | LiveFrameProblem> {
     const accessToken = sessionStorage.getItem("syncam.access_token");
     const response = await fetch(`${this.config.apiBaseUrl}/v1/cameras/${encodeURIComponent(cameraId)}/live/frame`, {
       method: "GET",
@@ -322,9 +344,12 @@ export class SyncamApi extends AlertApiClient {
         "X-SentinelVision-Tenant-ID": this.config.tenantId,
       },
     });
-    if (response.status === 404) return "pending";
-    if (response.status === 409) return "expired";
-    if (!response.ok) throw new Error(`Live frame request failed with ${response.status}.`);
+    if (!response.ok) {
+      const code = errorCode(await response.json().catch(() => null));
+      const problem = frameProblem(response.status, code);
+      if (problem) return problem;
+      throw new AlertApiError(`Live frame request failed with ${response.status}.`, response.status, code);
+    }
     return { blob: await response.blob(), capturedAt: response.headers.get("X-Frame-Captured-At") };
   }
 }

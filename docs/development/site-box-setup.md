@@ -307,6 +307,25 @@ The Camera Wall shows a near-live view of any camera on request.
 - To keep a site's video entirely on the premises, set `"live_view": false`
   in its site config.
 
+### Live-view minutes, pause and the still wall (ADR-017)
+
+Live view uses Render bandwidth, so it is metered per workspace:
+
+- Each workspace has a monthly allowance of viewing minutes
+  (`identity.tenants.live_view_minutes`): **10 minutes** by default, `NULL` for
+  unlimited (the owner's own workspace), `0` to switch live view off. Time is
+  counted per viewer per camera and resets on the 1st of each month (UTC).
+  When the minutes are used up, live view stops with "minutes for this month
+  are used up"; alerts keep working.
+- One session pauses after **5 minutes** and asks "Still watching?";
+  continuing starts a new, audited session.
+- The Camera Wall shows each camera's **still picture** (the reference
+  picture the box uploads every 5 minutes, also used to draw zones). Live video
+  plays only for the one camera opened in the spotlight.
+- The usage table (`platform.live_view_usage`) holds only a count of seconds
+  per workspace per month: no images and no viewer identity. Usage is saved
+  every 30 seconds, so it is accurate to about that.
+
 ## Reliability and privacy
 
 - Alerts are written to a local spool first and retried for 24 hours, so an
