@@ -60,6 +60,13 @@ test("a user with no membership is sent to workspace setup, never into the app",
   assert.equal(decideSession({ sub: "user-1", aal: "aal1", is_anonymous: true, app_metadata: {} }, []).kind, "blocked");
 });
 
+test("only the hook's operator flag opens the owner admin screen", () => {
+  const owner = { ...claims("super_admin", "aal2"), app_metadata: { ...claims("super_admin").app_metadata, syncam_operator: true } };
+  assert.equal((decideSession(owner, [totp]) as { operator?: boolean }).operator, true);
+  const forged = { ...claims("super_admin", "aal2"), user_metadata: { syncam_operator: true }, app_metadata: { ...claims("super_admin").app_metadata, syncam_operator: "true" } };
+  assert.equal("operator" in decideSession(forged, [totp]), false);
+});
+
 test("trial plan claims reach the app and malformed ones fail closed", () => {
   const trial = { ...claims("super_admin", "aal2"), app_metadata: { syncam: { ...claims("super_admin").app_metadata.syncam,
     plan: "trial", trial_ends_at: "2026-12-01T10:00:00.000000+00:00", site_limit: 1, camera_limit: 10 } } };

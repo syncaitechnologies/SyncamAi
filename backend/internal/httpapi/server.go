@@ -154,6 +154,7 @@ func NewWithSiteIngest(verifier identity.Verifier, tenants tenant.Repository, ev
 	server.mux.HandleFunc("GET /ws/v1/alerts", server.streamAlerts)
 	server.registerSiteIngestRoutes()
 	server.registerRegistrationRoutes()
+	server.registerAdminRoutes()
 	return server.mux
 }
 

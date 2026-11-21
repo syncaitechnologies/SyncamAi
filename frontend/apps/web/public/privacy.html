@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Privacy Policy · SyncCam AI</title>
+<style>
+  :root { color-scheme: light dark; --bg: #ffffff; --text: #1c2730; --muted: #5a6872; --line: #dfe5e8; --accent: #0f7a5c; --note-bg: #fff6e5; --note-line: #e7bd7b; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0b1016; --text: #e3ecea; --muted: #99aab3; --line: #29404a; --accent: #9ce9cb; --note-bg: #2a2416; --note-line: #e7bd7b; } }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 4px; }
+  h2 { font-size: 20px; margin: 32px 0 8px; }
+  p, li { color: var(--text); }
+  .meta { color: var(--muted); margin: 0 0 20px; }
+  .draft { border: 1px solid var(--note-line); background: var(--note-bg); border-radius: 8px; padding: 12px 14px; margin: 0 0 24px; }
+  .blank { background: var(--note-bg); border-bottom: 1px dashed var(--note-line); padding: 0 3px; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 15px; }
+  th, td { text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); padding: 8px 6px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Privacy Policy</h1>
+  <p class="meta">SyncCam AI · Version 2026-11-21 (draft)</p>
+
+  <p class="draft"><strong>Draft – not yet in effect.</strong> This text describes what SyncCam does today in plain language. It must be reviewed and approved by a qualified lawyer, and the highlighted blanks filled in, before it is published or relied on.</p>
+
+  <h2>Who we are</h2>
+  <p>SyncCam AI ("SyncCam", "we") is provided by <span class="blank">[Company legal name]</span>, <span class="blank">[registered address]</span>. For privacy questions or requests, contact <span class="blank">[privacy contact email]</span>.</p>
+  <p>Our customers are businesses that use SyncCam with their own cameras. For the camera pictures and events at a customer's site, the customer decides how SyncCam is used and is responsible for telling people about it (for example with signs). We process that information on the customer's behalf. For our customers' account information, we are responsible ourselves.</p>
+
+  <h2>What SyncCam is</h2>
+  <p>SyncCam watches a customer's existing security cameras with AI that runs on a computer at the customer's site (the "site box"). It sends alerts, for example when someone enters a protected area at night, to the customer's dashboard and Telegram.</p>
+
+  <h2>What we collect</h2>
+  <table>
+    <tr><th>Information</th><th>Why</th></tr>
+    <tr><td>Account details: your work email, password (stored only as a secure hash by our login provider), authenticator setup, and the time you sign in</td><td>To let you sign in securely and protect your workspace</td></tr>
+    <tr><td>Workspace details: company name, site names, timezone, camera names and settings, zones and schedules</td><td>To run the service you set up</td></tr>
+    <tr><td>Alerts: what was detected, where, when, and one picture taken at that moment</td><td>To show and send you the alert so a person can check it</td></tr>
+    <tr><td>Camera still pictures, refreshed about every 5 minutes</td><td>To show your camera wall and to let you draw zones</td></tr>
+    <tr><td>Site box status: when it last reported and whether each camera is sending pictures</td><td>To tell you when a box or camera stops working</td></tr>
+    <tr><td>Records of who opened live view, and how many live-view minutes a workspace used</td><td>Security, and to apply your plan's live-view allowance</td></tr>
+    <tr><td>Telegram chat details you link to a site</td><td>To deliver alerts to that chat</td></tr>
+  </table>
+
+  <h2>What stays at the customer's site</h2>
+  <ul>
+    <li><strong>Video is not recorded by SyncCam.</strong> The AI reads the camera stream on the site box. Recording, if any, is done by the customer's own recorder.</li>
+    <li><strong>Camera passwords</strong> are encrypted for the site box. Our servers only ever hold the encrypted form and cannot read them.</li>
+    <li><strong>Live view</strong> sends pictures only while an authorised person is watching. Those pictures pass through our server's memory and are never stored. Every viewing session is logged.</li>
+    <li><strong>Staff attendance (optional):</strong> if a customer turns it on, the face signatures of staff who have consented are stored only on the site box, encrypted. Only "this staff member was seen at this camera at this time" is sent to us. Faces of anyone else are ignored and not stored.</li>
+  </ul>
+
+  <h2>How AI decisions are used</h2>
+  <p>SyncCam's AI can be wrong: it can miss events and raise false alerts. Alerts are suggestions for a person to review. SyncCam does not take actions against anyone on its own.</p>
+
+  <h2>Who processes the information for us</h2>
+  <table>
+    <tr><th>Provider</th><th>What for</th><th>Where</th></tr>
+    <tr><td>Supabase</td><td>Database, login and alert pictures</td><td>Mumbai, India</td></tr>
+    <tr><td>Render</td><td>The SyncCam server</td><td>Singapore</td></tr>
+    <tr><td>Vercel</td><td>Delivering the dashboard web pages</td><td>Global network</td></tr>
+    <tr><td>Telegram</td><td>Delivering alerts to chats you link (Telegram keeps those messages under its own policy)</td><td>Telegram's servers</td></tr>
+    <tr><td>Resend</td><td>Sending sign-up and password-reset codes</td><td><span class="blank">[region]</span></td></tr>
+    <tr><td>GitHub</td><td>Hosting the site box installer and updates</td><td>United States</td></tr>
+  </table>
+  <p>This means information may be processed outside the country where a customer is located. <span class="blank">[Lawyer to confirm the cross-border wording needed for Canada, India and other launch countries.]</span></p>
+  <p>We do not sell personal information and do not use customers' camera pictures to train AI models.</p>
+
+  <h2>How long we keep it</h2>
+  <p>We keep account and workspace information while the account is active. Alert records and alert pictures are currently kept until they are deleted; automatic deletion after a period the customer chooses is planned but not yet in place. A customer can ask us to delete them at any time. When a customer leaves, we delete their workspace data within <span class="blank">[number]</span> days, except records we must keep by law.</p>
+
+  <h2>Security</h2>
+  <p>Data sent between the site box, our servers and your browser is encrypted. Each workspace's data is separated in our database so customers cannot see each other's information. Administrator accounts must use an authenticator app. Changes to important settings are recorded in a tamper-evident log.</p>
+
+  <h2>Your choices and rights</h2>
+  <p>Depending on where you live, you may have the right to ask for access to, correction of, or deletion of your personal information, and to complain to a privacy regulator. If you appear in a customer's camera pictures, please contact that business first, as they decide how SyncCam is used at their site; we will help them respond. You can contact us at <span class="blank">[privacy contact email]</span>.</p>
+
+  <h2>Children</h2>
+  <p>SyncCam is a business service and is not meant for use by children.</p>
+
+  <h2>Changes</h2>
+  <p>If we change this policy, we will update the date above and tell customers about important changes before they take effect.</p>
+</main>
+</body>
+</html>

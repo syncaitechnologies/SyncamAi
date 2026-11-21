@@ -53,6 +53,9 @@ type Principal struct {
 	// Plan and TrialEndsAt describe the tenant's workspace plan (ADR-016).
 	Plan        string
 	TrialEndsAt *time.Time
+	// Operator marks someone who runs the SyncCam platform (owner admin
+	// screen). The database re-checks it on every admin action.
+	Operator bool
 }
 
 // TrialEnded reports whether the principal's workspace trial is over or the

@@ -139,6 +139,25 @@ func main() {
 		}
 		go siteingest.RunTelegramLinker(runContext, telegram, targets, siteingest.SiteNamer(repository), log.Printf)
 		log.Print("telegram alerts enabled")
+		// Site box offline / back online notices go to the site's chats and,
+		// when SYNCAM_OWNER_TELEGRAM_CHAT_ID is set, to the platform owner.
+		var ownerChat int64
+		if raw := strings.TrimSpace(os.Getenv("SYNCAM_OWNER_TELEGRAM_CHAT_ID")); raw != "" {
+			ownerChat, err = strconv.ParseInt(raw, 10, 64)
+			if err != nil || ownerChat == 0 {
+				log.Fatal("SYNCAM_OWNER_TELEGRAM_CHAT_ID must be a Telegram chat ID (a whole number)")
+			}
+		}
+		watchdog := &siteingest.BoxWatchdog{
+			Store: siteingest.NewPostgresBoxPresence(pool), Sender: telegram, Targets: targets,
+			OwnerChatID: ownerChat, OfflineAfter: siteingest.DefaultBoxOfflineAfter, Logf: log.Printf,
+		}
+		go watchdog.Run(runContext, time.Minute)
+		if ownerChat != 0 {
+			log.Print("site box offline alerts enabled for site chats and the owner")
+		} else {
+			log.Print("site box offline alerts enabled for site chats; set SYNCAM_OWNER_TELEGRAM_CHAT_ID to be told too")
+		}
 	} else {
 		log.Print("telegram alerts disabled: set SYNCAM_TELEGRAM_BOT_TOKEN")
 	}

@@ -5,7 +5,7 @@ export type MfaFactor = { id: string; friendly_name?: string };
 // Workspace plan from the token (ADR-016). Absent for workspaces made before plans.
 export type WorkspacePlan = { plan: "trial" | "active" | "suspended"; trialEndsAt: string | null; siteLimit: number | null; cameraLimit: number | null };
 export type SessionDecision =
-  | { kind: "ready"; tenantId: string; siteIds: string[]; roles: string[]; plan?: WorkspacePlan }
+  | { kind: "ready"; tenantId: string; siteIds: string[]; roles: string[]; plan?: WorkspacePlan; operator?: true }
   | { kind: "needs_workspace"; emailVerified: boolean }
   | { kind: "enroll" }
   | { kind: "challenge"; factors: MfaFactor[] }
@@ -77,7 +77,13 @@ export function decideSession(
     if (totp.length) return { kind: "challenge", factors: totp };
     return { kind: "blocked", message: "This account uses a factor not supported by this screen. Contact your administrator; MFA cannot be skipped." };
   }
-  return { kind: "ready", tenantId: membership.tenant_id, siteIds: membership.site_ids, roles: membership.roles, ...(plan ? { plan } : {}) };
+  // The owner admin screen is shown only for the hook's operator flag; the API
+  // and database check it again on every admin call.
+  const operator = appMetadata.syncam_operator === true;
+  return {
+    kind: "ready", tenantId: membership.tenant_id, siteIds: membership.site_ids, roles: membership.roles,
+    ...(plan ? { plan } : {}), ...(operator ? { operator: true as const } : {}),
+  };
 }
 
 export async function inspectSession(client: AuthClient, session: Session): Promise<SessionDecision> {

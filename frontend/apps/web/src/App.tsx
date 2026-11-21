@@ -24,6 +24,7 @@ function readSelectedSiteReady() {
 import { useWorkspace } from "./use-workspace";
 import { useLiveAlertNotifications } from "./live-notifications";
 import { trialStatus } from "./signup-model";
+import { AdminWorkspaces } from "./AdminWorkspaces";
 import { readWorkspace } from "./workspace";
 import "./live.css";
 
@@ -49,7 +50,7 @@ function TrialEnded({ label, onSignOut }: { label: string; onSignOut?: () => voi
 }
 
 type Filter = "all" | "critical" | "unacknowledged" | "acknowledged";
-type View = "dashboard" | "alerts" | "cameras" | "zones" | "models" | "onboarding" | "vision" | "local-camera" | "settings" | "attendance";
+type View = "dashboard" | "alerts" | "cameras" | "zones" | "models" | "onboarding" | "vision" | "local-camera" | "settings" | "attendance" | "admin";
 
 const rawSeedAlerts: AlertItem[] = [
   {
@@ -258,6 +259,8 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
   );
   const [now, setNow] = useState(() => new Date());
   const trial = live ? trialStatus(readWorkspace()?.plan, workspace.cameras.length, now) : null;
+  // Owner admin screen; the API and database check operator access again.
+  const operator = live && readWorkspace()?.operator === true;
   // A brand-new workspace has a site but no cameras: start on the setup cards.
   const openedSetup = useRef(false);
   useEffect(() => {
@@ -583,6 +586,17 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
             <Icon name="settings" />
             <span>Configuration</span>
           </button>
+          {live && operator && (
+            <button
+              className={activeView === "admin" ? "nav-item active" : "nav-item"}
+              type="button"
+              onClick={() => setActiveView("admin")}
+              aria-current={activeView === "admin" ? "page" : undefined}
+            >
+              <Icon name="shield" />
+              <span>Owner admin</span>
+            </button>
+          )}
           {!live && <>
           <button
             className={activeView === "onboarding" ? "nav-item active" : "nav-item"}
@@ -658,6 +672,8 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
                           ? "Configuration"
                           : activeView === "attendance"
                             ? "Attendance"
+                          : activeView === "admin"
+                            ? "Owner admin"
                   : "Alert Center"}
             </strong>
           </div>
@@ -733,6 +749,8 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
           <SiteSettings workspace={workspace} onNotify={setToast} />
         ) : activeView === "attendance" ? (
           <AttendanceWorkspace workspace={workspace} onNotify={setToast} />
+        ) : activeView === "admin" && operator ? (
+          <AdminWorkspaces api={workspace.api} onNotify={setToast} />
         ) : activeView === "models" ? (
           <ModelRegistryWorkspace dataMode={dataMode} />
         ) : activeView === "onboarding" ? (

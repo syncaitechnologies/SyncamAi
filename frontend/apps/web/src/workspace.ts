@@ -6,6 +6,8 @@ export type Workspace = {
   roles: string[];
   // Trial details (ADR-016); absent for workspaces without a plan claim.
   plan?: { plan: string; trialEndsAt: string | null; siteLimit: number | null; cameraLimit: number | null };
+  // True for people who run the SyncCam platform (owner admin screen).
+  operator?: boolean;
 };
 
 const workspaceKey = "syncam.workspace";
