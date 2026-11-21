@@ -20,6 +20,7 @@ Architecture decisions are immutable records: supersede an accepted ADR with a n
 | [ADR-014](ADR-014-real-phone-camera-prototype.md) | Real local phone camera and proposed three-feature prototype | Camera-capture decision; inference and biometric gates remain |
 | [ADR-015](ADR-015-local-person-inference-bridge.md) | Development-only local person-inference bridge | Engineering decision; no production or biometric approval |
 | [ADR-016](ADR-016-self-service-workspace-registration.md) | Self-service workspace registration with a 14-day trial | Accepted |
+| [ADR-017](ADR-017-metered-live-view.md) | Metered live view per workspace | Accepted |
 
 Every ADR must state its operational and security consequences. ADR-001 remains a release blocker until legal approval is recorded.
 

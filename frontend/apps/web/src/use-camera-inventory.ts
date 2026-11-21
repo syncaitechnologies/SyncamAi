@@ -12,17 +12,23 @@ import {
   buildLiveCameraWallTiles,
 } from "./camera-wall-model";
 
+/**
+ * Camera wall tiles. `preloaded` skips the camera list request (browser
+ * fixtures supply their own synthetic cameras).
+ */
 export function useCameraInventory(
   alerts: AlertItem[],
   dataMode: "demo" | "live",
+  preloaded?: ApiCamera[],
 ) {
   const config = useMemo(readAlertRuntimeConfig, []);
-  const [cameras, setCameras] = useState<ApiCamera[]>([]);
-  const [loaded, setLoaded] = useState(dataMode === "demo");
+  const [fetched, setCameras] = useState<ApiCamera[]>([]);
+  const cameras = preloaded ?? fetched;
+  const [loaded, setLoaded] = useState(dataMode === "demo" || preloaded !== undefined);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (dataMode === "demo") return;
+    if (dataMode === "demo" || preloaded !== undefined) return;
     const abort = new AbortController();
     try {
       validateLiveConfig(config);
@@ -49,7 +55,7 @@ export function useCameraInventory(
       setLoaded(true);
     }
     return () => abort.abort();
-  }, [config, dataMode]);
+  }, [config, dataMode, preloaded]);
 
   const tiles = useMemo(
     () =>

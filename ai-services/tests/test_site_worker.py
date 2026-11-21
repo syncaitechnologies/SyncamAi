@@ -400,6 +400,34 @@ class RunnerTest(BackendFixture):
             self.assertFalse(worker.status()["trial_ended"])
             self.assertIsNotNone(worker.rules)
 
+    def test_the_camera_wall_still_is_refreshed_every_five_minutes(self) -> None:
+        class _ReferenceBackend:
+            def __init__(self) -> None:
+                self.references: list[float] = []
+
+            def config(self):
+                return {"tenant_id": "11111111-1111-4111-8111-111111111111", "site_id": "22222222-2222-4222-8222-222222222222",
+                        "site": {"name": "Shop"}, "cameras": [{"id": CAMERA, "name": "Gate"}], "zones": []}
+
+            def put_reference(self, camera_id, jpeg):
+                self.references.append(clock[0])
+
+            def heartbeat(self, cameras):
+                pass
+
+        clock = [1000.0]
+        backend, stream = _ReferenceBackend(), _Stream()
+        with tempfile.TemporaryDirectory() as directory:
+            worker = SiteWorker(
+                backend=backend, detector=_Detector(), streams={CAMERA: stream}, spool=Spool(pathlib.Path(directory)),
+                fps=4, reference=lambda frame: b"\xff\xd8\xffref", clock=lambda: clock[0], now=lambda: START,
+            )
+            for seconds in (0, 120, 299, 300, 450, 600):
+                clock[0] = 1000.0 + seconds
+                stream.frames.append((len(stream.frames) + 1, object(), START + timedelta(seconds=seconds)))
+                worker.tick()
+        self.assertEqual(backend.references, [1000.0, 1300.0, 1600.0], "a new still every 5 minutes, not more often")
+
     def test_end_to_end_intrusion_and_camera_offline(self) -> None:
         clock = [0.0]
         stream, detector = _Stream(), _Detector()

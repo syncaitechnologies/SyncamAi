@@ -93,6 +93,14 @@ func main() {
 	runContext, stopRunning := context.WithCancel(context.Background())
 	defer stopRunning()
 	keyStore := siteingest.NewPostgresKeyStore(pool)
+	// Live view is metered per workspace (ADR-017); usage is saved every 30 s
+	// and once more at shutdown.
+	liveMeter := livefeed.NewMeter(livefeed.NewPostgresUsage(pool))
+	meterDone := make(chan struct{})
+	go func() {
+		defer close(meterDone)
+		liveMeter.Run(runContext, 30*time.Second)
+	}()
 	siteIngest := httpapi.SiteIngestOptions{
 		Keys:          keyStore,
 		Pairing:       keyStore,
@@ -101,6 +109,7 @@ func main() {
 		Attendance:    attendance.NewPostgresRepository(pool),
 		Live:          livefeed.NewHub(),
 		LiveAudit:     livefeed.NewPostgresAuditor(pool),
+		LiveMeter:     liveMeter,
 	}
 	if supabaseURL, secretKey := strings.TrimSpace(os.Getenv("SYNCAM_SUPABASE_URL")), strings.TrimSpace(os.Getenv("SYNCAM_SUPABASE_SECRET_KEY")); supabaseURL != "" && secretKey != "" {
 		siteIngest.Evidence = &siteingest.SupabaseEvidenceStore{BaseURL: supabaseURL, SecretKey: secretKey, Bucket: envOrDefault("SYNCAM_EVIDENCE_BUCKET", "snapshots")}
@@ -168,6 +177,12 @@ func main() {
 	log.Print("control-plane listening")
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal("control-plane server failed")
+	}
+	// Let the meter save the last live-view usage before the process exits.
+	select {
+	case <-meterDone:
+	case <-time.After(6 * time.Second):
+		log.Print("live-view usage was not saved before shutdown")
 	}
 }
 
