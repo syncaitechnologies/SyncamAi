@@ -38,6 +38,25 @@
 .live-secret > div { display: flex; gap: 8px; flex-wrap: wrap; }
 .live-secret small { color: #c9b08e; line-height: 1.5; }
 
+/* Owner admin screen (ADR-018). */
+.admin-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 14px; padding: 0 38px; }
+.admin-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.admin-card-head p { margin: 3px 0 0; }
+.admin-plan { flex: none; padding: 4px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #23314a; color: #9fb4ff; }
+.admin-plan-active { background: #13261f; color: #9fe0c4; }
+.admin-plan-suspended { background: #2b1818; color: #ffb0a8; }
+.admin-form { display: grid; gap: 10px; }
+.admin-form label { display: grid; gap: 5px; color: #9fb0bb; font-size: 12px; font-weight: 600; }
+.admin-form input, .admin-form select { min-width: 0; border: 1px solid #3b4b59; border-radius: 8px; background: #101820; color: #ebf1f4; padding: 9px 10px; font: inherit; font-size: 13px; }
+.admin-row { display: flex; gap: 8px; }
+.admin-row input { flex: 1; }
+.admin-form .secondary { border: 1px solid #3a4a58; border-radius: 8px; background: #263440; color: #dbe6eb; padding: 9px 12px; font-size: 12px; font-weight: 700; }
+.admin-hint { margin: 0; }
+@media (max-width: 720px) {
+  .admin-list { padding: 0 16px; }
+  .admin-facts { grid-template-columns: 1fr; }
+}
+
 .live-snapshot { display: block; background: #05080b; border-bottom: 1px solid #23313b; }
 .live-snapshot img { display: block; width: 100%; max-height: 420px; object-fit: contain; }
 .live-snapshot-empty { display: grid; place-items: center; min-height: 200px; padding: 20px; color: #7f909c; font-size: 12px; text-align: center; }

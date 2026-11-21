@@ -292,6 +292,24 @@ func TestSupabaseTrialClaims(t *testing.T) {
 	}
 }
 
+func TestSupabaseOperatorClaim(t *testing.T) {
+	verifier, key := supabaseTestVerifier(t)
+	claims := baseSupabaseClaims()
+	claims["app_metadata"] = map[string]any{"syncam_operator": true, "syncam": map[string]any{
+		"tenant_id": "22222222-2222-4222-8222-222222222222", "site_ids": []string{},
+		"roles": []string{"super_admin"}, "scopes": []string{"sites:read"}, "data_class": []string{"metadata"},
+	}}
+	principal, err := verifier.Verify(context.Background(), signedToken(t, key, claims))
+	if err != nil || !principal.Operator {
+		t.Fatalf("operator flag from app_metadata: %+v %v", principal, err)
+	}
+	claims["app_metadata"].(map[string]any)["syncam_operator"] = false
+	claims["user_metadata"] = map[string]any{"syncam_operator": true}
+	if principal, _ := verifier.Verify(context.Background(), signedToken(t, key, claims)); principal.Operator {
+		t.Fatal("user_metadata never makes someone an operator")
+	}
+}
+
 func TestPlanEnded(t *testing.T) {
 	now := time.Date(2026, 11, 17, 12, 0, 0, 0, time.UTC)
 	past, future := now.Add(-time.Second), now.Add(time.Hour)

@@ -31,7 +31,10 @@ export function MfaGate({ client, session, onSignOut, notice, signingOut }: {
       if (!active) return;
       if (decision.kind === "ready") {
         syncAccessToken(session);
-        storeWorkspace({ tenantId: decision.tenantId, siteIds: decision.siteIds, roles: decision.roles, ...(decision.plan ? { plan: decision.plan } : {}) });
+        storeWorkspace({
+          tenantId: decision.tenantId, siteIds: decision.siteIds, roles: decision.roles,
+          ...(decision.plan ? { plan: decision.plan } : {}), ...(decision.operator ? { operator: true } : {}),
+        });
       }
       setResult({ token: session.access_token, decision });
     }).catch(() => {

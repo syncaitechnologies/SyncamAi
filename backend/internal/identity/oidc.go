@@ -150,6 +150,9 @@ type tokenClaims struct {
 		Registration *struct {
 			EmailVerified bool `json:"email_verified"`
 		} `json:"syncam_registration"`
+		// Operator is set by the access-token hook for people who run the
+		// SyncCam platform (ADR-018).
+		Operator bool `json:"syncam_operator"`
 	} `json:"app_metadata"`
 }
 
@@ -294,6 +297,7 @@ func principalFromSupabaseClaims(claims tokenClaims) (Principal, error) {
 		MFALevel:    claims.AAL,
 		Plan:        authorization.Plan,
 		TrialEndsAt: trialEndsAt,
+		Operator:    claims.AppMetadata.Operator,
 	}
 	if err := principal.Validate(); err != nil {
 		return Principal{}, err

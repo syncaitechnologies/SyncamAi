@@ -1,5 +1,6 @@
 import { AlertApiClient, AlertApiError } from "./alert-client";
 import { errorCode, frameProblem, type LiveFrameProblem, type LiveViewUsage } from "./live-view-model";
+import type { AdminChanges, AdminWorkspace } from "./admin-model";
 
 export type { LiveFrameProblem, LiveViewUsage } from "./live-view-model";
 
@@ -303,6 +304,20 @@ export class SyncamApi extends AlertApiClient {
   }
 
   /** This workspace's live view allowance for the current month. */
+  /** Owner admin screen: every workspace (platform operators only). */
+  async adminWorkspaces(signal?: AbortSignal) {
+    return data<AdminWorkspace[]>(await this.request("/v1/admin/workspaces", { method: "GET", signal }));
+  }
+
+  /** Owner admin screen: change one workspace's plan, trial end or limits. */
+  async updateAdminWorkspace(tenantId: string, changes: AdminChanges) {
+    await this.request(`/v1/admin/workspaces/${encodeURIComponent(tenantId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "X-Correlation-Id": crypto.randomUUID() },
+      body: JSON.stringify(changes),
+    });
+  }
+
   async liveViewUsage(signal?: AbortSignal) {
     return data<LiveViewUsage>(await this.request("/v1/live-view/usage", { method: "GET", signal }));
   }

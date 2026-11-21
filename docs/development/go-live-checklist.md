@@ -36,6 +36,16 @@ this work:
 | `SYNCAM_TELEGRAM_BOT_TOKEN` | the BotFather token |
 | `SYNCAM_TELEGRAM_BOT_HANDLE` | the bot username without `@` |
 | `SYNCAM_BROWSER_ORIGINS` | must include `https://syncam-ai-alert-center.vercel.app` |
+| `SYNCAM_OWNER_TELEGRAM_CHAT_ID` | optional: your own Telegram chat ID, to be told when any client's site box goes offline |
+
+**Site box offline alerts.** When a site box sends no heartbeat for 10 minutes,
+its site's linked Telegram chats get "🔴 Site box offline", and "🟢 Site box
+back online" when it reports again (each once). With
+`SYNCAM_OWNER_TELEGRAM_CHAT_ID` set, you get the same notices for every client.
+To find your chat ID, link your Telegram to any site in the dashboard, then in
+the Supabase SQL editor run
+`select chat_id, chat_title from notify.telegram_targets;`. The first check
+runs 10 minutes after the API starts, so a restart never looks like an outage.
 
 The free instance sleeps after 15 idle minutes; the site box heartbeat every
 two minutes keeps it awake while a site is connected.
@@ -81,11 +91,29 @@ Clients can create their own account and workspace at the dashboard URL
    Turnstile (free). The dashboard does not send a CAPTCHA token yet, so turn
    this on only after that small change ships.
 7. Optional Vercel variables: `VITE_SYNCAM_TERMS_URL`, `VITE_SYNCAM_PRIVACY_URL`
-   (https pages, once the texts are approved) and `VITE_SYNCAM_CONTACT_EMAIL`
-   (shown on the trial banner).
+   and `VITE_SYNCAM_CONTACT_EMAIL` (shown on the trial banner).
+   Draft pages ship with the dashboard at `/terms.html` and `/privacy.html`
+   (source: `frontend/apps/web/public/`). They are marked "Draft – not yet in
+   effect", have highlighted blanks for your company details, and ask search
+   engines not to index them. Once a lawyer has approved the text: fill the
+   blanks, remove the draft notice and `noindex` line, then set
+   `VITE_SYNCAM_TERMS_URL=https://syncam-ai-alert-center.vercel.app/terms.html`
+   and `VITE_SYNCAM_PRIVACY_URL=https://syncam-ai-alert-center.vercel.app/privacy.html`
+   and redeploy. Until then the sign-up checkbox shows the names without links.
 
-New workspaces get a 14-day trial with 1 site and 10 cameras. To extend or
-activate one (SQL editor, as the project owner):
+New workspaces get a 14-day trial with 1 site and 10 cameras. Change a client's
+plan, trial end, limits and live-view minutes on the dashboard's **Owner admin**
+page (Manage menu; ADR-018). Every change is written to that client's audit log.
+The page appears only for owners listed in `platform.operators`, signed in with
+the authenticator app. Add yourself once (SQL editor, as the project owner),
+then sign out and in:
+
+```sql
+insert into platform.operators (user_id, note)
+select id, 'SyncCam owner' from auth.users where email = '<your sign-in email>';
+```
+
+Fallback without the dashboard (SQL editor, as the project owner):
 
 ```sql
 update identity.tenants set trial_ends_at = now() + interval '14 days' where slug = '<slug>';
@@ -98,8 +126,9 @@ after signing out and in).
 ## 5b. Live-view minutes (ADR-017)
 
 Every workspace gets 10 live-view minutes a month; the owner's own workspace
-is unlimited. To sell more minutes to a client, or to change the setting (SQL
-editor, as the project owner; applies within a minute):
+is unlimited. To sell more minutes to a client, use **Owner admin** on the
+dashboard (empty = unlimited, 0 = off; applies within a minute). The SQL below
+does the same without the audit record:
 
 ```sql
 update identity.tenants set live_view_minutes = 300 where slug = '<slug>';   -- 5 hours a month
