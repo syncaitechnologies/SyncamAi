@@ -520,8 +520,9 @@ def _serve(config: LocalConfig, session: _Session, cleanup: list[Any]) -> None:
                 stream.join(timeout=12)
 
     cleanup.append(_stop_streams)
+    # _start_streams has already started these; a thread can start only once.
     for camera_id, stream in _start_streams(config).items():
-        streams.add(camera_id, stream)
+        streams.add(camera_id, stream, start=False)
     if vault is not None:
         for camera_id, source in vault_camera_sources(vault).items():
             streams.add(camera_id, CameraStream(camera_id, source))
