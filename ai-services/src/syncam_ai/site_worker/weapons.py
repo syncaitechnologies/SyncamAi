@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Final, Sequence
+from typing import Any, ClassVar, Final, Sequence
 
 from ..model_artifacts import ModelArtifact, verify_model_artifact
 from ..weapon_review import WeaponCandidate, WeaponCandidateFrame, WeaponReviewConfirmation
@@ -108,6 +108,9 @@ def person_crops(
 @dataclass
 class WeaponProcessor:
     """Runs the weapon model and confirms candidates per camera."""
+
+    # The dashboard switch that controls this processor (ADR-019).
+    feature: ClassVar[str] = "weapon"
 
     model: Any
     model_version: str

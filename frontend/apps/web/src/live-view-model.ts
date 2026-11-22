@@ -10,10 +10,12 @@ export type LiveViewUsage = {
 };
 
 /** Why a live frame request returned no picture. */
-export type LiveFrameProblem = "pending" | "expired" | "paused" | "limit";
+export type LiveFrameProblem = "pending" | "expired" | "paused" | "limit" | "off";
 
 export const LIVE_VIEW_LIMIT = "LIVE_VIEW_LIMIT";
 export const LIVE_VIEW_PAUSED = "LIVE_VIEW_PAUSED";
+/** The workspace's admins switched live view off on the Features page (ADR-019). */
+export const LIVE_VIEW_OFF = "LIVE_VIEW_OFF";
 /** Continuous viewing before the server pauses a session. */
 export const PAUSE_AFTER_MINUTES = 5;
 /** How often the camera wall reloads stills; matches the site box upload interval. */
@@ -34,6 +36,7 @@ export function errorCode(payload: unknown): string | undefined {
  */
 export function frameProblem(status: number, code: string | undefined): LiveFrameProblem | null {
   if (code === LIVE_VIEW_LIMIT && (status === 403 || status === 409)) return "limit";
+  if (code === LIVE_VIEW_OFF && status === 403) return "off";
   if (code === LIVE_VIEW_PAUSED && status === 409) return "paused";
   if (status === 409) return "expired";
   if (status === 404) return "pending";
@@ -44,6 +47,14 @@ export function frameProblem(status: number, code: string | undefined): LiveFram
 export function isLimitError(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && (error as { code: unknown }).code === LIVE_VIEW_LIMIT;
 }
+
+/** Whether an error from POST /live means the workspace switched live view off. */
+export function isSwitchedOffError(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code: unknown }).code === LIVE_VIEW_OFF;
+}
+
+/** What the feed says when the workspace has switched live view off. */
+export const SWITCHED_OFF_MESSAGE = "Live view is switched off for this workspace";
 
 export function isUnlimited(usage: LiveViewUsage) {
   return usage.limit_minutes === null;

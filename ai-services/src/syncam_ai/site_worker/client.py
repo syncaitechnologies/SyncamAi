@@ -7,7 +7,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 
 class BackendError(Exception):
@@ -137,6 +137,11 @@ class BackendClient:
             raise
         return True
 
-    def heartbeat(self, cameras: Mapping[str, Mapping[str, object]]) -> None:
-        body = json.dumps({"cameras": cameras}, separators=(",", ":")).encode()
+    def heartbeat(self, cameras: Mapping[str, Mapping[str, object]], capabilities: Sequence[str] | None = None) -> None:
+        payload: dict[str, object] = {"cameras": cameras}
+        if capabilities is not None:
+            # The features this box has loaded (ADR-019), so the dashboard can
+            # say whether a switched-on feature can actually run here.
+            payload["capabilities"] = list(capabilities)
+        body = json.dumps(payload, separators=(",", ":")).encode()
         self._request("POST", "/v1/site-ingest/heartbeat", body=body, content_type="application/json")

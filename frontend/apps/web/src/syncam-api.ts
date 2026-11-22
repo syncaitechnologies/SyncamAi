@@ -1,6 +1,7 @@
 import { AlertApiClient, AlertApiError } from "./alert-client";
 import { errorCode, frameProblem, type LiveFrameProblem, type LiveViewUsage } from "./live-view-model";
 import type { AdminChanges, AdminWorkspace } from "./admin-model";
+import type { Feature, FeatureChanges, FeatureKey } from "./features-model";
 import { RESTART_TIMEOUT_MS, restartFailure } from "./site-box-model";
 
 export type { LiveFrameProblem, LiveViewUsage } from "./live-view-model";
@@ -330,6 +331,31 @@ export class SyncamApi extends AlertApiClient {
       headers: { "Content-Type": "application/json", "X-Correlation-Id": crypto.randomUUID() },
       body: JSON.stringify(changes),
     });
+  }
+
+  /** Owner admin screen: set which features a workspace's plan includes (ADR-019). */
+  async setAdminFeatures(tenantId: string, changes: Record<string, boolean>) {
+    await this.request(`/v1/admin/workspaces/${encodeURIComponent(tenantId)}/features`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-Correlation-Id": crypto.randomUUID() },
+      body: JSON.stringify(changes),
+    });
+  }
+
+  /** Every AI feature with its plan, switch, cameras and recent activity. */
+  async features(signal?: AbortSignal) {
+    return data<Feature[]>(await this.request("/v1/features", { method: "GET", signal }));
+  }
+
+  /** Switch one feature on or off, or choose its cameras (null = all). Workspace owners only. */
+  async updateFeature(key: FeatureKey, changes: FeatureChanges) {
+    return data<Feature>(
+      await this.request(`/v1/features/${encodeURIComponent(key)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "X-Correlation-Id": crypto.randomUUID() },
+        body: JSON.stringify(changes),
+      }),
+    );
   }
 
   async liveViewUsage(signal?: AbortSignal) {

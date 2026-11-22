@@ -73,3 +73,71 @@ func TestPostgresAdminMapsDatabaseRefusals(t *testing.T) {
 		t.Fatalf("an empty change is refused: %v", err)
 	}
 }
+
+func TestPostgresAdminListsAndSetsPlanFeatures(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mock.Close()
+	mock.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	mock.ExpectQuery("admin_list_features").WithArgs(unitOperatorID).WillReturnRows(pgxmock.NewRows([]string{"tenant_id", "feature", "included"}).
+		AddRow(unitTenantID, "weapon", true).AddRow(unitTenantID, "loitering", false))
+	mock.ExpectCommit()
+	mock.ExpectRollback()
+	mock.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadWrite})
+	mock.ExpectExec("admin_set_features").WithArgs(unitOperatorID, unitRequestID, unitTenantID, `{"weapon":false}`).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+	mock.ExpectCommit()
+	mock.ExpectRollback()
+
+	repository := NewPostgresRepository(mock)
+	features, err := repository.ListPlanFeatures(context.Background(), unitOperatorID)
+	if err != nil || !features[unitTenantID]["weapon"] || features[unitTenantID]["loitering"] {
+		t.Fatalf("list: %v %v", features, err)
+	}
+	if err := repository.SetPlanFeatures(context.Background(), unitOperatorID, unitRequestID, unitTenantID, map[string]bool{"weapon": false}); err != nil {
+		t.Fatal(err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresAdminPlanFeaturesRefusals(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mock.Close()
+	mock.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	mock.ExpectQuery("admin_list_features").WithArgs(unitOperatorID).WillReturnError(&pgconn.PgError{Code: "42501"})
+	mock.ExpectRollback()
+	mock.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadWrite})
+	mock.ExpectExec("admin_set_features").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnError(&pgconn.PgError{Code: "22023"})
+	mock.ExpectRollback()
+	repository := NewPostgresRepository(mock)
+	if _, err := repository.ListPlanFeatures(context.Background(), unitOperatorID); !errors.Is(err, ErrNotOperator) {
+		t.Fatalf("non-operators are refused: %v", err)
+	}
+	if err := repository.SetPlanFeatures(context.Background(), unitOperatorID, unitRequestID, unitTenantID, map[string]bool{"teleport": true}); !errors.Is(err, ErrAdminInvalid) {
+		t.Fatalf("invalid features are refused: %v", err)
+	}
+	if _, err := repository.ListPlanFeatures(context.Background(), "not-a-uuid"); !errors.Is(err, ErrNotOperator) {
+		t.Fatalf("a bad actor id is refused before the database: %v", err)
+	}
+	if err := repository.SetPlanFeatures(context.Background(), unitOperatorID, unitRequestID, unitTenantID, map[string]bool{}); !errors.Is(err, ErrAdminInvalid) {
+		t.Fatalf("an empty change is refused: %v", err)
+	}
+	if err := repository.SetPlanFeatures(context.Background(), unitOperatorID, "bad", unitTenantID, map[string]bool{"weapon": true}); !errors.Is(err, ErrAdminInvalid) {
+		t.Fatalf("a bad request id is refused: %v", err)
+	}
+	if _, err := NewPostgresRepository(nil).ListPlanFeatures(context.Background(), unitOperatorID); err == nil {
+		t.Fatal("a missing pool fails")
+	}
+	if err := NewPostgresRepository(nil).SetPlanFeatures(context.Background(), unitOperatorID, unitRequestID, unitTenantID, map[string]bool{"weapon": true}); err == nil {
+		t.Fatal("a missing pool fails")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}

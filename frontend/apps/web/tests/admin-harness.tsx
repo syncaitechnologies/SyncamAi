@@ -12,10 +12,12 @@ const now = Date.now();
 const initial: AdminWorkspace[] = [
   { tenant_id: "fixture-1", name: "Acme Security", slug: "acme-security-1a2b3c4d", plan: "trial",
     trial_ends_at: new Date(now + 5 * 86_400_000).toISOString(), site_limit: 1, camera_limit: 10, live_view_minutes: 10,
-    live_view_seconds: 372, sites: 1, cameras: 4, created_at: new Date(now - 9 * 86_400_000).toISOString() },
+    live_view_seconds: 372, sites: 1, cameras: 4, created_at: new Date(now - 9 * 86_400_000).toISOString(),
+    features: { zone_alerts: true, loitering: true, attendance: true, weapon: false } },
   { tenant_id: "fixture-2", name: "SyncAi Technologies", slug: "syncai-technologies", plan: "active",
     trial_ends_at: null, site_limit: null, camera_limit: null, live_view_minutes: null,
-    live_view_seconds: 318, sites: 1, cameras: 1, created_at: new Date(now - 80 * 86_400_000).toISOString() },
+    live_view_seconds: 318, sites: 1, cameras: 1, created_at: new Date(now - 80 * 86_400_000).toISOString(),
+    features: { zone_alerts: true, loitering: true, attendance: true, weapon: true } },
 ];
 
 function Fixture() {
@@ -28,6 +30,10 @@ function Fixture() {
       async updateAdminWorkspace(id: string, changes: AdminChanges) {
         setLog((current) => [...current, `PATCH ${id} ${JSON.stringify(changes)}`]);
         workspaces = workspaces.map((workspace) => (workspace.tenant_id === id ? { ...workspace, ...changes } as AdminWorkspace : workspace));
+      },
+      async setAdminFeatures(id: string, changes: Record<string, boolean>) {
+        setLog((current) => [...current, `PUT ${id}/features ${JSON.stringify(changes)}`]);
+        workspaces = workspaces.map((workspace) => (workspace.tenant_id === id ? { ...workspace, features: { ...workspace.features, ...changes } } : workspace));
       },
     } as unknown as SyncamApi;
   }, []);

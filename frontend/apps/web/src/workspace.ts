@@ -42,3 +42,9 @@ export function readWorkspace(
 export function canManage(workspace: Workspace | null) {
   return Boolean(workspace?.roles.some((role) => role === "super_admin" || role === "site_admin"));
 }
+
+// Switching features can stop security alerts, so only the workspace owner
+// (super admin) may do it (ADR-019). The API checks again.
+export function canManageFeatures(workspace: Workspace | null) {
+  return Boolean(workspace?.roles.includes("super_admin"));
+}

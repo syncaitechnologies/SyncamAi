@@ -383,7 +383,7 @@ class RunnerTest(BackendFixture):
                     raise self.answer
                 return {"tenant_id": "t", "site_id": "s", "site": {"name": "Shop"}, "cameras": [], "zones": []}
 
-            def heartbeat(self, cameras):
+            def heartbeat(self, cameras, capabilities=None):
                 pass
 
         backend = _EndedTrialBackend()
@@ -412,7 +412,7 @@ class RunnerTest(BackendFixture):
             def put_reference(self, camera_id, jpeg):
                 self.references.append(clock[0])
 
-            def heartbeat(self, cameras):
+            def heartbeat(self, cameras, capabilities=None):
                 pass
 
         clock = [1000.0]

@@ -9,6 +9,7 @@ import (
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/authz"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/boxsetup"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/device"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/features"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/livefeed"
 )
@@ -65,6 +66,10 @@ func (s *Server) startLiveView(w http.ResponseWriter, r *http.Request) {
 		writeLiveViewLimit(w, usage)
 		return
 	}
+	if !s.featureAllows(r.Context(), tenantID, features.LiveView, "", camera.ID) {
+		writeLiveViewOff(w)
+		return
+	}
 	state, watching := hub.Watching(tenantID, camera.SiteID, camera.ID, principal.UserID)
 	if watching {
 		if usage, ok = s.chargeLiveView(w, r, tenantID, state.Elapsed); !ok {
@@ -119,6 +124,11 @@ func (s *Server) liveFrame(w http.ResponseWriter, r *http.Request) {
 	if usage.Exhausted() {
 		hub.Stop(tenantID, camera.SiteID, camera.ID, principal.UserID)
 		writeLiveViewLimit(w, usage)
+		return
+	}
+	if !s.featureAllows(r.Context(), tenantID, features.LiveView, "", camera.ID) {
+		hub.Stop(tenantID, camera.SiteID, camera.ID, principal.UserID)
+		writeLiveViewOff(w)
 		return
 	}
 	if state.Paused() {
@@ -183,6 +193,12 @@ func remainingSeconds(usage livefeed.Usage) any {
 		return nil
 	}
 	return int64(usage.Remaining() / time.Second)
+}
+
+// writeLiveViewOff answers when the workspace has switched live view off
+// (ADR-019); its admins can switch it back on in Features.
+func writeLiveViewOff(w http.ResponseWriter) {
+	writeError(w, http.StatusForbidden, "LIVE_VIEW_OFF", "Live view is switched off for this workspace. An admin can turn it on in Features.")
 }
 
 func writeLiveViewLimit(w http.ResponseWriter, usage livefeed.Usage) {

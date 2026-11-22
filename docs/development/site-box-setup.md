@@ -38,6 +38,20 @@ model with **no stated licence**; `fetch_site_models.ps1 -IncludeDevWeaponModel`
 downloads it for development and demos only. Replace it with a licence-clean,
 fine-tuned model before selling.
 
+### Switching features on and off (ADR-019)
+
+Each feature can be switched on or off, for all cameras or chosen ones, on the
+dashboard's **Features** page by the workspace owner. The owner of SyncCam
+decides in **Owner admin** which features each client's plan includes. Weapon
+detection is a preview, so no plan includes it until the owner ticks it. The
+box (0.1.5 or later) applies a change on its next configuration refresh,
+within about a minute, with no restart, and logs
+`feature switches from the dashboard: ...`. It reports which features it has
+loaded in its heartbeat, so the Features page can say "Needs site box setup"
+when a feature is on but its model is not installed. The API also drops
+events from switched-off features, so older boxes are covered too. A feature
+still needs its model in the local config to run at all.
+
 An intrusion zone alerts when a person **enters** it, and also when a person is
 first seen **already inside** it for three consecutive frames while armed. A
 loitering-near-vehicles zone never alerts for a parked vehicle, only for a

@@ -155,6 +155,7 @@ func NewWithSiteIngest(verifier identity.Verifier, tenants tenant.Repository, ev
 	server.registerSiteIngestRoutes()
 	server.registerRegistrationRoutes()
 	server.registerAdminRoutes()
+	server.registerFeatureRoutes()
 	return server.mux
 }
 
@@ -251,6 +252,12 @@ func (s *Server) ingestEvent(w http.ResponseWriter, r *http.Request) {
 		Capability: authz.CapabilityEventsWrite, TenantID: tenantID, SiteID: event.SiteID,
 	}); err != nil {
 		writeError(w, http.StatusForbidden, "FORBIDDEN", "Access denied.")
+		return
+	}
+	// Events from a switched-off feature never become alerts (ADR-019). The
+	// 202 keeps older site boxes from retrying them.
+	if !s.featureAllows(r.Context(), tenantID, "", event.EventType, event.CameraID) {
+		writeFeatureOff(w, event.EventID)
 		return
 	}
 

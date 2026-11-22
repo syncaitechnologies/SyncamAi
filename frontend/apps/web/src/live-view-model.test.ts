@@ -71,6 +71,7 @@ test("reset date is the UTC month boundary", () => {
 test("frame errors map to feed states by code, not just status", () => {
   assert.equal(frameProblem(409, "LIVE_VIEW_PAUSED"), "paused");
   assert.equal(frameProblem(403, "LIVE_VIEW_LIMIT"), "limit");
+  assert.equal(frameProblem(403, "LIVE_VIEW_OFF"), "off");
   assert.equal(frameProblem(409, "LIVE_VIEW_LIMIT"), "limit");
   assert.equal(frameProblem(409, "LIVE_SESSION_REQUIRED"), "expired");
   assert.equal(frameProblem(409, undefined), "expired", "an old server's bare 409 still restarts");

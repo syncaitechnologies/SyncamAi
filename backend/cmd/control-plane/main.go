@@ -22,6 +22,7 @@ import (
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/configdelivery"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/device"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/features"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/httpapi"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/livefeed"
@@ -110,6 +111,7 @@ func main() {
 		Live:          livefeed.NewHub(),
 		LiveAudit:     livefeed.NewPostgresAuditor(pool),
 		LiveMeter:     liveMeter,
+		Features:      features.NewService(features.NewPostgresStore(pool)),
 	}
 	if supabaseURL, secretKey := strings.TrimSpace(os.Getenv("SYNCAM_SUPABASE_URL")), strings.TrimSpace(os.Getenv("SYNCAM_SUPABASE_SECRET_KEY")); supabaseURL != "" && secretKey != "" {
 		siteIngest.Evidence = &siteingest.SupabaseEvidenceStore{BaseURL: supabaseURL, SecretKey: secretKey, Bucket: envOrDefault("SYNCAM_EVIDENCE_BUCKET", "snapshots")}
