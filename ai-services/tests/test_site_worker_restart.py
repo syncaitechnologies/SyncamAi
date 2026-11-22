@@ -186,5 +186,27 @@ class RestartLoopTest(unittest.TestCase):
         self.assertEqual(stopped, ["status page", "streams"])
 
 
+class ServeTest(unittest.TestCase):
+    def test_cameras_from_the_config_file_start_once(self) -> None:
+        # Regression: 0.1.3 started config-file cameras a second time and every
+        # start failed with "threads can only be started once".
+        camera = mock.Mock()
+        config = mock.Mock(vault=None, auto_update=False, live_view=True, keep_awake=False, status_port=0)
+        with mock.patch.object(cli, "_installed", return_value=False), \
+                mock.patch.object(cli, "BackendClient"), \
+                mock.patch.object(cli, "_detector"), \
+                mock.patch.object(cli, "_processors", return_value=[]), \
+                mock.patch.object(cli, "Spool"), \
+                mock.patch.object(cli, "SiteWorker") as worker, \
+                mock.patch.object(cli, "_status_server", return_value=None), \
+                mock.patch("syncam_ai.site_worker.live.LiveRelay"), \
+                mock.patch.object(cli, "_start_streams", return_value={"cam-1": camera}):
+            cleanup: list = []
+            cli._serve(config, cli._Session(), cleanup)
+        camera.start.assert_not_called()
+        self.assertIs(worker.call_args.kwargs["streams"]["cam-1"], camera)
+        worker.return_value.run.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()
