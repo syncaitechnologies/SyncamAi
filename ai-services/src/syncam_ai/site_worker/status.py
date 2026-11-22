@@ -51,6 +51,12 @@ def render_status_html(status: Mapping[str, Any]) -> str:
         ("Paired with SyncCam", paired, "Run the installer again, or: syncam-box.exe pair --code &lt;code&gt;"),
         ("Connected to SyncCam", connected, offline_hint),
     ]
+    if "keeps_awake" in status:
+        checks.append((
+            "Keeping this computer awake",
+            bool(status.get("keeps_awake")),
+            "If this computer goes to sleep, alerts stop. In Windows Settings &gt; System &gt; Power, set Sleep to Never.",
+        ))
     if worker.get("trial_ended"):
         checks.append(("SyncCam plan active", False, "The free trial of this workspace has ended, so alerts are not sent. Contact SyncCam to keep using it."))
     check_rows = "".join(

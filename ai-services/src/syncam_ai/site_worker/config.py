@@ -42,6 +42,8 @@ class LocalConfig:
     status_port: int = 8790
     # Installed boxes install signed updates by themselves (see updater.py).
     auto_update: bool = True
+    # Ask Windows not to sleep while the box runs (see awake.py).
+    keep_awake: bool = True
 
 
 class NotPairedError(ValueError):
@@ -126,6 +128,7 @@ def parse_local_config(raw: Mapping[str, Any], *, environ: Mapping[str, str] | N
         live_view=bool(raw.get("live_view", True)),
         status_port=status_port,
         auto_update=bool(raw.get("auto_update", True)),
+        keep_awake=bool(raw.get("keep_awake", True)),
     )
 
 

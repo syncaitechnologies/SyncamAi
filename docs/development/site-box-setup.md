@@ -137,7 +137,9 @@ network as the cameras or recorder.
    - downloads the detection model and checks its SHA-384 pin,
    - pairs the box, and
    - registers the **SyncCam Box** task, which runs as SYSTEM at computer
-     start-up (nobody has to sign in) and restarts within a minute if it stops.
+     start-up (nobody has to sign in). From version 0.1.3 the box also
+     recovers by itself: a failed start (for example no internet yet at boot)
+     is retried every 30 seconds instead of waiting for the next reboot.
 4. In the dashboard, **Configuration → Cameras → Find cameras** adds the
    cameras (see [below](#find-cameras-no-rtsp-addresses-to-type)). Nothing
    else is configured on the PC.
@@ -150,6 +152,27 @@ opens <http://127.0.0.1:8790>: whether the box is paired and connected, each
 camera's last frame, the last alert, alerts waiting to be delivered and the
 update state. It is served on the loopback address only, shows no addresses,
 passwords or keys, and refuses requests for any other host name.
+
+**Keep the PC awake.** A sleeping computer sends no alerts, and nothing wakes it
+up. From version 0.1.3, while the box runs it asks Windows not to sleep (a
+"system required" power request; the screen can still turn off and no power
+setting is changed). The status page shows **Keeping this computer awake**.
+It cannot stop someone choosing Sleep or Shut down, a laptop lid set to sleep,
+or a power cut, so on a laptop set *Control Panel → Power Options → Choose
+what closing the lid does* to **Do nothing** when plugged in. As administrator,
+`powercfg /requests` lists the box's request. Set `"keep_awake": false` in
+`syncam-site.json` to turn this off.
+
+**Restart from the dashboard.** In **Configuration → Site box**, managers
+(Super Admin, Site Admin) can choose **Restart site box** while the box is
+online. Within a few seconds the box stops its cameras and AI, reads its config
+again and starts them again; alerts pause for about a minute. The program
+itself keeps running, so this works the same for an installed box and one run
+from source. The button is not offered for an offline box, which could not
+receive it: then check that the PC is on, awake and connected, or restart the
+PC. Boxes older than 0.1.3 answer that they do not know the request until they
+update themselves. To restart by hand on the PC: restart the computer, or in
+Task Scheduler end and run the **SyncCam Box** task.
 
 **Updates.** Once a day the box reads the latest release's
 `syncam-box-manifest.json`. It installs a newer version only when the manifest's
@@ -331,6 +354,10 @@ Live view uses Render bandwidth, so it is metered per workspace:
 - Alerts are written to a local spool first and retried for 24 hours, so an
   internet outage or a sleeping backend does not lose them.
 - The box needs only outbound HTTPS. No router ports are opened.
+- If a box stops reporting for 10 minutes, its site's Telegram chats (and the
+  owner chat, if set) get "Site box offline", and "back online" when it returns.
+- A remote restart is a request the box picks up with its regular poll; nothing
+  on the site's network is reachable from the internet.
 - Only the model files pinned in `syncam_ai/model_artifacts.py` load; a
   development-only model needs an explicit opt-in.
 - Detection is not identification. Alerts are marked for human review.

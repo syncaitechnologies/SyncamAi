@@ -368,6 +368,9 @@ class SiteWorker:
             except Exception:
                 _LOG.exception("site worker pass failed; continuing")
             self._stopped.wait(poll_seconds)
+        # Let a delivery in progress finish, so a restarted worker never sends
+        # from the same alert queue at the same time.
+        delivery.join(timeout=30)
 
     def stop(self) -> None:
         self._stopped.set()

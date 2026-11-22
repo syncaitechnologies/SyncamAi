@@ -360,10 +360,13 @@ class SetupCommandTest(unittest.TestCase):
 
     def test_installed_box_rechecks_the_model_every_start(self) -> None:
         config = mock.Mock(detector_model=self.home / "models" / "yolox_s.onnx", backend_url="https://api.example", site_key="sck_x")
-        with mock.patch.object(self.cli, "_installed", return_value=True), mock.patch.object(self.cli, "_detector", side_effect=RuntimeError("stop here")):
-            with self.assertRaises(RuntimeError):
+        # A failed start is retried; the second attempt is ended by Ctrl+C.
+        with mock.patch.object(self.cli, "_installed", return_value=True), mock.patch.object(self.cli, "RETRY_SECONDS", 0), \
+                mock.patch.object(self.cli, "_detector", side_effect=[RuntimeError("damaged model"), KeyboardInterrupt()]), \
+                mock.patch.object(self.cli.signal, "signal"):
+            with self.assertRaises(KeyboardInterrupt), self.assertLogs("syncam.site_worker", "ERROR"):
                 self.cli.command_run(config)
-        self.fetch.assert_called_once_with(self.home / "models" / "yolox_s.onnx")
+        self.assertEqual(self.fetch.call_args_list, [mock.call(self.home / "models" / "yolox_s.onnx")] * 2)
 
     def test_unpaired_installed_box_waits_for_pairing(self) -> None:
         home.ensure_home(self.home)

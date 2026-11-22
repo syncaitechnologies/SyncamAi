@@ -202,3 +202,8 @@
 .live-template strong { color: #e6f0f4; }
 .live-template small { color: #9fb3bd; }
 .live-template button { justify-self: start; }
+
+/* Restart site box (Configuration > Site box) */
+.live-restart { margin: 4px 0 10px; }
+.live-restart .live-secret { margin: 0; }
+

@@ -34,8 +34,13 @@ var (
 	ErrBadStatus    = errors.New("setup task status must be done or failed")
 )
 
-// Types the site box understands.
-var Types = map[string]bool{"scan": true, "probe": true, "adopt": true}
+// Types the site box understands. "restart" asks the box to stop its cameras
+// and AI and start them again (box version 0.1.3 and later; older boxes
+// answer that they do not know the task).
+var Types = map[string]bool{"scan": true, "probe": true, "adopt": true, "restart": true}
+
+// TypeRestart is the remote restart of a site box.
+const TypeRestart = "restart"
 
 // Task is one unit of setup work and, once finished, its result.
 type Task struct {
@@ -93,6 +98,11 @@ func (h *Hub) Create(tenantID, siteID, kind string, payload json.RawMessage) (Ta
 	open := 0
 	for _, item := range h.tasks {
 		if item.tenantID == tenantID && item.siteID == siteID && (item.task.Status == "pending" || item.task.Status == "running") {
+			// A restart already on its way is reused, so repeated clicks
+			// restart the box once.
+			if kind == TypeRestart && item.task.Type == TypeRestart {
+				return item.task, nil
+			}
 			open++
 		}
 	}
