@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=75"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,7 @@ name = "syncam-ai-services"
 version = "0.0.0"
 description = "SyncCam AI Python 3.12 service scaffolds"
 requires-python = ">=3.12,<3.13"
-license = { text = "Proprietary" }
+license = "LicenseRef-Proprietary"
 
 [project.optional-dependencies]
 person-detector = [
