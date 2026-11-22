@@ -48,6 +48,7 @@ func TestBrowserOriginRequests(t *testing.T) {
 		{"multiple in value", consoleOrigin, consoleOrigin + " https://evil.example", "GET", "", "", 403, 0, false},
 		{"preflight", consoleOrigin, consoleOrigin, "OPTIONS", "POST", "authorization, content-type, x-sentinelvision-tenant-id, idempotency-key, x-correlation-id", 204, 0, true},
 		{"patch preflight", consoleOrigin, consoleOrigin, "OPTIONS", "PATCH", "Authorization", 204, 0, true},
+		{"put preflight for owner plan features", consoleOrigin, consoleOrigin, "OPTIONS", "PUT", "Authorization, Content-Type, X-Correlation-Id", 204, 0, true},
 		{"no requested headers", consoleOrigin, consoleOrigin, "OPTIONS", "GET", "", 204, 0, true},
 		{"unknown method", consoleOrigin, consoleOrigin, "OPTIONS", "TRACE", "", 403, 0, false},
 		{"lowercase method", consoleOrigin, consoleOrigin, "OPTIONS", "post", "", 403, 0, false},
