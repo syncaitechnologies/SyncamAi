@@ -67,6 +67,16 @@ func (s *Server) adminListWorkspaces(w http.ResponseWriter, r *http.Request) {
 		writeAdminError(w, err)
 		return
 	}
+	if lister, ok := admin.(tenant.AdminFeatureRepository); ok {
+		overrides, err := lister.ListPlanFeatures(r.Context(), principal.UserID)
+		if err != nil {
+			writeAdminError(w, err)
+			return
+		}
+		for index := range workspaces {
+			workspaces[index].Features = planFeatures(overrides[workspaces[index].TenantID])
+		}
+	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, map[string]any{"data": workspaces, "meta": map[string]any{"count": len(workspaces)}})
 }

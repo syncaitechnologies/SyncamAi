@@ -141,6 +141,23 @@ left join platform.live_view_usage u on u.tenant_id = t.id and u.month = date_tr
 order by used_minutes desc;
 ```
 
+## 5c. Features in each plan (ADR-019)
+
+Zone alerts, loitering, face attendance and live view are in every plan by
+default, trials too. Weapon detection is a preview that no plan includes until
+you tick it in **Owner admin** (Change plan, limits or features). Before this
+change reaches production, tick **Possible weapon** for your own workspace,
+otherwise the API drops your laptop box's weapon alerts. Clients switch their
+included features on and off on the **Features** page; every change is in
+their audit log. To check without the dashboard:
+
+```sql
+-- The owner's choices that differ from the defaults:
+select t.slug, f.feature, f.included from identity.tenant_features f join identity.tenants t on t.id = f.tenant_id order by 1, 2;
+-- Each workspace's own switches:
+select t.slug, s.feature, s.enabled, s.camera_ids, s.updated_at from config.feature_settings s join identity.tenants t on t.id = s.tenant_id order by 1, 2;
+```
+
 ## 6. End-to-end test
 
 - Walk into an armed zone: a Telegram photo arrives within seconds and the

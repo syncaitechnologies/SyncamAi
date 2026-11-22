@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canManage, readWorkspace, storeWorkspace } from "./workspace.ts";
+import { canManage, canManageFeatures, readWorkspace, storeWorkspace } from "./workspace.ts";
 
 function memoryStorage() {
   const values = new Map<string, string>();
@@ -33,4 +33,10 @@ test("only administrators manage sites, cameras and zones", () => {
   assert.equal(canManage({ tenantId: "t", siteIds: ["s"], roles: ["site_admin"] }), true);
   assert.equal(canManage({ tenantId: "t", siteIds: ["s"], roles: ["operator"] }), false);
   assert.equal(canManage(null), false);
+});
+
+test("only the workspace owner switches features", () => {
+  assert.equal(canManageFeatures({ tenantId: "t", siteIds: [], roles: ["super_admin"] }), true);
+  assert.equal(canManageFeatures({ tenantId: "t", siteIds: ["s"], roles: ["site_admin"] }), false);
+  assert.equal(canManageFeatures(null), false);
 });

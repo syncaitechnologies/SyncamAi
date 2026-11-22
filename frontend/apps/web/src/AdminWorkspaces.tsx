@@ -4,7 +4,11 @@ import {
   changesFrom,
   dayFromNow,
   draftFrom,
+  includedFeaturesLabel,
   liveMinutesLabel,
+  NOTHING_CHANGED,
+  PLAN_FEATURES,
+  planFeatureChanges,
   planLabel,
   usageLabel,
   type AdminDraft,
@@ -65,6 +69,7 @@ export function AdminWorkspaces({ api, onNotify }: { api: SyncamApi | null; onNo
                 <div><dt>Sites</dt><dd>{usageLabel(workspace.sites, workspace.site_limit, "sites")}</dd></div>
                 <div><dt>Cameras</dt><dd>{usageLabel(workspace.cameras, workspace.camera_limit, "cameras")}</dd></div>
                 <div><dt>Live view this month</dt><dd>{liveMinutesLabel(workspace)}</dd></div>
+                {workspace.features && <div><dt>Features in plan</dt><dd>{includedFeaturesLabel(workspace)}</dd></div>}
               </dl>
               {editing === workspace.tenant_id ? (
                 <AdminEditor
@@ -78,7 +83,7 @@ export function AdminWorkspaces({ api, onNotify }: { api: SyncamApi | null; onNo
                   }}
                 />
               ) : (
-                <button type="button" className="live-primary" onClick={() => setEditing(workspace.tenant_id)}>Change plan or limits</button>
+                <button type="button" className="live-primary" onClick={() => setEditing(workspace.tenant_id)}>Change plan, limits or features</button>
               )}
             </section>
           ))}
@@ -95,6 +100,7 @@ function AdminEditor({ api, workspace, onCancel, onSaved }: {
   onSaved: () => void;
 }) {
   const [draft, setDraft] = useState<AdminDraft>(() => draftFrom(workspace));
+  const [features, setFeatures] = useState<Record<string, boolean>>(() => ({ ...(workspace.features ?? {}) }));
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const update = (field: keyof AdminDraft, value: string) => {
@@ -105,14 +111,17 @@ function AdminEditor({ api, workspace, onCancel, onSaved }: {
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const result = changesFrom(workspace, draft);
-    if ("error" in result) {
+    const featureChanges = workspace.features ? planFeatureChanges(workspace, features) : {};
+    const onlyFeatures = "error" in result && result.error === NOTHING_CHANGED && Object.keys(featureChanges).length > 0;
+    if ("error" in result && !onlyFeatures) {
       setNotice(result.error);
       return;
     }
     if (!api) return;
     setSaving(true);
     try {
-      await api.updateAdminWorkspace(workspace.tenant_id, result.changes);
+      if (!("error" in result)) await api.updateAdminWorkspace(workspace.tenant_id, result.changes);
+      if (Object.keys(featureChanges).length > 0) await api.setAdminFeatures(workspace.tenant_id, featureChanges);
       onSaved();
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : "The change could not be saved.");
@@ -140,6 +149,26 @@ function AdminEditor({ api, workspace, onCancel, onSaved }: {
       <label>Camera limit<input inputMode="numeric" placeholder="Unlimited" value={draft.cameraLimit} onChange={(event) => update("cameraLimit", event.target.value)} /></label>
       <label>Live-view minutes a month<input inputMode="numeric" placeholder="Unlimited" value={draft.liveViewMinutes} onChange={(event) => update("liveViewMinutes", event.target.value)} /></label>
       <p className="live-muted admin-hint">Leave a limit empty for unlimited. Live-view minutes 0 turns live view off.</p>
+      {workspace.features && (
+        <fieldset className="admin-features">
+          <legend>Features in this plan</legend>
+          {PLAN_FEATURES.map(({ key, label }) => (
+            <label key={key} className="admin-check">
+              <input
+                type="checkbox"
+                checked={Boolean(features[key])}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  setFeatures((current) => ({ ...current, [key]: checked }));
+                  setNotice("");
+                }}
+              />
+              {label}
+            </label>
+          ))}
+          <p className="live-muted admin-hint">The client can switch included features on and off on their Features page.</p>
+        </fieldset>
+      )}
       {notice && <p className="auth-notice" role="alert">{notice}</p>}
       <div className="live-actions">
         <button type="submit" className="live-primary" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>

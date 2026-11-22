@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   contactHref,
   isLimitError,
+  isSwitchedOffError,
+  SWITCHED_OFF_MESSAGE,
   isUnlimited,
   limitMessage,
   minutesLeftLabel,
@@ -17,6 +19,7 @@ type FeedState =
   | { kind: "playing"; viewer: string; url: string; capturedAt: string | null }
   | { kind: "paused" }
   | { kind: "limit" }
+  | { kind: "off" }
   | { kind: "error"; message: string };
 
 const POLL_MS = 500;
@@ -108,6 +111,7 @@ export function LiveCameraFeed({
         const frame = await api.liveFrame(cameraId, abort.signal);
         if (frame === "paused") return halt({ kind: "paused" });
         if (frame === "limit") return halt({ kind: "limit" });
+        if (frame === "off") return halt({ kind: "off" });
         if (frame === "expired") {
           viewer = "";
         } else if (frame === "pending") {
@@ -119,6 +123,7 @@ export function LiveCameraFeed({
       } catch (error) {
         if (cancelled || (error instanceof DOMException && error.name === "AbortError")) return;
         if (isLimitError(error)) return halt({ kind: "limit" });
+        if (isSwitchedOffError(error)) return halt({ kind: "off" });
         show({ kind: "error", message: error instanceof Error ? error.message : "Live view is unavailable." });
         viewer = "";
         timer = window.setTimeout(() => void poll(), RETRY_MS);
@@ -170,6 +175,11 @@ export function LiveCameraFeed({
           <button type="button" className="wall-live-action" onClick={() => setRun((value) => value + 1)}>
             Still watching?
           </button>
+        </div>
+      ) : state.kind === "off" ? (
+        <div className="live-feed-message live-feed-halted" role="status">
+          <strong>{SWITCHED_OFF_MESSAGE}</strong>
+          <small>Still pictures keep updating on the camera wall. A workspace admin can switch live view back on in Features.</small>
         </div>
       ) : state.kind === "limit" ? (
         <div className="live-feed-message live-feed-halted" role="alert">

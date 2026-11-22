@@ -9,6 +9,7 @@ import (
 
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/attendance"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/authz"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/features"
 )
 
 func (s *Server) registerAttendanceRoutes() {
@@ -53,6 +54,10 @@ func (s *Server) recordAttendance(w http.ResponseWriter, r *http.Request) {
 		input.OccurredAt.After(now.Add(5*time.Minute)) || input.OccurredAt.Before(now.Add(-48*time.Hour)) ||
 		math.IsNaN(input.Confidence) || input.Confidence < 0 || input.Confidence > 1 {
 		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Attendance sighting is invalid.")
+		return
+	}
+	if !s.featureAllows(r.Context(), scope.TenantID, features.Attendance, "", input.CameraID) {
+		writeFeatureOff(w, input.ID)
 		return
 	}
 	created, err := s.siteIngest.Attendance.RecordSighting(r.Context(), attendance.Record{

@@ -32,7 +32,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Final, Mapping, Sequence
+from typing import Any, ClassVar, Final, Mapping, Sequence
 
 from ..model_artifacts import ModelArtifact, verify_model_artifact
 from .client import BackendError
@@ -307,6 +307,9 @@ class LivenessChecker:
 @dataclass
 class AttendanceProcessor:
     """Marks attendance when an enrolled staff member is seen at an entrance."""
+
+    # The dashboard switch that controls this processor (ADR-019).
+    feature: ClassVar[str] = "attendance"
 
     engine: Any
     gallery: Any

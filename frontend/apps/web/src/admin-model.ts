@@ -16,7 +16,36 @@ export type AdminWorkspace = {
   sites: number;
   cameras: number;
   created_at: string;
+  /** Which plan-controlled features the plan includes (ADR-019). */
+  features?: Record<string, boolean>;
 };
+
+/** The features the owner includes per plan, in display order. */
+export const PLAN_FEATURES: { key: string; label: string }[] = [
+  { key: "zone_alerts", label: "Zone alerts" },
+  { key: "loitering", label: "Loitering" },
+  { key: "attendance", label: "Face attendance" },
+  { key: "weapon", label: "Possible weapon (preview)" },
+];
+
+export const NOTHING_CHANGED = "Nothing has changed.";
+
+/** The features whose inclusion differs between the saved plan and the form. */
+export function planFeatureChanges(workspace: AdminWorkspace, chosen: Record<string, boolean>): Record<string, boolean> {
+  const changes: Record<string, boolean> = {};
+  for (const { key } of PLAN_FEATURES) {
+    const value = chosen[key];
+    if (value === undefined) continue;
+    if (Boolean(workspace.features?.[key]) !== value) changes[key] = value;
+  }
+  return changes;
+}
+
+/** "Zone alerts, Loitering" or "None" for the workspace card. */
+export function includedFeaturesLabel(workspace: AdminWorkspace): string {
+  const names = PLAN_FEATURES.filter(({ key }) => workspace.features?.[key]).map(({ label }) => label.replace(" (preview)", ""));
+  return names.length ? names.join(", ") : "None";
+}
 
 export type AdminChanges = Partial<{
   plan: Plan;
@@ -81,7 +110,7 @@ export function changesFrom(workspace: AdminWorkspace, draft: AdminDraft): { cha
     if (siteLimit !== workspace.site_limit) changes.site_limit = siteLimit;
     if (cameraLimit !== workspace.camera_limit) changes.camera_limit = cameraLimit;
     if (liveViewMinutes !== workspace.live_view_minutes) changes.live_view_minutes = liveViewMinutes;
-    if (Object.keys(changes).length === 0) return { error: "Nothing has changed." };
+    if (Object.keys(changes).length === 0) return { error: NOTHING_CHANGED };
     return { changes };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "That change is not valid." };

@@ -231,6 +231,31 @@ func (s *PostgresKeyStore) RecordHeartbeat(ctx context.Context, scope Scope, cam
 	return tx.Commit(ctx)
 }
 
+// CapabilityRecorder stores the features a site box reports it has loaded
+// (ADR-019), so the dashboard can say whether a feature is ready to run.
+type CapabilityRecorder interface {
+	RecordCapabilities(ctx context.Context, scope Scope, capabilities []string) error
+}
+
+func (s *PostgresKeyStore) RecordCapabilities(ctx context.Context, scope Scope, capabilities []string) error {
+	if capabilities == nil {
+		capabilities = []string{}
+	}
+	payload, err := json.Marshal(capabilities)
+	if err != nil {
+		return fmt.Errorf("encode capabilities: %w", err)
+	}
+	tx, err := beginTenantTx(ctx, s.pool, scope.TenantID, pgx.ReadWrite)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `UPDATE platform.site_keys SET capabilities = $2::jsonb WHERE id = $1::uuid AND revoked_at IS NULL`, scope.KeyID, payload); err != nil {
+		return fmt.Errorf("record site capabilities: %w", err)
+	}
+	return tx.Commit(ctx)
+}
+
 func beginTenantTx(ctx context.Context, pool transactionPool, tenantID string, mode pgx.TxAccessMode) (pgx.Tx, error) {
 	if pool == nil {
 		return nil, errors.New("site ingest store is unavailable")
@@ -263,6 +288,7 @@ type MemoryKeyStore struct {
 	hashes   map[string]string
 	sites    map[string]bool
 	pairings map[string]*memoryPairing
+	caps     map[string][]string
 }
 
 // NewMemoryKeyStore accepts the "tenant:site" pairs that exist.
@@ -344,4 +370,25 @@ func (s *MemoryKeyStore) RecordHeartbeat(_ context.Context, scope Scope, cameras
 	key.CameraStatus = cameras
 	s.keys[scope.KeyID] = key
 	return nil
+}
+
+func (s *MemoryKeyStore) RecordCapabilities(_ context.Context, scope Scope, capabilities []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.keys[scope.KeyID]; !ok {
+		return ErrKeyNotFound
+	}
+	if s.caps == nil {
+		s.caps = map[string][]string{}
+	}
+	s.caps[scope.KeyID] = append([]string{}, capabilities...)
+	return nil
+}
+
+// Capabilities returns what a key's box last reported, for tests.
+func (s *MemoryKeyStore) Capabilities(keyID string) ([]string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	caps, ok := s.caps[keyID]
+	return caps, ok
 }

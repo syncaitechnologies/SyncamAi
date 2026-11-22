@@ -22,6 +22,7 @@ Architecture decisions are immutable records: supersede an accepted ADR with a n
 | [ADR-016](ADR-016-self-service-workspace-registration.md) | Self-service workspace registration with a 14-day trial | Accepted |
 | [ADR-017](ADR-017-metered-live-view.md) | Metered live view per workspace | Accepted |
 | [ADR-018](ADR-018-owner-admin-screen.md) | Owner admin screen for client plans and limits | Accepted |
+| [ADR-019](ADR-019-feature-switches.md) | Feature switches for the owner and each client | Accepted |
 
 Every ADR must state its operational and security consequences. ADR-001 remains a release blocker until legal approval is recorded.
 

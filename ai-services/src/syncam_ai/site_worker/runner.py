@@ -18,6 +18,7 @@ from ..detection_tracking import CameraLocalDetectionTracker, Detection, Detecti
 from .capture import StreamSet
 from .client import BackendError
 from .detector import ObjectDetection
+from .features import FeatureGate, capabilities
 from .rules import SiteRules
 from .spool import Spool
 
@@ -58,7 +59,7 @@ class Stream(Protocol):
 class Backend(Protocol):
     def config(self) -> dict[str, Any]: ...
 
-    def heartbeat(self, cameras: Mapping[str, Mapping[str, object]]) -> None: ...
+    def heartbeat(self, cameras: Mapping[str, Mapping[str, object]], capabilities: Sequence[str] | None = None) -> None: ...
 
     def put_reference(self, camera_id: str, jpeg: bytes) -> None: ...
 
@@ -132,6 +133,7 @@ class SiteWorker:
         reference: Callable[[Any], bytes] = reference_snapshot,
         clock: Callable[[], float] = time.monotonic,
         now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        live_view: bool = True,
     ) -> None:
         self._backend = backend
         self._detector = detector
@@ -141,6 +143,9 @@ class SiteWorker:
         self._interval = 1.0 / fps
         self._min_confidence = min_confidence
         self._processors = list(processors)
+        # Dashboard feature switches (ADR-019), refreshed with the config.
+        self._features = FeatureGate.allow_all()
+        self.capabilities = capabilities([getattr(processor, "feature", None) for processor in self._processors], live_view=live_view)
         self._snapshot = snapshot
         self._reference = reference
         self._clock = clock
@@ -200,6 +205,11 @@ class SiteWorker:
             if camera_id not in self._known_cameras:
                 _LOG.warning("camera %s is in the local config but not registered for this site in the dashboard", camera_id)
         changed = self._rules.apply_zones(list(data.get("zones", [])))
+        gate = FeatureGate.from_config(data.get("features"))
+        if gate != self._features:
+            if gate.switches:
+                _LOG.info("feature switches from the dashboard: %s", ", ".join(f"{key} {value}" for key, value in gate.describe().items()))
+            self._features = gate
         self._config_ok_at = self._now()
         if changed:
             _LOG.info("activated %d zone rule(s) for %s", len(self._rules.zones), self._site_name or site_id)
@@ -274,11 +284,16 @@ class SiteWorker:
                 ),
             )
         )
+        gate = self._features
         candidates = [
             AlertCandidate(event=event, title=self._title(event), detections=tuple(detections))
             for event in rules.evaluate(track_frame)
+            if gate.allows_event(str(event.get("event_type")), camera_id)
         ]
         for processor in self._processors:
+            feature = getattr(processor, "feature", None)
+            if feature and not gate.allows(feature, camera_id):
+                continue
             try:
                 candidates.extend(processor.process((rules.tenant_id, rules.site_id), camera_id, frame, detections, observed_at))
             except Exception as error:  # one analytics failure must not stop zone alerts
@@ -350,7 +365,7 @@ class SiteWorker:
                 status["error"] = str(health.error)[:200]
             cameras[camera_id] = status
         try:
-            self._backend.heartbeat(cameras)
+            self._backend.heartbeat(cameras, capabilities=self.capabilities)
         except BackendError as error:
             _LOG.warning("heartbeat failed: %s", error)
 

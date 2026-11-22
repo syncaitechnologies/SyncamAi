@@ -25,6 +25,7 @@ import { useWorkspace } from "./use-workspace";
 import { useLiveAlertNotifications } from "./live-notifications";
 import { trialStatus } from "./signup-model";
 import { AdminWorkspaces } from "./AdminWorkspaces";
+import { FeaturesWorkspace } from "./FeaturesWorkspace";
 import { readWorkspace } from "./workspace";
 import "./live.css";
 
@@ -50,7 +51,7 @@ function TrialEnded({ label, onSignOut }: { label: string; onSignOut?: () => voi
 }
 
 type Filter = "all" | "critical" | "unacknowledged" | "acknowledged";
-type View = "dashboard" | "alerts" | "cameras" | "zones" | "models" | "onboarding" | "vision" | "local-camera" | "settings" | "attendance" | "admin";
+type View = "dashboard" | "alerts" | "cameras" | "zones" | "models" | "onboarding" | "vision" | "local-camera" | "settings" | "attendance" | "features" | "admin";
 
 const rawSeedAlerts: AlertItem[] = [
   {
@@ -571,6 +572,17 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
             </button>
           )}
           <span className="nav-label nav-label-spaced">Manage</span>
+          {live && (
+            <button
+              className={activeView === "features" ? "nav-item active" : "nav-item"}
+              type="button"
+              onClick={() => setActiveView("features")}
+              aria-current={activeView === "features" ? "page" : undefined}
+            >
+              <Icon name="grid" />
+              <span>Features</span>
+            </button>
+          )}
           {!live && (
             <button className="nav-item" type="button">
               <Icon name="file" />
@@ -672,6 +684,8 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
                           ? "Configuration"
                           : activeView === "attendance"
                             ? "Attendance"
+                          : activeView === "features"
+                            ? "Features"
                           : activeView === "admin"
                             ? "Owner admin"
                   : "Alert Center"}
@@ -749,6 +763,8 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
           <SiteSettings workspace={workspace} onNotify={setToast} />
         ) : activeView === "attendance" ? (
           <AttendanceWorkspace workspace={workspace} onNotify={setToast} />
+        ) : activeView === "features" && live ? (
+          <FeaturesWorkspace workspace={workspace} onNotify={setToast} />
         ) : activeView === "admin" && operator ? (
           <AdminWorkspaces api={workspace.api} onNotify={setToast} />
         ) : activeView === "models" ? (

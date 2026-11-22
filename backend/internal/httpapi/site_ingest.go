@@ -13,6 +13,7 @@ import (
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/attendance"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/authz"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/boxsetup"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/features"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/identity"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/livefeed"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/siteingest"
@@ -40,6 +41,9 @@ type SiteIngestOptions struct {
 	Pairing siteingest.PairingStore
 	// Setup relays "Find cameras" tasks between the dashboard and the box.
 	Setup *boxsetup.Hub
+	// Features decides which AI features run (ADR-019). Without it every
+	// feature runs and the Features page is unavailable (local development).
+	Features *features.Service
 }
 
 type siteScopeContextKey struct{}
@@ -144,19 +148,28 @@ func (s *Server) siteConfiguration(w http.ResponseWriter, r *http.Request) {
 			activeCameras = append(activeCameras, siteCamera{ID: camera.ID, Name: camera.Name})
 		}
 	}
+	siteFeatures, err := s.siteFeatures(r.Context(), scope.TenantID, activeCameras)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Configuration unavailable.")
+		return
+	}
 	visibleZones := make([]zones.Zone, 0, len(listedZones))
 	for _, zone := range listedZones {
 		if zone.SiteID == scope.SiteID {
 			visibleZones = append(visibleZones, zone)
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{
+	data := map[string]any{
 		"tenant_id": scope.TenantID, "site_id": scope.SiteID,
 		"site":    map[string]string{"name": site.Name, "timezone": site.Timezone},
 		"cameras": activeCameras, "zones": visibleZones,
 		"staff":       s.activeStaff(r, scope.TenantID, scope.SiteID),
 		"server_time": time.Now().UTC(),
-	}})
+	}
+	if siteFeatures != nil {
+		data["features"] = siteFeatures
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": data})
 }
 
 func (s *Server) findSite(ctx context.Context, tenantID, siteID string) (tenant.Site, error) {
@@ -240,6 +253,9 @@ func (s *Server) uploadCameraReference(w http.ResponseWriter, r *http.Request) {
 
 type siteHeartbeatRequest struct {
 	Cameras map[string]siteingest.CameraStatus `json:"cameras"`
+	// Capabilities lists the features the box has loaded (ADR-019). Older
+	// boxes do not send it.
+	Capabilities []string `json:"capabilities"`
 }
 
 func (s *Server) recordSiteHeartbeat(w http.ResponseWriter, r *http.Request) {
@@ -265,9 +281,28 @@ func (s *Server) recordSiteHeartbeat(w http.ResponseWriter, r *http.Request) {
 	if input.Cameras == nil {
 		input.Cameras = map[string]siteingest.CameraStatus{}
 	}
+	if len(input.Capabilities) > 32 {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Too many capabilities in heartbeat.")
+		return
+	}
+	capabilities := make([]string, 0, len(input.Capabilities))
+	for _, capability := range input.Capabilities {
+		// Unknown names from newer boxes are ignored, not refused.
+		if _, known := features.Lookup(features.Key(capability)); known {
+			capabilities = append(capabilities, capability)
+		}
+	}
 	if err := s.siteIngest.Keys.RecordHeartbeat(r.Context(), scope, input.Cameras); err != nil {
 		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Heartbeat unavailable.")
 		return
+	}
+	if input.Capabilities != nil {
+		if recorder, ok := s.siteIngest.Keys.(siteingest.CapabilityRecorder); ok {
+			if err := recorder.RecordCapabilities(r.Context(), scope, capabilities); err != nil {
+				writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Heartbeat unavailable.")
+				return
+			}
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{"server_time": time.Now().UTC()}})
 }

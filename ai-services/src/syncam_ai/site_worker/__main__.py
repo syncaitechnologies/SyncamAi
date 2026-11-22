@@ -537,6 +537,7 @@ def _serve(config: LocalConfig, session: _Session, cleanup: list[Any]) -> None:
         fps=config.fps,
         min_confidence=config.min_confidence,
         processors=_processors(config, client),
+        live_view=config.live_view,
     )
 
     # One poll carries both live-view requests and "Find cameras" tasks.
