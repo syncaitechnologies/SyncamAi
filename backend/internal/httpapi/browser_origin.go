@@ -11,7 +11,8 @@ import (
 
 type approvedBrowserOriginKey struct{}
 
-const browserMethods = "GET, HEAD, POST, PATCH, DELETE"
+// PUT is used by the owner screen to set a plan's features (ADR-019).
+const browserMethods = "GET, HEAD, POST, PUT, PATCH, DELETE"
 const browserHeaders = "Accept, Authorization, Content-Type, Idempotency-Key, X-Correlation-Id, X-SentinelVision-Tenant-ID, X-SentinelVision-Request-ID"
 
 // WithBrowserOrigins adds an exact-origin boundary, not authorization.

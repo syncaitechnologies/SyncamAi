@@ -241,7 +241,7 @@
 .feature-camera-choices { display: grid; gap: 6px; padding: 4px 0 0 22px; }
 .feature-note { margin: 0; padding: 9px 11px; border: 1px solid #5c4b2c; border-radius: 8px; background: #231d14; color: #f1dcc0; font-size: 12px; line-height: 1.45; }
 .feature-action { justify-self: start; text-decoration: none; }
-.admin-check { display: flex; align-items: center; gap: 8px; color: #c9d5dc; font-size: 13px; cursor: pointer; }
+.admin-check, .admin-form label.admin-check { display: flex; align-items: center; gap: 8px; color: #c9d5dc; font-size: 13px; font-weight: 500; cursor: pointer; }
 .admin-check input { width: 16px; height: 16px; accent-color: #5b7cff; }
 .admin-features { display: grid; gap: 7px; margin: 0; padding: 11px; border: 1px solid #26333e; border-radius: 8px; }
 .admin-features legend { padding: 0 4px; color: #9fb0bb; font-size: 12px; font-weight: 600; }
