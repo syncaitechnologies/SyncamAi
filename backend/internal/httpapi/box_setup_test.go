@@ -102,6 +102,45 @@ func TestFindCamerasRoundTripThroughTheBoxPoll(t *testing.T) {
 	}
 }
 
+func TestRestartReachesAnOnlineBoxOnly(t *testing.T) {
+	fixture, _ := newSetupFixture(t, pairingAdmin())
+	base := "/v1/sites/" + ingestSite + "/setup/tasks"
+	headers := map[string]string{tenantHeader: ingestTenant}
+	restart := []byte(`{"type":"restart"}`)
+
+	if response := fixture.do(http.MethodPost, base, "valid", restart, "application/json", headers); response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), "BOX_OFFLINE") {
+		t.Fatalf("no paired box: %d %s", response.Code, response.Body.String())
+	}
+	siteKey, _ := pairTestBox(t, fixture)
+	if response := fixture.do(http.MethodPost, base, "valid", restart, "application/json", headers); response.Code != http.StatusConflict {
+		t.Fatalf("a paired box that never checked in is offline: %d", response.Code)
+	}
+	fixture.do(http.MethodPost, "/v1/site-ingest/heartbeat", siteKey, []byte(`{"cameras":{}}`), "application/json", nil)
+	if response := fixture.do(http.MethodPost, base, "valid", []byte(`{"type":"restart","payload":{"now":true}}`), "application/json", headers); response.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("restart takes no payload: %d", response.Code)
+	}
+	created := fixture.do(http.MethodPost, base, "valid", restart, "application/json", headers)
+	if created.Code != http.StatusAccepted {
+		t.Fatalf("online box: %d %s", created.Code, created.Body.String())
+	}
+	var task, again boxsetup.Task
+	decodeData(t, created.Body.Bytes(), &task)
+	decodeData(t, fixture.do(http.MethodPost, base, "valid", restart, "application/json", headers).Body.Bytes(), &again)
+	if again.ID != task.ID {
+		t.Fatal("a second click reuses the pending restart")
+	}
+	var poll struct {
+		Tasks []boxsetup.Delivery `json:"tasks"`
+	}
+	decodeData(t, fixture.do(http.MethodGet, "/v1/site-ingest/live", siteKey, nil, "", nil).Body.Bytes(), &poll)
+	if len(poll.Tasks) != 1 || poll.Tasks[0].Type != "restart" || len(poll.Tasks[0].Payload) != 0 {
+		t.Fatalf("the box receives one restart: %+v", poll.Tasks)
+	}
+	if response := fixture.do(http.MethodPost, "/v1/site-ingest/setup/tasks/"+task.ID+"/result", siteKey, []byte(`{"status":"done","result":{"restarting":true}}`), "application/json", nil); response.Code != http.StatusNoContent {
+		t.Fatalf("box confirms: %d", response.Code)
+	}
+}
+
 func TestSetupTaskValidation(t *testing.T) {
 	fixture, _ := newSetupFixture(t, pairingAdmin())
 	base := "/v1/sites/" + ingestSite + "/setup/tasks"

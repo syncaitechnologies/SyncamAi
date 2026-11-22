@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -62,14 +63,25 @@ func (s *Server) setupBox(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	view, ok := s.pairedBox(w, r, tenantID, siteID)
+	if !ok {
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, map[string]any{"data": view})
+}
+
+// pairedBox finds the site's most recently seen paired, unrevoked box. A box
+// is online when it sent a heartbeat (every 2 minutes) in the last 6 minutes.
+func (s *Server) pairedBox(w http.ResponseWriter, r *http.Request, tenantID, siteID string) (setupBoxView, bool) {
 	if s.siteIngest.Keys == nil {
 		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Site ingest unavailable.")
-		return
+		return setupBoxView{}, false
 	}
 	keys, err := s.siteIngest.Keys.List(r.Context(), tenantID, siteID)
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Site ingest unavailable.")
-		return
+		return setupBoxView{}, false
 	}
 	view := setupBoxView{}
 	var best *siteingest.SiteKey
@@ -86,8 +98,7 @@ func (s *Server) setupBox(w http.ResponseWriter, r *http.Request) {
 		view = setupBoxView{Paired: true, KeyID: best.ID, Label: best.Label, PublicKey: best.BoxPublicKey, LastSeenAt: best.LastSeenAt}
 		view.Online = best.LastSeenAt != nil && time.Since(*best.LastSeenAt) < 6*time.Minute
 	}
-	w.Header().Set("Cache-Control", "no-store")
-	writeJSON(w, http.StatusOK, map[string]any{"data": view})
+	return view, true
 }
 
 type setupTaskRequest struct {
@@ -104,7 +115,7 @@ type adoptPayload struct {
 }
 
 func (s *Server) createSetupTask(w http.ResponseWriter, r *http.Request) {
-	_, tenantID, siteID, ok := s.setupSite(w, r)
+	principal, tenantID, siteID, ok := s.setupSite(w, r)
 	if !ok {
 		return
 	}
@@ -114,7 +125,7 @@ func (s *Server) createSetupTask(w http.ResponseWriter, r *http.Request) {
 	}
 	input.Type = strings.TrimSpace(input.Type)
 	if !boxsetup.Types[input.Type] {
-		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "type must be scan, probe or adopt.")
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "type must be scan, probe, adopt or restart.")
 		return
 	}
 	if len(input.Payload) > 0 && !json.Valid(input.Payload) {
@@ -123,6 +134,24 @@ func (s *Server) createSetupTask(w http.ResponseWriter, r *http.Request) {
 	}
 	if input.Type == "adopt" && !s.validAdoption(w, r, tenantID, siteID, input.Payload) {
 		return
+	}
+	if input.Type == boxsetup.TypeRestart {
+		if trimmed := strings.TrimSpace(string(input.Payload)); trimmed != "" && trimmed != "null" && trimmed != "{}" {
+			writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "restart takes no payload.")
+			return
+		}
+		input.Payload = nil
+		// An offline box cannot receive the request; queueing it would
+		// restart the box by surprise whenever it comes back.
+		box, found := s.pairedBox(w, r, tenantID, siteID)
+		if !found {
+			return
+		}
+		if !box.Online {
+			writeError(w, http.StatusConflict, "BOX_OFFLINE", "The site box is offline, so it cannot be restarted from here. Check that the computer is switched on, awake and connected to the internet.")
+			return
+		}
+		log.Printf("site box restart requested tenant=%s site=%s by=%s", tenantID, siteID, principal.UserID)
 	}
 	task, err := s.siteIngest.Setup.Create(tenantID, siteID, input.Type, input.Payload)
 	if errors.Is(err, boxsetup.ErrTooManyTasks) {

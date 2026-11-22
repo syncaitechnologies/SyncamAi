@@ -1,6 +1,7 @@
 import { AlertApiClient, AlertApiError } from "./alert-client";
 import { errorCode, frameProblem, type LiveFrameProblem, type LiveViewUsage } from "./live-view-model";
 import type { AdminChanges, AdminWorkspace } from "./admin-model";
+import { RESTART_TIMEOUT_MS, restartFailure } from "./site-box-model";
 
 export type { LiveFrameProblem, LiveViewUsage } from "./live-view-model";
 
@@ -44,7 +45,7 @@ export type SiteKey = {
 };
 export type PairingCode = { code: string; site_id: string; expires_at: string };
 export type SetupBox = { paired: boolean; online: boolean; key_id?: string; label?: string; public_key?: string; last_seen_at?: string };
-export type SetupTaskType = "scan" | "probe" | "adopt";
+export type SetupTaskType = "scan" | "probe" | "adopt" | "restart";
 export type SetupTask = {
   id: string;
   type: SetupTaskType;
@@ -219,6 +220,19 @@ export class SyncamApi extends AlertApiClient {
       if (Date.now() > deadline) {
         throw new Error(task.status === "pending" ? "The site box did not pick this up. Check that it is online." : "The site box is taking too long. Try again.");
       }
+    }
+  }
+
+  /**
+   * Ask the site's box to restart its cameras and AI. Resolves once the box
+   * confirms it received the request; it is back within about a minute.
+   */
+  async restartSiteBox(siteId: string, signal?: AbortSignal) {
+    try {
+      await this.runSetupTask(siteId, "restart", undefined, { signal, timeoutMs: RESTART_TIMEOUT_MS, intervalMs: 1000 });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") throw error;
+      throw new Error(restartFailure(error instanceof Error ? error.message : undefined));
     }
   }
 

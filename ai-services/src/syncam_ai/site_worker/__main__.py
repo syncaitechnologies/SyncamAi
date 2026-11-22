@@ -22,6 +22,7 @@ import logging
 import logging.handlers
 import signal
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -377,7 +378,121 @@ def command_forget(config: LocalConfig, staff_id: str) -> int:
     return 0
 
 
-def command_run(config: LocalConfig) -> int:
+# After a failed start (no internet at boot, a damaged model download) the
+# installed box tries again after this long instead of exiting.
+RETRY_SECONDS = 30.0
+
+
+class _Session:
+    """Lets Ctrl+C, a service stop or a dashboard restart end the current run."""
+
+    def __init__(self) -> None:
+        self.stopping = threading.Event()
+        self.restart = threading.Event()
+        self._lock = threading.Lock()
+        self._stop: Any = None
+
+    def attach(self, stop: Any) -> None:
+        with self._lock:
+            self._stop = stop
+        if self.stopping.is_set():
+            stop()
+
+    def detach(self) -> None:
+        with self._lock:
+            self._stop = None
+
+    def _call_stop(self) -> None:
+        with self._lock:
+            stop = self._stop
+        if stop is not None:
+            stop()
+
+    def request_stop(self, *_: object) -> None:
+        self.stopping.set()
+        self._call_stop()
+
+    def request_restart(self) -> None:
+        self.restart.set()
+        self._call_stop()
+
+
+def _confirm_restart(client: Any, task: Any) -> None:
+    """Tell the dashboard the restart was received before stopping."""
+
+    try:
+        client.post_setup_result(str(task.get("id", "")), {"status": "done", "result": {"restarting": True}})
+    except BackendError as error:
+        _LOG.warning("could not confirm the restart to the dashboard: %s", error)
+
+
+def route_tasks(tasks: list[Any], client: Any, session: _Session, agent: Any) -> None:
+    """A restart is handled here; "Find cameras" tasks go to the setup agent."""
+
+    setup = []
+    restart = False
+    for task in tasks:
+        if str(task.get("type")) == "restart":
+            _confirm_restart(client, task)
+            restart = True
+        else:
+            setup.append(task)
+    if setup and agent is not None:
+        agent.handle(setup)
+    if restart:
+        session.request_restart()
+
+
+def command_run(config: LocalConfig, config_path: Path | None = None) -> int:
+    """Run the box until it is stopped.
+
+    A restart from the dashboard stops the cameras and AI and starts them
+    again in this process, with the config read again from disk. On the
+    installed box a failed start is retried every 30 seconds rather than
+    leaving the box stopped until the computer restarts.
+    """
+
+    session = _Session()
+    signal.signal(signal.SIGINT, session.request_stop)
+    signal.signal(signal.SIGTERM, session.request_stop)
+    while True:
+        session.restart.clear()
+        try:
+            _run_once(config, session)
+        except Exception:
+            if not _installed():
+                raise
+            _LOG.exception("the site box could not start; trying again in %.0f seconds", RETRY_SECONDS)
+            if session.stopping.wait(RETRY_SECONDS):
+                return 0
+        else:
+            if session.stopping.is_set() or not session.restart.is_set():
+                return 0
+            _LOG.info("restarting the site box as requested from the dashboard")
+        if config_path is not None:
+            try:
+                config = load_local_config(config_path)
+            except (OSError, ValueError) as error:
+                _LOG.warning("could not read the config again; keeping the previous one: %s", error)
+
+
+def _run_once(config: LocalConfig, session: _Session) -> None:
+    """Start everything, run until stopped or restarted, then stop it all."""
+
+    cleanup: list[Any] = []
+    try:
+        _serve(config, session, cleanup)
+    finally:
+        session.detach()
+        for action in reversed(cleanup):
+            try:
+                action()
+            except Exception:  # stopping one part must not block the others
+                _LOG.exception("stopping a part of the site box failed")
+
+
+def _serve(config: LocalConfig, session: _Session, cleanup: list[Any]) -> None:
+    from .awake import KeepAwake
     from .capture import StreamSet
     from .live import LiveRelay
     from .setup_agent import SetupAgent, vault_camera_sources
@@ -387,16 +502,32 @@ def command_run(config: LocalConfig) -> int:
         from .model_download import fetch_model
 
         # Checks the pinned hash every start and replaces a missing or damaged
-        # file; on failure the start-up task retries in a minute.
+        # file; a failed download is retried by command_run.
         if fetch_model(config.detector_model):
             _LOG.info("detection model downloaded and verified")
     client = BackendClient(config.backend_url, config.site_key)
     detector = _detector(config)
     vault = BoxVault(config.vault) if config.vault is not None else None
-    streams = StreamSet(_start_streams(config))
+    streams = StreamSet()
+
+    def _stop_streams() -> None:
+        for stream in streams.values():
+            stream.stop()
+        # Wait for each camera to let go of its connection (an RTSP read can
+        # block for up to 10 seconds) so a restart can reconnect cleanly.
+        for stream in streams.values():
+            if isinstance(stream, threading.Thread) and stream.is_alive():
+                stream.join(timeout=12)
+
+    cleanup.append(_stop_streams)
+    for camera_id, stream in _start_streams(config).items():
+        streams.add(camera_id, stream)
     if vault is not None:
         for camera_id, source in vault_camera_sources(vault).items():
             streams.add(camera_id, CameraStream(camera_id, source))
+    awake = KeepAwake(enabled=config.keep_awake)
+    awake.start()
+    cleanup.append(awake.stop)
     worker = SiteWorker(
         backend=client,
         detector=detector,
@@ -418,8 +549,13 @@ def command_run(config: LocalConfig) -> int:
         # Pictures taken by Find cameras also report vehicles and people, so the
         # dashboard can suggest "Car park watch".
         agent = SetupAgent(client, vault, streams, thumbnail=partial(grab_thumbnail, inspect=scene_counter(detector)))
-    relay = LiveRelay(client, streams, on_tasks=agent.handle if agent else None, send_frames=config.live_view)
+
+    def _tasks(tasks: list[Any]) -> None:
+        route_tasks(tasks, client, session, agent)
+
+    relay = LiveRelay(client, streams, on_tasks=_tasks, send_frames=config.live_view)
     relay.start()
+    cleanup.append(relay.stop)
     if config.live_view:
         _LOG.info("live view available: frames are sent only while someone watches in the dashboard")
     else:
@@ -434,6 +570,7 @@ def command_run(config: LocalConfig) -> int:
         updates = (config.vault.parent if config.vault is not None else config.spool_dir.parent) / "updates"
         updater = Updater(VERSION, updates, install=sys.platform == "win32")
         updater.start()
+        cleanup.append(updater.stop)
 
     def _status() -> dict[str, Any]:
         return {
@@ -441,30 +578,25 @@ def command_run(config: LocalConfig) -> int:
             "paired": True,
             "find_cameras": agent is not None,
             "live_view": config.live_view,
+            "keeps_awake": awake.active,
             "worker": worker.status(),
             "update": updater.state() if updater else {"message": f"Version {VERSION}. Automatic updates run only in the installed box."},
         }
 
     status_server = _status_server(config.status_port, _status)
+    if status_server is not None:
+        cleanup.append(status_server.stop)
 
-    def _stop(*_: object) -> None:
+    def _stop() -> None:
         _LOG.info("stopping site worker")
-        if updater is not None:
-            updater.stop()
-        if status_server is not None:
-            status_server.stop()
         relay.stop()
         worker.stop()
-        for stream in streams.values():
-            stream.stop()
 
-    signal.signal(signal.SIGINT, _stop)
-    signal.signal(signal.SIGTERM, _stop)
+    session.attach(_stop)
     if not len(streams):
         _LOG.info("no cameras yet: add them with Find cameras in the dashboard (Configuration > Cameras)")
     _LOG.info("site worker running with %d camera(s) at %.1f fps", len(streams), config.fps)
     worker.run()
-    return 0
 
 
 def _logging(verbose: bool, log_file: Path | None) -> None:
@@ -552,7 +684,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.photos is None or not args.photos.is_dir():
             parser.error("--photos must be a folder of face photos")
         return command_enroll(config, args.staff_id, args.photos)
-    return command_run(config)
+    return command_run(config, args.config)
 
 
 if __name__ == "__main__":

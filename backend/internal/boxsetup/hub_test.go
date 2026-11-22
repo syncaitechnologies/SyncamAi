@@ -71,6 +71,33 @@ func TestTaskLifecycleDropsThePayloadOnDelivery(t *testing.T) {
 	}
 }
 
+func TestRepeatedRestartsReuseTheOpenOne(t *testing.T) {
+	hub, c := newHub()
+	first, err := hub.Create(tenant, siteA, TypeRestart, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again, _ := hub.Create(tenant, siteA, TypeRestart, nil); again.ID != first.ID {
+		t.Fatal("a second click while the restart is pending reuses it")
+	}
+	if other, _ := hub.Create(tenant, siteB, TypeRestart, nil); other.ID == first.ID {
+		t.Fatal("restarts are per site")
+	}
+	if delivered := hub.Deliver(tenant, siteA); len(delivered) != 1 || delivered[0].Type != TypeRestart {
+		t.Fatalf("the box gets one restart: %+v", delivered)
+	}
+	if again, _ := hub.Create(tenant, siteA, TypeRestart, nil); again.ID != first.ID {
+		t.Fatal("still reused while the box is restarting")
+	}
+	c.now = c.now.Add(time.Second)
+	if err := hub.Complete(tenant, siteA, first.ID, "done", nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	if next, _ := hub.Create(tenant, siteA, TypeRestart, nil); next.ID == first.ID || next.Status != "pending" {
+		t.Fatalf("after it finished a new restart can be asked for: %+v", next)
+	}
+}
+
 func TestLimitsAndTypes(t *testing.T) {
 	hub, _ := newHub()
 	if _, err := hub.Create(tenant, siteA, "format-disk", nil); !errors.Is(err, ErrUnknownType) {

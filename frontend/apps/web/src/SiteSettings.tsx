@@ -5,6 +5,7 @@ import { CameraDiscovery } from "./CameraDiscovery";
 import { Icon } from "./icon";
 import { qrMatrix, qrSvgPath } from "./qr";
 import type { PairingCode, SiteKey, TelegramTarget } from "./syncam-api";
+import { canRestart } from "./site-box-model";
 import type { WorkspaceData } from "./use-workspace";
 import { canManage, readWorkspace } from "./workspace";
 
@@ -47,6 +48,7 @@ export function SiteSettings({ workspace, onNotify }: { workspace: WorkspaceData
   const [link, setLink] = useState<{ code: string; bot: string; expires_at: string } | null>(null);
   const [pairing, setPairing] = useState<PairingCode | null>(null);
   const [finding, setFinding] = useState(false);
+  const [restart, setRestart] = useState<"idle" | "confirm" | "sending">("idle");
   const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
 
@@ -81,6 +83,20 @@ export function SiteSettings({ workspace, onNotify }: { workspace: WorkspaceData
   }
   const activeKeys = keys.filter((key) => !key.revoked_at);
   const boxOnline = activeKeys.some((key) => key.last_seen_at && Date.now() - Date.parse(key.last_seen_at) < 6 * 60_000);
+
+  async function restartBox() {
+    if (!site) return;
+    setRestart("sending");
+    try {
+      await api!.restartSiteBox(site.id);
+      onNotify("Site box is restarting. Alerts resume within about a minute.");
+    } catch (error) {
+      onNotify(error instanceof Error ? error.message : "The site box could not be restarted.");
+    } finally {
+      setRestart("idle");
+      refresh();
+    }
+  }
 
   function createSite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -178,8 +194,28 @@ export function SiteSettings({ workspace, onNotify }: { workspace: WorkspaceData
           </p>
           <div className="live-download">
             <a className="live-link" href={BOX_INSTALLER_URL} rel="noopener noreferrer"><Icon name="download" size={14} />Download SyncCamSetup.exe</a>
-            <small className="live-muted">Windows 10 or 11, 64-bit. Run it on a PC at the site that stays on and is on the same network as the cameras, then pair it with a code below.</small>
+            <small className="live-muted">Windows 10 or 11, 64-bit. Run it on a PC at the site that stays on and is on the same network as the cameras, then pair it with a code below. The box keeps the PC from going to sleep while it runs; a laptop's lid must stay open or be set to "Do nothing".</small>
           </div>
+          {manage && site && activeKeys.length > 0 && (
+            <div className="live-restart">
+              {restart === "confirm" ? (
+                <div className="live-secret" role="alertdialog" aria-labelledby="restart-title">
+                  <strong id="restart-title">Restart the site box?</strong>
+                  <small>Cameras and AI stop and start again. Alerts pause for about a minute. Use this if cameras look stuck or alerts stopped.</small>
+                  <div>
+                    <button type="button" onClick={() => void restartBox()}>Restart now</button>
+                    <button type="button" className="secondary" onClick={() => setRestart("idle")}>Cancel</button>
+                  </div>
+                </div>
+              ) : canRestart(manage, boxOnline) ? (
+                <button type="button" className="live-link" disabled={restart === "sending"} onClick={() => setRestart("confirm")}>
+                  <Icon name="refresh" size={14} />{restart === "sending" ? "Restarting…" : "Restart site box"}
+                </button>
+              ) : (
+                <small className="live-muted">Restart from here is available while the site box is online. If it is offline, check that its computer is switched on, awake and connected to the internet, or restart that computer.</small>
+              )}
+            </div>
+          )}
           <ul className="live-list">
             {keys.map((key) => (
               <li key={key.id}>
