@@ -206,6 +206,21 @@ Logs: `C:\ProgramData\SyncCam\logs\syncam-box.log` (rotated at 5 MB) and
 e.g. `"C:\Program Files\SyncCam Box\syncam-box.exe" pair --code <code>` (as
 Administrator) to pair again after a failed attempt.
 
+**"Permission denied" on `syncam-site.json` (installers before 0.1.6).**
+Running an older installer a second time, or updating to it, stripped every
+permission from the files already in `C:\ProgramData\SyncCam`. The box then
+quit at each start with an empty log (task result `2`), and the status page
+showed "can't be reached". From 0.1.6 the installer locks only the folder and
+repairs the files inside, and the box logs the reason, shows it on the status
+page and retries every 30 seconds. To repair a box by hand, in PowerShell run as
+Administrator:
+
+```powershell
+takeown /F C:\ProgramData\SyncCam /R /A /D Y
+icacls C:\ProgramData\SyncCam\* /reset /T /C /Q
+Start-ScheduledTask -TaskName "SyncCam Box"
+```
+
 ### Publishing a release (maintainers)
 
 1. Set `VERSION` in `ai-services/src/syncam_ai/site_worker/version.py` and
