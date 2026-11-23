@@ -370,6 +370,46 @@ def wait_until_paired(config_path: Path, *, poll_seconds: float = 5.0) -> LocalC
             server.stop()
 
 
+SETTINGS_HELP = "Run the SyncCam installer again as Administrator. If that does not help, contact SyncCam."
+
+
+def wait_until_config_readable(
+    config_path: Path, error: Exception, *, poll_seconds: float | None = None, port: int | None = None
+) -> LocalConfig:
+    """Keep an installed box's status page up while its settings cannot be read.
+
+    Exiting instead would leave a blank "can't be reached" page and, before
+    0.1.6, an empty log. The settings are read again every 30 seconds, so a
+    repair (or a reinstall) takes effect without a restart.
+    """
+
+    from .home import STATUS_PORT
+
+    poll = RETRY_SECONDS if poll_seconds is None else poll_seconds
+    state = {"problem": f"This box cannot read its settings ({error}). {SETTINGS_HELP}"}
+    _LOG.error("the site box cannot read its settings in %s: %s; trying again every %.0f seconds", config_path, error, poll)
+    server = _status_server(
+        STATUS_PORT if port is None else port,
+        lambda: {"version": VERSION, "paired": None, "worker": {}, "update": {"message": f"Version {VERSION}."}, "problem": state["problem"]},
+    )
+    try:
+        while True:
+            time.sleep(poll)
+            try:
+                config = load_local_config(config_path)
+            except NotPairedError:
+                break
+            except (OSError, ValueError) as retry_error:
+                state["problem"] = f"This box cannot read its settings ({retry_error}). {SETTINGS_HELP}"
+                continue
+            _LOG.info("the settings can be read again; starting the site box")
+            return config
+    finally:
+        if server is not None:
+            server.stop()
+    return wait_until_paired(config_path)
+
+
 def command_forget(config: LocalConfig, staff_id: str) -> int:
     from .faces import FaceGallery
 
@@ -603,10 +643,17 @@ def _serve(config: LocalConfig, session: _Session, cleanup: list[Any]) -> None:
 
 def _logging(verbose: bool, log_file: Path | None) -> None:
     handlers: list[logging.Handler] = [logging.StreamHandler()]
+    log_error: OSError | None = None
     if log_file is not None:
-        log_file.parent.mkdir(parents=True, exist_ok=True)
-        handlers.append(logging.handlers.RotatingFileHandler(log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"))
+        try:
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            handlers.append(logging.handlers.RotatingFileHandler(log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"))
+        except OSError as error:
+            # A log file that cannot be opened must not stop the box.
+            log_error = error
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s", handlers=handlers)
+    if log_error is not None:
+        _LOG.warning("could not open the log file %s: %s", log_file, log_error)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -668,8 +715,13 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         config = wait_until_paired(args.config)
     except (OSError, ValueError) as error:
-        print(f"config error: {error}", file=sys.stderr)
-        return 2
+        if args.command == "run" and _installed():
+            # Logged and shown on the status page; retried until it is fixed.
+            config = wait_until_config_readable(args.config, error)
+        else:
+            _LOG.error("config error: %s", error)
+            print(f"config error: {error}", file=sys.stderr)
+            return 2
     if args.command == "check":
         return command_check(config)
     if args.command == "snapshot":

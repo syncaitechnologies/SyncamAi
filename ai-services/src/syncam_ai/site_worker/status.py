@@ -33,7 +33,7 @@ def render_status_html(status: Mapping[str, Any]) -> str:
     worker = status.get("worker") or {}
     update = status.get("update") or {}
     cameras = worker.get("cameras") or []
-    paired = bool(status.get("paired"))
+    paired = status.get("paired")
     connected = bool(worker.get("connected"))
     last_contact = worker.get("connected_at")
     offline_hint = (
@@ -47,10 +47,15 @@ def render_status_html(status: Mapping[str, Any]) -> str:
         f"{escape(_age(camera.get('last_frame_seconds')))}</td></tr>"
         for camera in cameras
     ) or '<tr><td colspan="2">No cameras yet. In the dashboard open Configuration &gt; Cameras &gt; Find cameras.</td></tr>'
-    checks = [
-        ("Paired with SyncCam", paired, "Run the installer again, or: syncam-box.exe pair --code &lt;code&gt;"),
-        ("Connected to SyncCam", connected, offline_hint),
-    ]
+    checks = []
+    problem = status.get("problem")
+    if problem:
+        # Something stops the box from starting at all (for example its
+        # settings cannot be read); say so instead of showing a blank page.
+        checks.append(("Site box started", False, escape(str(problem))))
+    if paired is not None:
+        checks.append(("Paired with SyncCam", bool(paired), "Run the installer again, or: syncam-box.exe pair --code &lt;code&gt;"))
+    checks.append(("Connected to SyncCam", connected, offline_hint))
     if "keeps_awake" in status:
         checks.append((
             "Keeping this computer awake",
