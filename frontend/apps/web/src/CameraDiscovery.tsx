@@ -155,7 +155,7 @@ export function CameraDiscovery({ api, siteId, timezone, onNotify, onAdded, onCl
             {step.devices.map((device) => (
               <li key={device.device_id}>
                 <span><strong>{deviceTitle(device)}</strong><small>{device.brand}{device.onvif ? " · ONVIF" : ""}</small></span>
-                <button type="button" onClick={() => setStep({ kind: "login", device })}>Connect</button>
+                <button type="button" className="live-primary" aria-label={`Connect to ${deviceTitle(device)}`} onClick={() => setStep({ kind: "login", device })}>Connect</button>
               </li>
             ))}
           </ul>
