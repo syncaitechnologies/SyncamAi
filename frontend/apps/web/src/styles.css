@@ -823,6 +823,24 @@ button {
     9px "DM Mono",
     monospace;
 }
+.keyboard-hints button {
+  padding: 3px 5px;
+  color: inherit;
+  font: inherit;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.keyboard-hints button:hover:not(:disabled),
+.keyboard-hints button:focus-visible {
+  color: #9eafb8;
+  border-color: #34444e;
+}
+.keyboard-hints button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 kbd {
   padding: 2px 4px;
   margin-right: 3px;
