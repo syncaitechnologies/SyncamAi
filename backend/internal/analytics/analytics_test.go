@@ -50,6 +50,9 @@ func TestMemorySummaryAddsRunsAndGroupsBySiteLocalDay(t *testing.T) {
 	if len(summary.Zones) != 2 || summary.Zones[0].Name != "Front door" || summary.Zones[1].Sessions != 2 || summary.Zones[1].PeakPeople != 4 {
 		t.Fatalf("zones: %+v", summary.Zones)
 	}
+	if summary.OpenHours != 2 {
+		t.Fatalf("open hours: %d", summary.OpenHours)
+	}
 	other, _ := store.Summary(ctx, "other", site, toronto, time.Date(2026, 11, 24, 0, 0, 0, 0, toronto), time.Date(2026, 11, 26, 0, 0, 0, 0, toronto))
 	if len(other.Days) != 0 {
 		t.Fatal("another workspace sees nothing")
@@ -84,10 +87,11 @@ func TestPostgresStoreSavesAndSummarises(t *testing.T) {
 	mock.ExpectQuery("LEFT JOIN config.zones").WithArgs(site, from, to).WillReturnRows(
 		pgxmock.NewRows([]string{"zone_id", "name", "kind", "entries", "exits", "occupied", "sessions", "session_seconds", "peak"}).
 			AddRow(door, "Front door", "door_line", 5, 1, int64(0), 0, int64(0), 0))
+	mock.ExpectQuery("count\\(DISTINCT hour_start\\)").WithArgs(site, from, to).WillReturnRows(pgxmock.NewRows([]string{"open"}).AddRow(1))
 	mock.ExpectCommit()
 	mock.ExpectRollback()
 	summary, err := store.Summary(context.Background(), tenant, site, nil, from, to)
-	if err != nil || len(summary.Days) != 1 || summary.Hours[0].Hour != 17 || summary.Zones[0].Name != "Front door" {
+	if err != nil || len(summary.Days) != 1 || summary.Hours[0].Hour != 17 || summary.Zones[0].Name != "Front door" || summary.OpenHours != 1 {
 		t.Fatalf("summary: %+v %v", summary, err)
 	}
 

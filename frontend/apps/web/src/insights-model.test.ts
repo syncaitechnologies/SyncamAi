@@ -10,6 +10,7 @@ import {
   durationLabel,
   hourLabel,
   hourSeries,
+  insightsCsv,
   tableRows,
   totalVisitors,
   turnover,
@@ -25,6 +26,7 @@ const summary: InsightsSummary = {
     { zone_id: "t2", name: "Table 2", kind: "table", entries: 0, exits: 0, occupied_seconds: 3600, sessions: 0, session_seconds: 0, peak_people: 2 },
     { zone_id: "x", name: "Removed zone", kind: "", entries: 0, exits: 0, occupied_seconds: 600, sessions: 1, session_seconds: 1800, peak_people: 1 },
   ],
+  open_hours: 20,
 };
 
 test("visitor totals and the daily series fill empty days", () => {
@@ -52,6 +54,23 @@ test("tables: dining time, turnover and removed zones", () => {
   assert.equal(averageDiningMinutes(summary), 18000 / 7 / 60);
   assert.equal(turnover(summary, 3), Math.round((7 / 3 / 3) * 10) / 10);
   assert.deepEqual(doorNames(summary), ["Front door"]);
+});
+
+test("occupancy is the share of open hours a table was in use", () => {
+  const rows = tableRows(summary, 3);
+  assert.equal(rows[0]!.occupancyPercent, 25, "5 of 20 open hours");
+  assert.equal(rows[2]!.occupancyPercent, 5);
+  assert.equal(tableRows({ ...summary, open_hours: undefined }, 3)[0]!.occupancyPercent, null, "older servers send no open hours");
+  assert.equal(tableRows({ ...summary, open_hours: 1 }, 3)[0]!.occupancyPercent, 100, "never above 100");
+});
+
+test("CSV holds days, hours and tables for the range", () => {
+  const csv = insightsCsv({ ...summary, zones: [...summary.zones, { ...summary.zones[1]!, zone_id: "t3", name: "Patio, left", sessions: 0 }] }, "2026-11-22", "2026-11-24");
+  const lines = csv.trimEnd().split("\n");
+  assert.deepEqual(lines.slice(0, 5), ["Visitors per day", "Date,Came in,Went out", "2026-11-22,40,38", "2026-11-23,0,0", "2026-11-24,60,55"]);
+  assert.ok(lines.includes("7 pm – 8 pm,70"));
+  assert.ok(lines.includes("Table 1,6,2,45,5,25,4"));
+  assert.ok(lines.includes(`"Patio, left",0,0,,5,25,4`), "names with commas are quoted");
 });
 
 test("durations and bars", () => {

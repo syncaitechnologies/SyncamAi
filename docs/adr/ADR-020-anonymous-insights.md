@@ -64,9 +64,17 @@ when, and how the tables are used, with no faces and no identity.
     twice, and groups walking close together may be undercounted;
   - staff using the door are counted;
   - visits shorter than a minute at a table are not sessions.
-- Unsent counts live only in the site box's memory, so a restart mid-hour
-  loses them (a `shortcut:` in `analytics.py`).
-- On sites with a half-hour time zone offset (India), hours are UTC hours
-  shown in local time, so the hour-of-day chart rounds :30 boundaries down.
+- From site box 0.1.8 the box saves its totals to `syncam-counts.json`
+  (beside the alert spool) every 30 seconds and after each upload, and picks
+  them up with the same run id after a restart. At most the last 30 seconds
+  are lost, and a table session in progress starts again.
+- From 0.1.8 hours start on the site's local hour, so in India an hour starts
+  at :30 UTC. The API and database accept any quarter-hour start. 0.1.7 boxes
+  still send UTC hours, which round :30 boundaries down until they update.
+- Table occupancy is the share of the site's open hours a table was in use.
+  The opening hours are not configured, so an open hour is any hour with
+  someone counted at a door or seated at a table.
+- The Insights page exports the range as one CSV (days, hours of the day,
+  tables).
 - Counting needs site box 0.1.7 or later; older boxes ignore the new zone
   kinds.

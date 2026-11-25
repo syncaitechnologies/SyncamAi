@@ -12,6 +12,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from ..detection_tracking import CameraLocalDetectionTracker, Detection, DetectionFrame
@@ -135,6 +136,7 @@ class SiteWorker:
         clock: Callable[[], float] = time.monotonic,
         now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
         live_view: bool = True,
+        analytics_state: Path | None = None,
     ) -> None:
         self._backend = backend
         self._detector = detector
@@ -145,7 +147,7 @@ class SiteWorker:
         self._min_confidence = min_confidence
         self._processors = list(processors)
         # Anonymous door and table counts (ADR-020).
-        self.analytics = AnalyticsCounter()
+        self.analytics = AnalyticsCounter(state_path=analytics_state)
         # Dashboard feature switches (ADR-019), refreshed with the config.
         self._features = FeatureGate.allow_all()
         self.capabilities = capabilities([getattr(processor, "feature", None) for processor in self._processors], live_view=live_view)
@@ -208,7 +210,7 @@ class SiteWorker:
             if camera_id not in self._known_cameras:
                 _LOG.warning("camera %s is in the local config but not registered for this site in the dashboard", camera_id)
         changed = self._rules.apply_zones(list(data.get("zones", [])))
-        self.analytics.apply_zones(list(data.get("zones", [])))
+        self.analytics.apply_zones(list(data.get("zones", [])), timezone_name=str((data.get("site") or {}).get("timezone", "")))
         gate = FeatureGate.from_config(data.get("features"))
         if gate != self._features:
             if gate.switches:

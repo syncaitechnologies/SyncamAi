@@ -13,17 +13,26 @@ Two dashboard zone kinds feed this module; neither raises alerts:
 Only numbers leave the site box: per zone per hour, the entries, exits,
 occupied seconds, finished sessions, their total length and the most people
 seen at once. Track ids, positions and pictures never do.
+
+Hours follow the site's time zone, so in India (UTC+5:30) an hour starts at
+:30 UTC. The totals are saved to a small file so a restart does not lose
+counts that were not sent yet.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import math
+import os
 import uuid
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta, timezone, tzinfo
+from pathlib import Path
 from typing import Any, Protocol
+
+from .schedule import _zone
 
 _LOG = logging.getLogger("syncam.site_worker.analytics")
 
@@ -35,6 +44,7 @@ DOOR_REPEAT_SECONDS = 10.0
 SEAT_SECONDS = 60.0
 EMPTY_SECONDS = 120.0
 UPLOAD_SECONDS = 300.0
+SAVE_SECONDS = 30.0
 # A stalled camera must not count its gap as a long stay.
 MAX_FRAME_GAP_SECONDS = 5.0
 TRACK_MEMORY_SECONDS = 900.0
@@ -113,8 +123,10 @@ def _door_position(zone: AnalyticsZone, x: float, y: float) -> tuple[float, floa
     return distance, along
 
 
-def _hour(at: datetime) -> datetime:
-    return at.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+def _hour(at: datetime, zone: tzinfo = timezone.utc) -> datetime:
+    """Start of the site-local hour holding ``at``, as a UTC time."""
+
+    return at.astimezone(zone).replace(minute=0, second=0, microsecond=0).astimezone(timezone.utc)
 
 
 @dataclass
@@ -145,7 +157,7 @@ class _Table:
 class AnalyticsCounter:
     """Counts door crossings and table sessions, and uploads hourly totals."""
 
-    def __init__(self, *, run_id: str | None = None) -> None:
+    def __init__(self, *, run_id: str | None = None, state_path: Path | None = None) -> None:
         self.run_id = run_id or str(uuid.uuid4())
         self._zones: list[AnalyticsZone] = []
         self._totals: dict[tuple[str, datetime], _Totals] = {}
@@ -154,12 +166,18 @@ class AnalyticsCounter:
         self._tables: dict[str, _Table] = {}
         self._camera_seen: dict[str, datetime] = {}
         self._last_upload: datetime | None = None
+        self._site_zone: tzinfo = timezone.utc
+        self._state_path = state_path
+        self._saved_at: datetime | None = None
+        self._load()
 
     @property
     def zones(self) -> list[AnalyticsZone]:
         return list(self._zones)
 
-    def apply_zones(self, raw_zones: Iterable[Mapping[str, Any]]) -> None:
+    def apply_zones(self, raw_zones: Iterable[Mapping[str, Any]], *, timezone_name: str = "") -> None:
+        if timezone_name:
+            self._site_zone = _zone(timezone_name) or timezone.utc
         zones = parse_zones(raw_zones)
         if zones != self._zones:
             _LOG.info("counting %d door counter(s) and %d table(s)",
@@ -169,7 +187,7 @@ class AnalyticsCounter:
         self._tables = {zone_id: table for zone_id, table in self._tables.items() if zone_id in live}
 
     def _bucket(self, zone_id: str, at: datetime) -> _Totals:
-        key = (zone_id, _hour(at))
+        key = (zone_id, _hour(at, self._site_zone))
         self._dirty.add(key)
         return self._totals.setdefault(key, _Totals())
 
@@ -246,32 +264,81 @@ class AnalyticsCounter:
         cutoff = now - timedelta(seconds=TRACK_MEMORY_SECONDS)
         self._doors = {key: state for key, state in self._doors.items() if state.seen_at is not None and state.seen_at >= cutoff}
 
+    def _row(self, key: tuple[str, datetime]) -> dict[str, object]:
+        totals = self._totals[key]
+        return {
+            "zone_id": key[0],
+            "hour_start": key[1].isoformat().replace("+00:00", "Z"),
+            "run_id": self.run_id,
+            "entries": totals.entries,
+            "exits": totals.exits,
+            "occupied_seconds": int(min(3600, round(totals.occupied_seconds))),
+            "sessions": totals.sessions,
+            "session_seconds": int(round(totals.session_seconds)),
+            "peak_people": totals.peak_people,
+        }
+
     def pending_rows(self) -> list[dict[str, object]]:
-        rows = []
-        for zone_id, hour in sorted(self._dirty, key=lambda key: (key[1], key[0]))[:MAX_UPLOAD_ROWS]:
-            totals = self._totals[(zone_id, hour)]
-            rows.append({
-                "zone_id": zone_id,
-                "hour_start": hour.isoformat().replace("+00:00", "Z"),
-                "run_id": self.run_id,
-                "entries": totals.entries,
-                "exits": totals.exits,
-                "occupied_seconds": int(min(3600, round(totals.occupied_seconds))),
-                "sessions": totals.sessions,
-                "session_seconds": int(round(totals.session_seconds)),
-                "peak_people": totals.peak_people,
-            })
-        return rows
+        return [self._row(key) for key in sorted(self._dirty, key=lambda key: (key[1], key[0]))[:MAX_UPLOAD_ROWS]]
+
+    def _load(self) -> None:
+        """Pick up the totals and run id a previous start saved.
+
+        The server replaces a run's row for a zone and hour, so the restored
+        totals keep growing under the same run id instead of being lost.
+        A table session that was in progress starts again after the restart.
+        """
+
+        if self._state_path is None:
+            return
+        try:
+            data = json.loads(self._state_path.read_text(encoding="utf-8"))
+            run_id = str(uuid.UUID(str(data["run_id"])))
+            totals: dict[tuple[str, datetime], _Totals] = {}
+            dirty: set[tuple[str, datetime]] = set()
+            for row in data["rows"]:
+                hour = datetime.fromisoformat(str(row["hour_start"]).replace("Z", "+00:00"))
+                if hour.tzinfo is None:
+                    raise ValueError("hour_start has no time zone")
+                key = (str(uuid.UUID(str(row["zone_id"]))), hour.astimezone(timezone.utc))
+                totals[key] = _Totals(
+                    entries=int(row["entries"]), exits=int(row["exits"]), occupied_seconds=float(row["occupied_seconds"]),
+                    sessions=int(row["sessions"]), session_seconds=float(row["session_seconds"]), peak_people=int(row["peak_people"]),
+                )
+                if row.get("dirty"):
+                    dirty.add(key)
+        except FileNotFoundError:
+            return
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            _LOG.warning("saved visitor counts could not be read; starting from zero: %s", error)
+            return
+        self.run_id, self._totals, self._dirty = run_id, totals, dirty
+        _LOG.info("restored %d hourly visitor count(s), %d not sent yet", len(totals), len(dirty))
+
+    def save(self) -> None:
+        if self._state_path is None:
+            return
+        rows = [{**asdict(self._totals[key]), "zone_id": key[0], "hour_start": key[1].isoformat(), "dirty": key in self._dirty}
+                for key in self._totals]
+        temporary = self._state_path.with_name(self._state_path.name + ".tmp")
+        try:
+            self._state_path.parent.mkdir(parents=True, exist_ok=True)
+            temporary.write_text(json.dumps({"run_id": self.run_id, "rows": rows}), encoding="utf-8")
+            os.replace(temporary, self._state_path)
+        except OSError as error:
+            _LOG.warning("visitor counts could not be saved: %s", error)
 
     def flush(self, backend: AnalyticsBackend, now: datetime, *, force: bool = False) -> int:
-        """Send changed hourly totals every few minutes. Returns rows sent."""
+        """Save totals often and send changed hours every few minutes. Returns rows sent."""
 
+        if force or self._saved_at is None or (now - self._saved_at).total_seconds() >= SAVE_SECONDS:
+            self._saved_at = now
+            self.save()
         if not force and self._last_upload is not None and (now - self._last_upload).total_seconds() < UPLOAD_SECONDS:
             return 0
         self._last_upload = now
-        # shortcut: totals not yet sent are kept in memory only and are lost if
-        # the box restarts mid-hour; spool them to disk if that matters.
-        cutoff = _hour(now) - timedelta(hours=KEEP_HOURS - 1)
+        current = _hour(now, self._site_zone)
+        cutoff = current - timedelta(hours=KEEP_HOURS - 1)
         self._dirty = {key for key in self._dirty if key[1] >= cutoff}
         self._totals = {key: totals for key, totals in self._totals.items() if key[1] >= cutoff}
         rows = self.pending_rows()
@@ -279,9 +346,9 @@ class AnalyticsCounter:
             return 0
         backend.post_analytics(rows)
         sent = {(str(row["zone_id"]), datetime.fromisoformat(str(row["hour_start"]).replace("Z", "+00:00"))) for row in rows}
-        current = _hour(now)
         # The current hour keeps changing, so it stays marked until it ends.
         self._dirty -= {key for key in sent if key[1] < current}
+        self.save()
         return len(rows)
 
 

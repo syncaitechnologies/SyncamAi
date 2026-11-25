@@ -1,6 +1,6 @@
 -- Disposable CI database only. Every fixture and temporary grant is rolled back.
 begin;
-select plan(7);
+select plan(8);
 
 select ok((select relrowsecurity and relforcerowsecurity from pg_class where oid = 'platform.zone_hours'::regclass),
   'zone counts enforce row level security');
@@ -41,10 +41,14 @@ end $$;
 reset role;
 select ok((select passed from insight_observations where name = 'own_counts'), 'a workspace stores its own counts');
 select ok((select passed from insight_observations where name = 'foreign_counts'), 'nobody can store counts for another workspace');
-select throws_ok($$insert into platform.zone_hours (tenant_id, site_id, zone_id, hour_start, run_id)
+select lives_ok($$insert into platform.zone_hours (tenant_id, site_id, zone_id, hour_start, run_id)
   values ('41c00000-0000-4000-8000-000000000001', '41c00000-0000-4000-8000-000000000011', '41c00000-0000-4000-8000-000000000021',
           '2026-11-25 14:30:00+00', '41c00000-0000-4000-8000-000000000032')$$,
-  '23514', null, 'counts are kept per whole hour');
+  'hours may start at :30 UTC for sites on a half-hour time zone');
+select throws_ok($$insert into platform.zone_hours (tenant_id, site_id, zone_id, hour_start, run_id)
+  values ('41c00000-0000-4000-8000-000000000001', '41c00000-0000-4000-8000-000000000011', '41c00000-0000-4000-8000-000000000021',
+          '2026-11-25 14:10:00+00', '41c00000-0000-4000-8000-000000000033')$$,
+  '23514', null, 'hours start on a quarter-hour');
 
 select * from finish();
 rollback;

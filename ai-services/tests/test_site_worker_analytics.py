@@ -170,6 +170,47 @@ class UploadTest(unittest.TestCase):
         analytics.observe(CAMERA, [Person(1, 0.5)], START)
         self.assertEqual(analytics.flush(_Backend(), START, force=True), 0)
 
+    def test_hours_follow_a_half_hour_site_time_zone(self) -> None:
+        analytics = AnalyticsCounter(run_id="e1111111-1111-4111-8111-111111111111")
+        analytics.apply_zones([DOOR_ZONE], timezone_name="Asia/Kolkata")
+        # 18:40 UTC is 00:10 in India, so it falls in the hour that started at 18:30 UTC.
+        for index, x in enumerate([0.7, 0.3]):
+            analytics.observe(CAMERA, [Person(1, x)], START + timedelta(minutes=40, seconds=index))
+        self.assertEqual([item["hour_start"] for item in analytics.pending_rows()], ["2026-11-25T18:30:00Z"])
+
+
+class RestartTest(unittest.TestCase):
+    def test_counts_not_sent_yet_survive_a_restart(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as directory:
+            state = pathlib.Path(directory) / "counts.json"
+            first = AnalyticsCounter(state_path=state)
+            first.apply_zones([DOOR_ZONE])
+            for index, x in enumerate([0.7, 0.3]):
+                first.observe(CAMERA, [Person(1, x)], START + timedelta(seconds=index))
+            with self.assertRaises(BackendError):
+                first.flush(_Backend(fail=True), START + timedelta(minutes=1))
+
+            second = AnalyticsCounter(state_path=state)
+            second.apply_zones([DOOR_ZONE])
+            self.assertEqual(second.run_id, first.run_id, "keeps adding to the same server rows")
+            for index, x in enumerate([0.3, 0.7]):
+                second.observe(CAMERA, [Person(2, x)], START + timedelta(minutes=2, seconds=index))
+            backend = _Backend()
+            self.assertEqual(second.flush(backend, START + timedelta(minutes=3)), 1)
+            self.assertEqual((backend.sent[0][0]["entries"], backend.sent[0][0]["exits"]), (1, 1))
+
+    def test_a_damaged_save_file_starts_from_zero(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as directory:
+            state = pathlib.Path(directory) / "counts.json"
+            state.write_text("{not json", encoding="utf-8")
+            with self.assertLogs("syncam.site_worker.analytics", level="WARNING"):
+                analytics = AnalyticsCounter(state_path=state)
+            self.assertEqual(analytics.pending_rows(), [])
+
 
 class WorkerWiringTest(unittest.TestCase):
     def test_the_worker_loads_counter_zones_from_the_dashboard(self) -> None:

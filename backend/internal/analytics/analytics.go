@@ -56,11 +56,14 @@ type ZoneTotals struct {
 	PeakPeople      int    `json:"peak_people"`
 }
 
-// Summary is what the Insights page shows for a range.
+// Summary is what the Insights page shows for a range. OpenHours counts the
+// hours with anyone counted at the door or seated at a table; the page uses it
+// as the opening time when it works out table occupancy.
 type Summary struct {
-	Days  []DayVisits  `json:"days"`
-	Hours []HourVisits `json:"hours"`
-	Zones []ZoneTotals `json:"zones"`
+	Days      []DayVisits  `json:"days"`
+	Hours     []HourVisits `json:"hours"`
+	Zones     []ZoneTotals `json:"zones"`
+	OpenHours int          `json:"open_hours"`
 }
 
 // Store saves hourly counts and summarises them.
@@ -120,10 +123,9 @@ func (p *PostgresStore) SaveHours(ctx context.Context, tenantID, siteID string, 
 	return tx.Commit(ctx)
 }
 
-// Summary groups by the site's local day and hour of day.
-// shortcut: a whole UTC hour is assigned to the local day and hour it starts
-// in, so sites on a half-hour offset (India) see :30 boundaries rounded down;
-// store quarter-hours if that matters.
+// Summary groups by the site's local day and hour of day. Site boxes from
+// 0.1.8 start each hour on the site's local hour, so this is exact on
+// half-hour offsets too.
 func (p *PostgresStore) Summary(ctx context.Context, tenantID, siteID string, location *time.Location, from, to time.Time) (Summary, error) {
 	if location == nil {
 		location = time.UTC
@@ -199,6 +201,12 @@ func (p *PostgresStore) Summary(ctx context.Context, tenantID, siteID string, lo
 	if err := rows.Err(); err != nil {
 		return Summary{}, fmt.Errorf("read zones: %w", err)
 	}
+	if err := tx.QueryRow(ctx, `
+		SELECT count(DISTINCT hour_start)::int FROM platform.zone_hours
+		WHERE site_id = $1::uuid AND hour_start >= $2 AND hour_start < $3 AND entries + exits + occupied_seconds > 0`,
+		siteID, from, to).Scan(&result.OpenHours); err != nil {
+		return Summary{}, fmt.Errorf("count open hours: %w", err)
+	}
 	return result, tx.Commit(ctx)
 }
 
@@ -232,9 +240,13 @@ func (m *MemoryStore) Summary(_ context.Context, tenantID, siteID string, locati
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	days, hours, zones := map[string]*DayVisits{}, map[int]*HourVisits{}, map[string]*ZoneTotals{}
+	open := map[time.Time]bool{}
 	for _, row := range m.rows {
 		if m.site[row.ZoneID] != tenantID+"|"+siteID || row.HourStart.Before(from) || !row.HourStart.Before(to) {
 			continue
+		}
+		if row.Entries+row.Exits+row.OccupiedSeconds > 0 {
+			open[row.HourStart.UTC()] = true
 		}
 		local := row.HourStart.In(location)
 		day := days[local.Format("2006-01-02")]
@@ -268,7 +280,7 @@ func (m *MemoryStore) Summary(_ context.Context, tenantID, siteID string, locati
 			totals.PeakPeople = row.PeakPeople
 		}
 	}
-	result := Summary{Days: []DayVisits{}, Hours: []HourVisits{}, Zones: []ZoneTotals{}}
+	result := Summary{Days: []DayVisits{}, Hours: []HourVisits{}, Zones: []ZoneTotals{}, OpenHours: len(open)}
 	for _, day := range days {
 		result.Days = append(result.Days, *day)
 	}

@@ -1,5 +1,5 @@
 // Insights page (ADR-020): pure rules for anonymous visitor and table counts.
-import { rangeDays } from "./attendance-model.ts";
+import { csvCell, rangeDays } from "./attendance-model.ts";
 
 export type InsightsZone = {
   zone_id: string;
@@ -18,6 +18,8 @@ export type InsightsSummary = {
   days: { date: string; entries: number; exits: number }[];
   hours: { hour: number; entries: number }[];
   zones: InsightsZone[];
+  /** Hours with anyone counted at the door or seated; missing from older servers. */
+  open_hours?: number;
 };
 
 export type TableRow = {
@@ -26,6 +28,8 @@ export type TableRow = {
   sessions: number;
   averageMinutes: number | null;
   occupiedHours: number;
+  /** Share of the open hours the table was in use, 0–100; null before anything is counted. */
+  occupancyPercent: number | null;
   sessionsPerDay: number;
   peakPeople: number;
 };
@@ -69,12 +73,14 @@ export function durationLabel(minutes: number | null) {
 }
 
 export function tableRows(summary: InsightsSummary, dayCount: number): TableRow[] {
+  const openSeconds = (summary.open_hours ?? 0) * 3600;
   return summary.zones.filter(isTable).map((zone) => ({
     zoneId: zone.zone_id,
     name: zone.name,
     sessions: zone.sessions,
     averageMinutes: zone.sessions > 0 ? zone.session_seconds / zone.sessions / 60 : null,
     occupiedHours: Math.round((zone.occupied_seconds / 3600) * 10) / 10,
+    occupancyPercent: openSeconds > 0 ? Math.min(100, Math.round((zone.occupied_seconds / openSeconds) * 100)) : null,
     sessionsPerDay: dayCount > 0 ? Math.round((zone.sessions / dayCount) * 10) / 10 : 0,
     peakPeople: zone.peak_people,
   })).sort((left, right) => right.sessions - left.sessions || left.name.localeCompare(right.name));
@@ -97,6 +103,30 @@ export function turnover(summary: InsightsSummary, dayCount: number): number | n
 
 export function doorNames(summary: InsightsSummary) {
   return summary.zones.filter(isDoor).map((zone) => zone.name);
+}
+
+/** The whole range as one CSV with three sections: days, hours of the day, tables. */
+export function insightsCsv(summary: InsightsSummary, from: string, to: string): string {
+  const days = new Map(summary.days.map((day) => [day.date, day]));
+  const lines = ["Visitors per day", "Date,Came in,Went out"];
+  for (const date of rangeDays(from, to).reverse()) {
+    lines.push(`${date},${days.get(date)?.entries ?? 0},${days.get(date)?.exits ?? 0}`);
+  }
+  lines.push("", "Visitors by hour of the day (site time)", "Hour,Came in");
+  for (const hour of hourSeries(summary)) lines.push(`${hourLabel(hour.hour)},${hour.entries}`);
+  lines.push("", "Tables", "Table,Groups,Groups per day,Average minutes,Hours in use,Occupancy %,Most seated at once");
+  for (const row of tableRows(summary, rangeDays(from, to).length)) {
+    lines.push([
+      csvCell(row.name),
+      row.sessions,
+      row.sessionsPerDay,
+      row.averageMinutes === null ? "" : Math.round(row.averageMinutes),
+      row.occupiedHours,
+      row.occupancyPercent ?? "",
+      row.peakPeople,
+    ].join(","));
+  }
+  return `${lines.join("\n")}\n`;
 }
 
 /** Bar height in percent of the largest value (0 stays 0). */

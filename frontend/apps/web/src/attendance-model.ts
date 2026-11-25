@@ -114,7 +114,7 @@ export function staffTotals(rows: DailyRow[]): StaffTotal[] {
   return [...totals.values()].sort((left, right) => left.name.localeCompare(right.name));
 }
 
-function csvCell(value: string) {
+export function csvCell(value: string) {
   return /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
 }
 
