@@ -125,6 +125,13 @@ func TestSupabaseEvidenceStoreUploadsAndDownloads(t *testing.T) {
 				return
 			}
 			_, _ = w.Write(data)
+		case http.MethodDelete:
+			if _, ok := objects[r.URL.Path]; !ok {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			delete(objects, r.URL.Path)
+			_, _ = w.Write([]byte(`[]`))
 		}
 	}))
 	defer server.Close()
@@ -144,9 +151,35 @@ func TestSupabaseEvidenceStoreUploadsAndDownloads(t *testing.T) {
 	if _, err := store.GetReference(ctx, testTenant, testSite, "missing"); err != ErrEvidenceNotFound {
 		t.Fatalf("missing reference: %v", err)
 	}
+	if err := store.Delete(ctx, "other-tenant", ref); err != ErrEvidenceNotFound {
+		t.Fatalf("another tenant's reference must not resolve: %v", err)
+	}
+	if err := store.Delete(ctx, testTenant, ref); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, err := store.Get(ctx, testTenant, ref); err != ErrEvidenceNotFound {
+		t.Fatalf("deleted snapshot still readable: %v", err)
+	}
+	if err := store.Delete(ctx, testTenant, ref); err != ErrEvidenceNotFound {
+		t.Fatalf("deleting twice reports not found: %v", err)
+	}
 	unauthorized := &SupabaseEvidenceStore{BaseURL: server.URL, SecretKey: "wrong", Bucket: "snapshots"}
 	if _, err := unauthorized.Put(ctx, testTenant, testSite, jpegBytes); err == nil {
 		t.Fatal("storage rejection must surface")
+	}
+	if err := unauthorized.Delete(ctx, testTenant, ref); err == nil || err == ErrEvidenceNotFound {
+		t.Fatalf("storage rejection on delete must surface: %v", err)
+	}
+	memory := NewMemoryEvidenceStore()
+	memoryRef, _ := memory.Put(ctx, testTenant, testSite, jpegBytes)
+	if err := memory.Delete(ctx, testTenant, memoryRef); err != nil {
+		t.Fatal(err)
+	}
+	if err := memory.Delete(ctx, testTenant, memoryRef); err != ErrEvidenceNotFound {
+		t.Fatalf("memory delete twice: %v", err)
+	}
+	if err := memory.Delete(ctx, testTenant, "bad"); err != ErrEvidenceNotFound {
+		t.Fatalf("memory bad ref: %v", err)
 	}
 }
 

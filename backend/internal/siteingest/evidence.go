@@ -167,6 +167,33 @@ func (s *SupabaseEvidenceStore) download(ctx context.Context, path string) ([]by
 	return data, nil
 }
 
+// Delete removes a stored snapshot. A snapshot that is already gone returns
+// ErrEvidenceNotFound.
+func (s *SupabaseEvidenceStore) Delete(ctx context.Context, tenantID, ref string) error {
+	path, err := objectPathForTenant(tenantID, ref)
+	if err != nil {
+		return err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodDelete, s.objectURL(path), nil)
+	if err != nil {
+		return err
+	}
+	s.authorize(request)
+	response, err := s.client().Do(request)
+	if err != nil {
+		return fmt.Errorf("delete snapshot: %w", err)
+	}
+	defer response.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4<<10))
+	if response.StatusCode == http.StatusNotFound || response.StatusCode == http.StatusBadRequest {
+		return ErrEvidenceNotFound
+	}
+	if response.StatusCode/100 != 2 {
+		return fmt.Errorf("delete snapshot: storage returned %d", response.StatusCode)
+	}
+	return nil
+}
+
 func (s *SupabaseEvidenceStore) authorize(request *http.Request) {
 	request.Header.Set("apikey", s.SecretKey)
 	request.Header.Set("Authorization", "Bearer "+s.SecretKey)
@@ -205,6 +232,20 @@ func (s *MemoryEvidenceStore) Get(_ context.Context, tenantID, ref string) ([]by
 		return nil, ErrEvidenceNotFound
 	}
 	return append([]byte(nil), data...), nil
+}
+
+func (s *MemoryEvidenceStore) Delete(_ context.Context, tenantID, ref string) error {
+	path, err := objectPathForTenant(tenantID, ref)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.objects[path]; !ok {
+		return ErrEvidenceNotFound
+	}
+	delete(s.objects, path)
+	return nil
 }
 
 func (s *MemoryEvidenceStore) PutReference(_ context.Context, tenantID, siteID, cameraID string, jpeg []byte) error {

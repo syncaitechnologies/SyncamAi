@@ -1220,6 +1220,7 @@ Path convention: `s3://sv-evidence-ap-south-1/{tenant_id}/{site_id}/{camera_id}/
 ### 11.3 Retention & Erasure
 
 - Lifecycle rules are prefix-scoped per tenant retention setting (7/30/90/365d) — retention is *data-plane enforced*, not just app logic.
+- **Implemented (Supabase MVP): alerts are kept six months.** The control plane's daily job (`internal/retention`) lists alerts older than six months with `alerts.expired_alert_evidence`, deletes their snapshots from Supabase Storage, then calls `alerts.purge_expired_alerts`, which deletes the alerts, their action history and their detection events. The six-month window lives in those definer functions, so the API cannot delete younger data; an alert whose snapshot cannot be deleted is kept and retried the next day. The hash-chained audit log is not purged. The per-tenant `retention_days` setting is not used yet.
 - **Right-to-erasure (PRD §15.4):** erasure job walks every store (S3 prefixes, Postgres, DynamoDB, OpenSearch, ClickHouse, Redis, edge via OTA command) and produces a **deletion manifest** (`erasure_manifest_{tenant}_{subject}.json`, hashed, archived to audit-worm). Legal-hold records exempted and listed in the manifest. Biometric embeddings destroyed first (separate KMS key hierarchy).
 - Erasure of evidence in Object Lock: cannot be deleted while locked → manifest records `locked_until` + a compliance note (documented legal exception).
 
