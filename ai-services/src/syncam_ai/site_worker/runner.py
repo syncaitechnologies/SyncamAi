@@ -18,6 +18,7 @@ from ..detection_tracking import CameraLocalDetectionTracker, Detection, Detecti
 from .capture import StreamSet
 from .client import BackendError
 from .detector import ObjectDetection
+from .analytics import AnalyticsCounter
 from .features import FeatureGate, capabilities
 from .rules import SiteRules
 from .spool import Spool
@@ -143,6 +144,8 @@ class SiteWorker:
         self._interval = 1.0 / fps
         self._min_confidence = min_confidence
         self._processors = list(processors)
+        # Anonymous door and table counts (ADR-020).
+        self.analytics = AnalyticsCounter()
         # Dashboard feature switches (ADR-019), refreshed with the config.
         self._features = FeatureGate.allow_all()
         self.capabilities = capabilities([getattr(processor, "feature", None) for processor in self._processors], live_view=live_view)
@@ -205,6 +208,7 @@ class SiteWorker:
             if camera_id not in self._known_cameras:
                 _LOG.warning("camera %s is in the local config but not registered for this site in the dashboard", camera_id)
         changed = self._rules.apply_zones(list(data.get("zones", [])))
+        self.analytics.apply_zones(list(data.get("zones", [])))
         gate = FeatureGate.from_config(data.get("features"))
         if gate != self._features:
             if gate.switches:
@@ -256,6 +260,7 @@ class SiteWorker:
         if moment - self._last_heartbeat >= HEARTBEAT_SECONDS:
             self._last_heartbeat = moment
             self._send_heartbeat()
+        self._send_analytics()
         if queued:
             self._delivery_wakeup.set()
         return queued
@@ -285,6 +290,10 @@ class SiteWorker:
             )
         )
         gate = self._features
+        try:
+            self.analytics.observe(camera_id, track_frame.tracks, observed_at)
+        except Exception as error:  # counting must never stop alerts
+            _LOG.error("visitor counting failed on camera %s: %s", camera_id, error)
         candidates = [
             AlertCandidate(event=event, title=self._title(event), detections=tuple(detections))
             for event in rules.evaluate(track_frame)
@@ -368,6 +377,12 @@ class SiteWorker:
             self._backend.heartbeat(cameras, capabilities=self.capabilities)
         except BackendError as error:
             _LOG.warning("heartbeat failed: %s", error)
+
+    def _send_analytics(self) -> None:
+        try:
+            self.analytics.flush(self._backend, self._now())  # type: ignore[arg-type]
+        except BackendError as error:
+            _LOG.warning("visitor counts upload failed; trying again later: %s", error)
 
     def deliver_pending(self) -> None:
         result = self._spool.deliver(self._backend)

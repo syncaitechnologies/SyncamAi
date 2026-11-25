@@ -15,6 +15,8 @@ type Preset = {
   kind: ZoneKind;
   classes: string[];
   loiter?: boolean;
+  /** Counts visitors or table use (ADR-020): never alerts, has no schedule. */
+  counts?: boolean;
 };
 
 const presets: Preset[] = [
@@ -24,18 +26,34 @@ const presets: Preset[] = [
   { id: "loitering", label: "Loitering", help: "Alert when a person stays in the area longer than the dwell time.", kind: "loitering", classes: ["person"], loiter: true },
   { id: "vehicle", label: "Vehicle enters", help: "Alert when a vehicle drives into the zone while armed (e.g. after hours).", kind: "intrusion", classes: vehicleClasses },
   { id: "line", label: "Line crossing", help: "Alert when a person crosses the line. Click two points.", kind: "tripwire", classes: ["person"] },
+  { id: "door", label: "Door counter (visitors)", help: "Counts people walking in and out, without recognising anyone. Click two points across the door; the short tick shows the inside. Use Flip if it points out.", kind: "door_line", classes: ["person"], counts: true },
+  { id: "table", label: "Table (dining time)", help: "Measures how long the table is used and how many groups sit there. Draw around the table and its chairs.", kind: "table", classes: ["person"], counts: true },
 ];
+const isLine = (kind: ZoneKind) => kind === "tripwire" || kind === "door_line";
+
+/** A short tick from the middle of a door line towards the inside (the right of the arrow). */
+function insideTick(line: Point[]): [Point, Point] | null {
+  if (line.length < 2) return null;
+  const [[ax, ay], [bx, by]] = [line[0]!, line[line.length - 1]!];
+  const length = Math.hypot(bx - ax, by - ay) || 1;
+  const middle: Point = [(ax + bx) / 2, (ay + by) / 2];
+  return [middle, [middle[0] - ((by - ay) / length) * 0.06, middle[1] + ((bx - ax) / length) * 0.06]];
+}
 const days = allDays;
 
 function presetFor(zone: Zone) {
   const classes = zone.subject_classes ?? [];
   if (zone.kind === "loitering") return classes.some((item) => vehicleClasses.includes(item)) ? presets[2]! : presets[3]!;
   if (zone.kind === "tripwire") return presets[5]!;
+  if (zone.kind === "door_line") return presets[6]!;
+  if (zone.kind === "table") return presets[7]!;
   if (zone.kind === "restricted_zone") return presets[1]!;
   return classes.length && classes.every((item) => vehicleClasses.includes(item)) ? presets[4]! : presets[0]!;
 }
 
-function scheduleText(schedule?: Schedule) {
+function scheduleText(schedule?: Schedule, kind?: string) {
+  if (kind === "door_line") return "Counts visitors";
+  if (kind === "table") return "Measures dining time";
   if (!schedule?.windows?.length) return "Always armed";
   return schedule.windows.map((window) => `${window.days.length === 7 ? "Every day" : window.days.join(", ")} ${window.start}–${window.end}`).join("; ");
 }
@@ -75,7 +93,7 @@ export function LiveZoneEditor({ workspace, onNotify }: { workspace: WorkspaceDa
   }, [api, selectedCamera]);
 
   if (!api) return null;
-  const needed = preset.kind === "tripwire" ? 2 : 3;
+  const needed = isLine(preset.kind) ? 2 : 3;
 
   function addPoint(event: MouseEvent<SVGSVGElement>) {
     if (!manage) return;
@@ -84,20 +102,20 @@ export function LiveZoneEditor({ workspace, onNotify }: { workspace: WorkspaceDa
       Math.round(((event.clientX - box.left) / box.width) * 1000) / 1000,
       Math.round(((event.clientY - box.top) / box.height) * 1000) / 1000,
     ];
-    setDraft((current) => (preset.kind === "tripwire" && current.length >= 2 ? [point] : [...current, point]));
+    setDraft((current) => (isLine(preset.kind) && current.length >= 2 ? [point] : [...current, point]));
   }
 
   async function save() {
     if (!api || !site || !selectedCamera) return;
     if (draft.length < needed) {
-      onNotify(preset.kind === "tripwire" ? "Click two points to draw the line." : "Click at least three points on the image.");
+      onNotify(isLine(preset.kind) ? "Click two points to draw the line." : "Click at least three points on the image.");
       return;
     }
-    if (armed === "schedule" && (!activeDays.length || start === end)) {
+    if (!preset.counts && armed === "schedule" && (!activeDays.length || start === end)) {
       onNotify("Choose at least one day and different start and end times.");
       return;
     }
-    const geometry: Zone["geometry"] = preset.kind === "tripwire"
+    const geometry: Zone["geometry"] = isLine(preset.kind)
       ? { type: "LineString", coordinates: draft.slice(0, 2) }
       : { type: "Polygon", coordinates: [[...draft, draft[0]!]] };
     setBusy(true);
@@ -110,9 +128,9 @@ export function LiveZoneEditor({ workspace, onNotify }: { workspace: WorkspaceDa
         geometry,
         subject_classes: preset.classes,
         ...(preset.loiter ? { loiter_seconds: Math.min(600, Math.max(30, loiter)) } : {}),
-        ...(armed === "schedule" ? { schedule: { timezone: site.timezone, windows: [{ days: activeDays, start, end }] } } : {}),
+        ...(!preset.counts && armed === "schedule" ? { schedule: { timezone: site.timezone, windows: [{ days: activeDays, start, end }] } } : {}),
       });
-      onNotify("Zone saved · the site box applies it within a minute");
+      onNotify(preset.counts ? "Saved · counting starts within a minute on site box 0.1.7 or later" : "Zone saved · the site box applies it within a minute");
       setDraft([]);
       setName("");
       reload();
@@ -188,11 +206,21 @@ export function LiveZoneEditor({ workspace, onNotify }: { workspace: WorkspaceDa
                 {cameraZones.map((zone) => {
                   const list = points(zone);
                   const path = list.map((point) => point.join(",")).join(" ");
+                  const tick = zone.kind === "door_line" ? insideTick(list) : null;
                   return zone.geometry.type === "LineString"
-                    ? <polyline key={zone.id} points={path} className={`live-zone-shape line ${zone.enabled ? "" : "off"}`} />
+                    ? (
+                      <g key={zone.id}>
+                        <polyline points={path} className={`live-zone-shape line ${zone.kind} ${zone.enabled ? "" : "off"}`} />
+                        {tick && <line x1={tick[0][0]} y1={tick[0][1]} x2={tick[1][0]} y2={tick[1][1]} className="live-zone-inside" />}
+                      </g>
+                    )
                     : <polygon key={zone.id} points={path} className={`live-zone-shape ${zone.kind} ${zone.enabled ? "" : "off"}`} />;
                 })}
-                {draft.length > 0 && (preset.kind === "tripwire" || draft.length < 3
+                {preset.kind === "door_line" && draft.length === 2 && (() => {
+                  const tick = insideTick(draft)!;
+                  return <line x1={tick[0][0]} y1={tick[0][1]} x2={tick[1][0]} y2={tick[1][1]} className="live-zone-inside" />;
+                })()}
+                {draft.length > 0 && (isLine(preset.kind) || draft.length < 3
                   ? <polyline points={draft.map((point) => point.join(",")).join(" ")} className="live-zone-shape draft" />
                   : <polygon points={draft.map((point) => point.join(",")).join(" ")} className="live-zone-shape draft" />)}
                 {draft.map((point, index) => <circle key={index} cx={point[0]} cy={point[1]} r={0.008} className="live-zone-point" />)}
@@ -202,6 +230,7 @@ export function LiveZoneEditor({ workspace, onNotify }: { workspace: WorkspaceDa
               <span>{manage ? `Click on the picture to place points (${draft.length} placed).` : "View only: ask an administrator to change zones."}</span>
               {draft.length > 0 && <button type="button" onClick={() => setDraft((current) => current.slice(0, -1))}>Undo point</button>}
               {draft.length > 0 && <button type="button" onClick={() => setDraft([])}>Clear</button>}
+              {preset.kind === "door_line" && draft.length === 2 && <button type="button" onClick={() => setDraft((current) => [current[1]!, current[0]!])}>Flip direction</button>}
             </footer>
           </section>
           <aside className="panel live-zone-side">
@@ -232,7 +261,7 @@ export function LiveZoneEditor({ workspace, onNotify }: { workspace: WorkspaceDa
                 <small>{preset.help}</small>
                 <label>Name<input value={name} onChange={(event) => setName(event.target.value)} placeholder={preset.label} maxLength={120} /></label>
                 {preset.loiter && <label>Dwell time (seconds)<input type="number" min={30} max={600} value={loiter} onChange={(event) => setLoiter(Number(event.target.value))} /></label>}
-                <fieldset>
+                {!preset.counts && <fieldset>
                   <legend>Armed</legend>
                   <label className="live-radio"><input type="radio" checked={armed === "always"} onChange={() => setArmed("always")} />Always</label>
                   <label className="live-radio"><input type="radio" checked={armed === "schedule"} onChange={() => setArmed("schedule")} />On a schedule</label>
@@ -248,7 +277,7 @@ export function LiveZoneEditor({ workspace, onNotify }: { workspace: WorkspaceDa
                       <small>Times are in the site timezone ({site?.timezone}). An end before the start runs overnight.</small>
                     </>
                   )}
-                </fieldset>
+                </fieldset>}
                 <button type="button" className="live-primary" disabled={busy || draft.length < needed} onClick={() => void save()}><Icon name="check" size={14} />Save zone</button>
               </div>
             )}
@@ -258,7 +287,7 @@ export function LiveZoneEditor({ workspace, onNotify }: { workspace: WorkspaceDa
               {cameraZones.map((zone) => (
                 <div key={zone.id} className="live-zone-item">
                   <span className={`zone-kind-dot zone-kind-${zone.kind}`} />
-                  <span><strong>{zone.name}</strong><small>{presetFor(zone).label} · {scheduleText(zone.schedule)}</small></span>
+                  <span><strong>{zone.name}</strong><small>{presetFor(zone).label} · {scheduleText(zone.schedule, zone.kind)}</small></span>
                   {manage && (
                     <span className="live-zone-actions">
                       <button type="button" className={zone.enabled ? "live-link" : "live-link danger"} onClick={() => void toggle(zone)}>{zone.enabled ? "Armed" : "Paused"}</button>

@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/alerting"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/analytics"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/attendance"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/authz"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/boxsetup"
@@ -44,6 +45,8 @@ type SiteIngestOptions struct {
 	// Features decides which AI features run (ADR-019). Without it every
 	// feature runs and the Features page is unavailable (local development).
 	Features *features.Service
+	// Analytics keeps anonymous door and table counts (ADR-020).
+	Analytics analytics.Store
 }
 
 type siteScopeContextKey struct{}

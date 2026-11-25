@@ -107,6 +107,12 @@ class BackendClient:
         body = json.dumps(sighting, separators=(",", ":")).encode()
         self._request("POST", "/v1/site-ingest/attendance", body=body, content_type="application/json")
 
+    def post_analytics(self, rows: Sequence[Mapping[str, object]]) -> None:
+        """Hourly anonymous door and table counts (ADR-020)."""
+
+        body = json.dumps({"hours": list(rows)}, separators=(",", ":")).encode()
+        self._request("POST", "/v1/site-ingest/analytics", body=body, content_type="application/json")
+
     def poll(self) -> dict[str, Any]:
         """The box's regular poll: watched cameras and pending setup tasks."""
 

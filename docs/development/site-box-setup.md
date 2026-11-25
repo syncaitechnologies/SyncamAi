@@ -38,6 +38,23 @@ model with **no stated licence**; `fetch_site_models.ps1 -IncludeDevWeaponModel`
 downloads it for development and demos only. Replace it with a licence-clean,
 fine-tuned model before selling.
 
+### Visitor and table insights (ADR-020)
+
+For shops and restaurants, two zone kinds count people without recognising
+anyone. In **Zones & rules**:
+
+- **Door counter (visitors):** click two points across the entrance. The short
+  tick shows the inside; press **Flip direction** if it points outside. People
+  crossing towards the tick count as visitors, the other way as leaving.
+- **Table (dining time):** draw around a table and its chairs. A group counts
+  once someone has been seated for a minute, and the visit ends two minutes
+  after the last person leaves.
+
+The site box (0.1.7 or later) sends hourly counts only, every 5 minutes. The
+**Insights** page shows visitors per day, the busiest hours, average dining
+time and table turnover. Counts are estimates: people hidden behind others can
+be counted twice or missed, and staff walking through the door are counted.
+
 ### Switching features on and off (ADR-019)
 
 Each feature can be switched on or off, for all cameras or chosen ones, on the

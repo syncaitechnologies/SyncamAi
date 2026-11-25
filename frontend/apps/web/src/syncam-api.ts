@@ -3,6 +3,7 @@ import { errorCode, frameProblem, type LiveFrameProblem, type LiveViewUsage } fr
 import type { AdminChanges, AdminWorkspace } from "./admin-model";
 import type { Feature, FeatureChanges, FeatureKey } from "./features-model";
 import type { DayRecord } from "./attendance-model";
+import type { InsightsSummary } from "./insights-model";
 import { RESTART_TIMEOUT_MS, restartFailure } from "./site-box-model";
 
 export type { LiveFrameProblem, LiveViewUsage } from "./live-view-model";
@@ -15,7 +16,7 @@ export type Camera = {
   serial_number: string;
   lifecycle_status: string;
 };
-export type ZoneKind = "intrusion" | "restricted_zone" | "loitering" | "tripwire";
+export type ZoneKind = "intrusion" | "restricted_zone" | "loitering" | "tripwire" | "door_line" | "table";
 export type Schedule = {
   timezone: string;
   windows: { days: string[]; start: string; end: string }[];
@@ -307,6 +308,12 @@ export class SyncamApi extends AlertApiClient {
         body: JSON.stringify({ active }),
       }),
     );
+  }
+
+  /** Anonymous visitor and table counts for a range of site-local days (ADR-020). */
+  async insights(siteId: string, from: string, to: string, signal?: AbortSignal) {
+    const query = new URLSearchParams({ site_id: siteId, from, to });
+    return data<InsightsSummary>(await this.request(`/v1/analytics/insights?${query}`, { method: "GET", signal }));
   }
 
   /** First and last sighting per staff member per day, in the site's time zone (from and to are YYYY-MM-DD, both included). */

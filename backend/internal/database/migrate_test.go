@@ -113,6 +113,11 @@ func TestApplyMigrationsAppliesOnceAndThenSkips(t *testing.T) {
 	mock.ExpectExec("GRANT DELETE ON config.zones").WithArgs(pgx.QueryExecModeSimpleProtocol).WillReturnResult(pgxmock.NewResult("DO", 0))
 	mock.ExpectExec("INSERT INTO platform.schema_migrations").WithArgs("000019_zone_delete.sql").WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	mock.ExpectCommit()
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT EXISTS").WithArgs("000020_restaurant_insights.sql").WillReturnRows(pgxmock.NewRows([]string{"exists"}).AddRow(false))
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS platform.zone_hours").WithArgs(pgx.QueryExecModeSimpleProtocol).WillReturnResult(pgxmock.NewResult("CREATE", 0))
+	mock.ExpectExec("INSERT INTO platform.schema_migrations").WithArgs("000020_restaurant_insights.sql").WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectCommit()
 
 	if err := ApplyMigrations(context.Background(), mock); err != nil {
 		t.Fatal(err)
@@ -179,6 +184,9 @@ func TestApplyMigrationsAppliesOnceAndThenSkips(t *testing.T) {
 	mock.ExpectCommit()
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT EXISTS").WithArgs("000019_zone_delete.sql").WillReturnRows(pgxmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectCommit()
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT EXISTS").WithArgs("000020_restaurant_insights.sql").WillReturnRows(pgxmock.NewRows([]string{"exists"}).AddRow(true))
 	mock.ExpectCommit()
 	if err := ApplyMigrations(context.Background(), mock); err != nil {
 		t.Fatalf("second migration pass must be idempotent: %v", err)
