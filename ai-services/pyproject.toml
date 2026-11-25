@@ -12,11 +12,12 @@ license = "LicenseRef-Proprietary"
 [project.optional-dependencies]
 person-detector = [
   "numpy>=1.26,<3",
-  "openvino>=2025.0,<2026.0",
+  "openvino==2026.4.1",
 ]
 site-worker = [
   "numpy>=1.26,<3",
-  "openvino>=2025.0,<2026.0",
+  # Pinned to the version tested live on a box; bump it in its own PR.
+  "openvino==2026.4.1",
   "opencv-python-headless>=4.10,<5",
   "tzdata>=2024.1",
   "cryptography>=43,<47",
