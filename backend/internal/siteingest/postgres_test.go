@@ -83,11 +83,11 @@ func TestPostgresKeyStoreResolveCreateListRevokeHeartbeat(t *testing.T) {
 
 	seen := time.Now()
 	expectTenantTx(mock, pgx.ReadOnly)
-	mock.ExpectQuery("FROM platform.site_keys").WithArgs(testSite).WillReturnRows(pgxmock.NewRows([]string{"id", "tenant_id", "site_id", "label", "created_at", "revoked_at", "last_seen_at", "camera_status", "box_public_key"}).
-		AddRow(testKeyID, testTenant, testSite, "Box", seen, nil, &seen, []byte(`{"c":{"online":true}}`), ""))
+	mock.ExpectQuery("FROM platform.site_keys").WithArgs(testSite).WillReturnRows(pgxmock.NewRows([]string{"id", "tenant_id", "site_id", "label", "created_at", "revoked_at", "last_seen_at", "camera_status", "box_public_key", "box_version"}).
+		AddRow(testKeyID, testTenant, testSite, "Box", seen, nil, &seen, []byte(`{"c":{"online":true}}`), "", "0.1.9"))
 	mock.ExpectCommit()
 	keys, err := store.List(ctx, testTenant, testSite)
-	if err != nil || len(keys) != 1 || !keys[0].CameraStatus["c"].Online || keys[0].LastSeenAt == nil {
+	if err != nil || len(keys) != 1 || !keys[0].CameraStatus["c"].Online || keys[0].LastSeenAt == nil || keys[0].BoxVersion != "0.1.9" {
 		t.Fatalf("list: %v %+v", err, keys)
 	}
 
@@ -108,9 +108,9 @@ func TestPostgresKeyStoreResolveCreateListRevokeHeartbeat(t *testing.T) {
 	}
 
 	expectTenantTx(mock, pgx.ReadWrite)
-	mock.ExpectExec("UPDATE platform.site_keys SET last_seen_at").WithArgs(testKeyID, pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectExec("UPDATE platform.site_keys SET last_seen_at").WithArgs(testKeyID, pgxmock.AnyArg(), "0.1.9").WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	mock.ExpectCommit()
-	if err := store.RecordHeartbeat(ctx, Scope{KeyID: testKeyID, TenantID: testTenant, SiteID: testSite}, map[string]CameraStatus{"c": {Online: true}}); err != nil {
+	if err := store.RecordHeartbeat(ctx, Scope{KeyID: testKeyID, TenantID: testTenant, SiteID: testSite}, map[string]CameraStatus{"c": {Online: true}}, "0.1.9"); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -135,9 +135,9 @@ func TestPostgresKeyStoreSurfacesStorageFailures(t *testing.T) {
 		t.Fatalf("list failure: %v", err)
 	}
 	expectTenantTx(mock, pgx.ReadWrite)
-	mock.ExpectExec("UPDATE platform.site_keys SET last_seen_at").WithArgs(testKeyID, pgxmock.AnyArg()).WillReturnError(failure)
+	mock.ExpectExec("UPDATE platform.site_keys SET last_seen_at").WithArgs(testKeyID, pgxmock.AnyArg(), "").WillReturnError(failure)
 	mock.ExpectRollback()
-	if err := store.RecordHeartbeat(ctx, Scope{KeyID: testKeyID, TenantID: testTenant}, nil); !errors.Is(err, failure) {
+	if err := store.RecordHeartbeat(ctx, Scope{KeyID: testKeyID, TenantID: testTenant}, nil, ""); !errors.Is(err, failure) {
 		t.Fatalf("heartbeat failure: %v", err)
 	}
 }

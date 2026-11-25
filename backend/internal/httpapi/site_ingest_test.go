@@ -213,14 +213,19 @@ func TestCameraReferenceAndHeartbeat(t *testing.T) {
 	if response.Code != http.StatusOK || !bytes.Equal(response.Body.Bytes(), testJPEG) {
 		t.Fatalf("reference read: %d", response.Code)
 	}
-	heartbeat := []byte(`{"cameras":{"` + ingestCamera + `":{"online":true}}}`)
+	heartbeat := []byte(`{"cameras":{"` + ingestCamera + `":{"online":true}},"version":"0.1.9"}`)
 	response = fixture.do(http.MethodPost, "/v1/site-ingest/heartbeat", fixture.rawKey, heartbeat, "application/json", nil)
 	if response.Code != http.StatusOK {
 		t.Fatalf("heartbeat: %d %s", response.Code, response.Body.String())
 	}
 	keys, _ := fixture.keys.List(context.Background(), ingestTenant, ingestSite)
-	if len(keys) != 1 || keys[0].LastSeenAt == nil || !keys[0].CameraStatus[ingestCamera].Online {
+	if len(keys) != 1 || keys[0].LastSeenAt == nil || !keys[0].CameraStatus[ingestCamera].Online || keys[0].BoxVersion != "0.1.9" {
 		t.Fatalf("heartbeat not recorded: %+v", keys)
+	}
+	response = fixture.do(http.MethodPost, "/v1/site-ingest/heartbeat", fixture.rawKey, []byte(`{"cameras":{},"version":"not a version"}`), "application/json", nil)
+	keys, _ = fixture.keys.List(context.Background(), ingestTenant, ingestSite)
+	if response.Code != http.StatusOK || keys[0].BoxVersion != "0.1.9" {
+		t.Fatalf("an odd version is ignored, not refused: %d %+v", response.Code, keys)
 	}
 	response = fixture.do(http.MethodPost, "/v1/site-ingest/heartbeat", fixture.rawKey, []byte(`{"cameras":{"not-a-uuid":{"online":true}}}`), "application/json", nil)
 	if response.Code != http.StatusUnprocessableEntity {

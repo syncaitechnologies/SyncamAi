@@ -259,6 +259,8 @@ type siteHeartbeatRequest struct {
 	// Capabilities lists the features the box has loaded (ADR-019). Older
 	// boxes do not send it.
 	Capabilities []string `json:"capabilities"`
+	// Version is the box software version (box 0.1.9 and later).
+	Version string `json:"version"`
 }
 
 func (s *Server) recordSiteHeartbeat(w http.ResponseWriter, r *http.Request) {
@@ -295,7 +297,7 @@ func (s *Server) recordSiteHeartbeat(w http.ResponseWriter, r *http.Request) {
 			capabilities = append(capabilities, capability)
 		}
 	}
-	if err := s.siteIngest.Keys.RecordHeartbeat(r.Context(), scope, input.Cameras); err != nil {
+	if err := s.siteIngest.Keys.RecordHeartbeat(r.Context(), scope, input.Cameras, siteingest.CleanBoxVersion(input.Version)); err != nil {
 		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Heartbeat unavailable.")
 		return
 	}
