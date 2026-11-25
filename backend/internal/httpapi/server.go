@@ -157,6 +157,7 @@ func NewWithSiteIngest(verifier identity.Verifier, tenants tenant.Repository, ev
 	server.registerRegistrationRoutes()
 	server.registerAdminRoutes()
 	server.registerFeatureRoutes()
+	server.registerAnalyticsRoutes()
 	return server.mux
 }
 

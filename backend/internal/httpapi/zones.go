@@ -12,7 +12,8 @@ import (
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/zones"
 )
 
-var zoneKinds = map[string]bool{"intrusion": true, "restricted_zone": true, "loitering": true, "abandoned": true, "tripwire": true}
+// door_line and table zones only feed anonymous counts (ADR-020); they never raise alerts.
+var zoneKinds = map[string]bool{"intrusion": true, "restricted_zone": true, "loitering": true, "abandoned": true, "tripwire": true, "door_line": true, "table": true}
 
 type createZoneRequest struct {
 	SiteID         string          `json:"site_id"`
@@ -301,7 +302,7 @@ func validGeometry(raw json.RawMessage, kind string) bool {
 		return false
 	}
 	requiredType := "Polygon"
-	if kind == "tripwire" {
+	if kind == "tripwire" || kind == "door_line" {
 		requiredType = "LineString"
 	}
 	if shape.Type != requiredType {
