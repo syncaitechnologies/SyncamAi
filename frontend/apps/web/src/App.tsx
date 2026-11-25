@@ -341,24 +341,25 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
     if (!alerts.some((alert) => alert.id === selectedId) && alerts[0])
       setSelectedId(alerts[0].id);
   }, [alerts, selectedId]);
+  function moveSelection(step: 1 | -1) {
+    if (!filteredAlerts.length) return;
+    const index = filteredAlerts.findIndex((alert) => alert.id === selectedId);
+    const next = Math.min(Math.max(index + step, 0), filteredAlerts.length - 1);
+    setSelectedId(filteredAlerts[next]!.id);
+  }
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (activeView !== "alerts" || dismissId || selectedAlert.placeholder)
         return;
       const target = event.target as HTMLElement;
       if (["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName)) return;
-      const index = filteredAlerts.findIndex(
-        (alert) => alert.id === selectedId,
-      );
       if (event.key.toLowerCase() === "j" && filteredAlerts.length) {
         event.preventDefault();
-        setSelectedId(
-          filteredAlerts[Math.min(index + 1, filteredAlerts.length - 1)]!.id,
-        );
+        moveSelection(1);
       }
       if (event.key.toLowerCase() === "k" && filteredAlerts.length) {
         event.preventDefault();
-        setSelectedId(filteredAlerts[Math.max(index - 1, 0)]!.id);
+        moveSelection(-1);
       }
       if (event.key.toLowerCase() === "a" && selectedAlert)
         acknowledge(selectedAlert.id);
@@ -998,16 +999,34 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
               )}
             </div>
             <div className="keyboard-hints">
-              <span>
-                <kbd>J</kbd>
-                <kbd>K</kbd> navigate
-              </span>
-              <span>
+              <button
+                type="button"
+                disabled={selectedAlert.placeholder}
+                onClick={() => moveSelection(1)}
+              >
+                <kbd>J</kbd> next
+              </button>
+              <button
+                type="button"
+                disabled={selectedAlert.placeholder}
+                onClick={() => moveSelection(-1)}
+              >
+                <kbd>K</kbd> previous
+              </button>
+              <button
+                type="button"
+                disabled={selectedAlert.placeholder}
+                onClick={() => acknowledge(selectedAlert.id)}
+              >
                 <kbd>A</kbd> acknowledge
-              </span>
-              <span>
+              </button>
+              <button
+                type="button"
+                disabled={selectedAlert.placeholder}
+                onClick={() => setDismissId(selectedAlert.id)}
+              >
                 <kbd>D</kbd> dismiss
-              </span>
+              </button>
             </div>
           </div>
           <div className="detail-panel panel">
