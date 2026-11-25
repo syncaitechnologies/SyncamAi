@@ -1,50 +1,85 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
-import { attendanceCsv, dayBounds, summarizeAttendance } from "./attendance-model";
+import {
+  attendanceCsv,
+  dailyRows,
+  quickRanges,
+  rangeDays,
+  rangeLabel,
+  rangeProblem,
+  staffTotals,
+  type DayRecord,
+} from "./attendance-model";
 import { Icon } from "./icon";
-import type { AttendanceRecord, StaffMember } from "./syncam-api";
+import type { StaffMember } from "./syncam-api";
 import type { WorkspaceData } from "./use-workspace";
 import { canManage, readWorkspace } from "./workspace";
 
-function today() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+/** Today (YYYY-MM-DD) in the site's time zone, which attendance days use. */
+function todayIn(timeZone: string | undefined) {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  } catch {
+    return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  }
 }
 
-const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+function timeFormatFor(timeZone: string | undefined) {
+  try {
+    return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", timeZone });
+  } catch {
+    return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+  }
+}
 
 export function AttendanceWorkspace({ workspace, onNotify }: { workspace: WorkspaceData; onNotify: (message: string) => void }) {
   const { api, site, names } = workspace;
   const manage = canManage(readWorkspace());
-  const [day, setDay] = useState(today);
+  const today = todayIn(site?.timezone);
+  const [from, setFrom] = useState(today);
+  const [to, setTo] = useState(today);
   const [staff, setStaff] = useState<StaffMember[]>([]);
-  const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [records, setRecords] = useState<DayRecord[]>([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [consent, setConsent] = useState(false);
   const [enrolled, setEnrolled] = useState<StaffMember | null>(null);
   const [version, setVersion] = useState(0);
+  const problem = rangeProblem(from, to);
 
   useEffect(() => {
-    if (!api?.siteId) return;
+    if (!api?.siteId || problem) return;
     const abort = new AbortController();
-    const { from, to } = dayBounds(day);
     setError("");
-    Promise.all([api.listStaff(api.siteId, abort.signal), api.listAttendance(api.siteId, from, to, abort.signal)])
+    setLoading(true);
+    Promise.all([api.listStaff(api.siteId, abort.signal), api.dailyAttendance(api.siteId, from, to, abort.signal)])
       .then(([listedStaff, listedRecords]) => {
         setStaff(listedStaff);
         setRecords(listedRecords);
       })
       .catch((caught: unknown) => {
         if (!abort.signal.aborted) setError(caught instanceof Error ? caught.message : "Attendance could not be loaded.");
+      })
+      .finally(() => {
+        if (!abort.signal.aborted) setLoading(false);
       });
     return () => abort.abort();
-  }, [api, day, version]);
+  }, [api, from, to, problem, version]);
 
   const activeStaff = useMemo(() => staff.filter((member) => member.active), [staff]);
-  const rows = useMemo(() => summarizeAttendance(activeStaff, records), [activeStaff, records]);
+  const days = useMemo(() => (problem ? [] : rangeDays(from, to)), [from, to, problem]);
+  const rows = useMemo(() => dailyRows(activeStaff, records, days), [activeStaff, records, days]);
+  const totals = useMemo(() => staffTotals(rows), [rows]);
   if (!api) return null;
-  const present = rows.filter((row) => row.firstSeen).length;
+  const timeFormat = timeFormatFor(site?.timezone);
+  const singleDay = days.length === 1;
+  const presentToday = rows.filter((row) => row.firstSeen).length;
+
+  function chooseRange(nextFrom: string, nextTo: string) {
+    setFrom(nextFrom);
+    setTo(nextTo);
+  }
 
   function addStaff(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -73,11 +108,12 @@ export function AttendanceWorkspace({ workspace, onNotify }: { workspace: Worksp
   }
 
   function exportCsv() {
-    const blob = new Blob([attendanceCsv(rows, day, (iso) => timeFormat.format(new Date(iso)))], { type: "text/csv" });
+    const blob = new Blob([attendanceCsv(rows, (iso) => timeFormat.format(new Date(iso)))], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `attendance-${site?.name ?? "site"}-${day}.csv`.replaceAll(/[^\w.-]+/g, "_");
+    const period = from === to ? from : `${from}_to_${to}`;
+    link.download = `attendance-${site?.name ?? "site"}-${period}.csv`.replaceAll(/[^\w.-]+/g, "_");
     link.click();
     URL.revokeObjectURL(url);
   }
@@ -90,36 +126,70 @@ export function AttendanceWorkspace({ workspace, onNotify }: { workspace: Worksp
           <h1>Attendance</h1>
           <p>Enrolled staff are marked present when an entrance camera recognises them. Face data stays on the site box.</p>
         </div>
-        <div className="heading-actions">
-          <label className="site-filter-label" htmlFor="attendance-day">Day</label>
-          <input id="attendance-day" className="live-date" type="date" value={day} max={today()} onChange={(event) => setDay(event.target.value || today())} />
-          <button type="button" className="live-primary" onClick={exportCsv} disabled={!rows.length}><Icon name="file" size={14} />Export CSV</button>
+        <div className="heading-actions attendance-range">
+          <label className="site-filter-label" htmlFor="attendance-from">From</label>
+          <input id="attendance-from" className="live-date" type="date" value={from} max={to || today} onChange={(event) => setFrom(event.target.value)} />
+          <label className="site-filter-label" htmlFor="attendance-to">To</label>
+          <input id="attendance-to" className="live-date" type="date" value={to} min={from} max={today} onChange={(event) => setTo(event.target.value)} />
+          <button type="button" className="live-primary" onClick={exportCsv} disabled={!rows.length || Boolean(problem)}><Icon name="file" size={14} />Export CSV</button>
         </div>
       </section>
+      <div className="attendance-quick" role="group" aria-label="Quick date ranges">
+        {quickRanges(today).map((range) => (
+          <button
+            key={range.label}
+            type="button"
+            className={range.from === from && range.to === to ? "live-link attendance-quick-on" : "live-link"}
+            aria-pressed={range.from === from && range.to === to}
+            onClick={() => chooseRange(range.from, range.to)}
+          >
+            {range.label}
+          </button>
+        ))}
+      </div>
+      {problem && <p className="live-banner">{problem}</p>}
       {error && <p className="live-banner">{error}</p>}
       <div className="live-zone-layout">
         <section className="panel live-card">
-          <header><div><h2>{present} of {activeStaff.length} present</h2><p>{new Date(dayBounds(day).from).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</p></div></header>
-          <table className="live-table">
-            <thead><tr><th>Name</th><th>Code</th><th>First seen</th><th>Last seen</th><th>Camera</th></tr></thead>
-            <tbody>
-              {rows.length === 0 && <tr><td colSpan={5} className="live-muted">No staff enrolled yet.</td></tr>}
-              {rows.map((row) => {
-                const last = records.filter((record) => record.staff_id === row.staffId).at(-1);
-                return (
-                  <tr key={row.staffId} className={row.firstSeen ? "" : "absent"}>
+          <header>
+            <div>
+              <h2>
+                {singleDay
+                  ? `${presentToday} of ${activeStaff.length} present`
+                  : `${activeStaff.length} staff · ${days.length} days`}
+              </h2>
+              <p>{problem ? "" : rangeLabel(from, to)}{loading ? " · loading…" : ""}{site?.timezone ? ` · times in ${site.timezone}` : ""}</p>
+            </div>
+          </header>
+          {!singleDay && totals.length > 0 && (
+            <ul className="attendance-totals">
+              {totals.map((total) => (
+                <li key={total.staffId}>
+                  <strong>{total.name}</strong>
+                  <span>present {total.daysPresent} of {days.length} days</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="attendance-table-wrap">
+            <table className="live-table">
+              <thead><tr>{!singleDay && <th>Date</th>}<th>Name</th><th>Code</th><th>First seen</th><th>Last seen</th><th>Camera</th></tr></thead>
+              <tbody>
+                {rows.length === 0 && <tr><td colSpan={6} className="live-muted">{activeStaff.length === 0 ? "No staff enrolled yet." : "No attendance in this period."}</td></tr>}
+                {rows.map((row) => (
+                  <tr key={`${row.date}|${row.staffId}`} className={row.firstSeen ? "" : "absent"}>
+                    {!singleDay && <td>{row.date}</td>}
                     <td>{row.name}</td>
                     <td>{row.employeeCode || "—"}</td>
                     <td>{row.firstSeen ? timeFormat.format(new Date(row.firstSeen)) : "Absent"}</td>
                     <td>{row.lastSeen ? timeFormat.format(new Date(row.lastSeen)) : "—"}</td>
-                    <td>{last ? names.cameras[last.camera_id] ?? "Camera" : "—"}</td>
+                    <td>{row.cameraId ? names.cameras[row.cameraId] ?? "Camera" : "—"}</td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </section>
-        <aside className="panel live-zone-side">
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>        <aside className="panel live-zone-side">
           {manage && (
             <form className="live-zone-form" onSubmit={addStaff}>
               <h2>Add a staff member</h2>

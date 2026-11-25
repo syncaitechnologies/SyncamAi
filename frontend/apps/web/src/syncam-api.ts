@@ -2,6 +2,7 @@ import { AlertApiClient, AlertApiError } from "./alert-client";
 import { errorCode, frameProblem, type LiveFrameProblem, type LiveViewUsage } from "./live-view-model";
 import type { AdminChanges, AdminWorkspace } from "./admin-model";
 import type { Feature, FeatureChanges, FeatureKey } from "./features-model";
+import type { DayRecord } from "./attendance-model";
 import { RESTART_TIMEOUT_MS, restartFailure } from "./site-box-model";
 
 export type { LiveFrameProblem, LiveViewUsage } from "./live-view-model";
@@ -308,9 +309,10 @@ export class SyncamApi extends AlertApiClient {
     );
   }
 
-  async listAttendance(siteId: string, from: Date, to: Date, signal?: AbortSignal) {
-    const query = new URLSearchParams({ site_id: siteId, from: from.toISOString(), to: to.toISOString() });
-    return data<AttendanceRecord[]>(await this.request(`/v1/attendance?${query}`, { method: "GET", signal }));
+  /** First and last sighting per staff member per day, in the site's time zone (from and to are YYYY-MM-DD, both included). */
+  async dailyAttendance(siteId: string, from: string, to: string, signal?: AbortSignal) {
+    const query = new URLSearchParams({ site_id: siteId, from, to });
+    return data<DayRecord[]>(await this.request(`/v1/attendance/daily?${query}`, { method: "GET", signal }));
   }
 
   alertSnapshot(alertId: string, signal?: AbortSignal) {

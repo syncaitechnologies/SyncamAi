@@ -18,6 +18,7 @@ func (s *Server) registerAttendanceRoutes() {
 	s.mux.Handle("POST /v1/staff", s.authenticate(http.HandlerFunc(s.createStaff)))
 	s.mux.Handle("PATCH /v1/staff/{id}", s.authenticate(http.HandlerFunc(s.updateStaff)))
 	s.mux.Handle("GET /v1/attendance", s.authenticate(http.HandlerFunc(s.listAttendance)))
+	s.mux.Handle("GET /v1/attendance/daily", s.authenticate(http.HandlerFunc(s.listDailyAttendance)))
 }
 
 func (s *Server) attendanceAvailable(w http.ResponseWriter) bool {
@@ -212,6 +213,66 @@ func (s *Server) listAttendance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": records, "meta": map[string]any{"count": len(records), "from": from, "to": to}})
+}
+
+// maxAttendanceDays is the longest range the daily summary covers.
+const maxAttendanceDays = 92
+
+// listDailyAttendance returns first and last sightings per staff member per
+// day for a range of whole days in the site's time zone (from and to are
+// YYYY-MM-DD, both included).
+func (s *Server) listDailyAttendance(w http.ResponseWriter, r *http.Request) {
+	principal, tenantID, ok := s.userTenant(w, r, authz.CapabilityConfigRead)
+	if !ok || !s.attendanceAvailable(w) {
+		return
+	}
+	daily, ok := s.siteIngest.Attendance.(attendance.DailyLister)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Attendance is unavailable.")
+		return
+	}
+	siteID, ok := siteFromQuery(w, r, principal, tenantID, true)
+	if !ok {
+		return
+	}
+	if s.tenants == nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Attendance is unavailable.")
+		return
+	}
+	site, err := s.findSite(r.Context(), tenantID, siteID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found.")
+		return
+	}
+	location, err := time.LoadLocation(site.Timezone)
+	if err != nil || site.Timezone == "" {
+		location = time.UTC
+	}
+	query := r.URL.Query()
+	fromDay, errFrom := time.ParseInLocation("2006-01-02", query.Get("from"), location)
+	toDay, errTo := time.ParseInLocation("2006-01-02", query.Get("to"), location)
+	if errFrom != nil || errTo != nil {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "from and to must be dates (YYYY-MM-DD).")
+		return
+	}
+	if toDay.Before(fromDay) {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "The end date must be on or after the start date.")
+		return
+	}
+	end := toDay.AddDate(0, 0, 1)
+	if end.After(fromDay.AddDate(0, 0, maxAttendanceDays)) {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Choose at most 92 days.")
+		return
+	}
+	records, err := daily.ListDaily(r.Context(), tenantID, siteID, location, fromDay, end)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Attendance is unavailable.")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": records, "meta": map[string]any{
+		"count": len(records), "from": query.Get("from"), "to": query.Get("to"), "timezone": location.String(),
+		"truncated": len(records) >= attendance.MaxDailyRows,
+	}})
 }
 
 // activeStaff lists the enrolled staff a site box may match against.
