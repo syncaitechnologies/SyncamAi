@@ -55,7 +55,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: python -m pip install --quiet "cryptography>=43,<47"
+      - run: python -m pip install --quiet "cryptography==50.0.2"
       - uses: actions/download-artifact@v8
         with:
           name: SyncCamSetup
