@@ -4,6 +4,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      # react and react-dom must always be the exact same version.
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
   - package-ecosystem: gomod
     directory: /backend
     schedule:
