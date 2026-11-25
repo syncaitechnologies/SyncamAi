@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -60,6 +61,9 @@ type SiteKey struct {
 	CameraStatus map[string]CameraStatus `json:"camera_status"`
 	// BoxPublicKey is set when the box paired with a code (PEM, P-256).
 	BoxPublicKey string `json:"box_public_key,omitempty"`
+	// BoxVersion is the software version the box last reported; empty for
+	// boxes older than 0.1.9.
+	BoxVersion string `json:"box_version,omitempty"`
 }
 
 type KeyStore interface {
@@ -67,7 +71,19 @@ type KeyStore interface {
 	Create(ctx context.Context, tenantID, siteID, actorID, label string) (string, SiteKey, error)
 	List(ctx context.Context, tenantID, siteID string) ([]SiteKey, error)
 	Revoke(ctx context.Context, tenantID, keyID string) error
-	RecordHeartbeat(ctx context.Context, scope Scope, cameras map[string]CameraStatus) error
+	// RecordHeartbeat stores camera health; an empty version keeps the last one.
+	RecordHeartbeat(ctx context.Context, scope Scope, cameras map[string]CameraStatus, version string) error
+}
+
+var boxVersionPattern = regexp.MustCompile(`^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}$`)
+
+// CleanBoxVersion returns version if it is a plain "1.2.3", else "" (ignored,
+// like unknown capabilities, so an odd box never loses its heartbeat).
+func CleanBoxVersion(version string) string {
+	if boxVersionPattern.MatchString(version) {
+		return version
+	}
+	return ""
 }
 
 // NewRawKey returns a fresh random site key.
@@ -170,7 +186,7 @@ func (s *PostgresKeyStore) List(ctx context.Context, tenantID, siteID string) ([
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	rows, err := tx.Query(ctx, `
-		SELECT id::text, tenant_id::text, site_id::text, label, created_at, revoked_at, last_seen_at, camera_status, COALESCE(box_public_key, '')
+		SELECT id::text, tenant_id::text, site_id::text, label, created_at, revoked_at, last_seen_at, camera_status, COALESCE(box_public_key, ''), COALESCE(box_version, '')
 		FROM platform.site_keys
 		WHERE ($1::uuid IS NULL OR site_id = $1::uuid)
 		ORDER BY created_at DESC
@@ -183,7 +199,7 @@ func (s *PostgresKeyStore) List(ctx context.Context, tenantID, siteID string) ([
 	for rows.Next() {
 		var key SiteKey
 		var status []byte
-		if err := rows.Scan(&key.ID, &key.TenantID, &key.SiteID, &key.Label, &key.CreatedAt, &key.RevokedAt, &key.LastSeenAt, &status, &key.BoxPublicKey); err != nil {
+		if err := rows.Scan(&key.ID, &key.TenantID, &key.SiteID, &key.Label, &key.CreatedAt, &key.RevokedAt, &key.LastSeenAt, &status, &key.BoxPublicKey, &key.BoxVersion); err != nil {
 			return nil, fmt.Errorf("scan site key: %w", err)
 		}
 		key.CameraStatus = map[string]CameraStatus{}
@@ -215,7 +231,7 @@ func (s *PostgresKeyStore) Revoke(ctx context.Context, tenantID, keyID string) e
 	return tx.Commit(ctx)
 }
 
-func (s *PostgresKeyStore) RecordHeartbeat(ctx context.Context, scope Scope, cameras map[string]CameraStatus) error {
+func (s *PostgresKeyStore) RecordHeartbeat(ctx context.Context, scope Scope, cameras map[string]CameraStatus, version string) error {
 	payload, err := json.Marshal(cameras)
 	if err != nil {
 		return fmt.Errorf("encode camera status: %w", err)
@@ -225,7 +241,7 @@ func (s *PostgresKeyStore) RecordHeartbeat(ctx context.Context, scope Scope, cam
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if _, err := tx.Exec(ctx, `UPDATE platform.site_keys SET last_seen_at = clock_timestamp(), camera_status = $2::jsonb WHERE id = $1::uuid AND revoked_at IS NULL`, scope.KeyID, payload); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE platform.site_keys SET last_seen_at = clock_timestamp(), camera_status = $2::jsonb, box_version = COALESCE(NULLIF($3, ''), box_version) WHERE id = $1::uuid AND revoked_at IS NULL`, scope.KeyID, payload, version); err != nil {
 		return fmt.Errorf("record site heartbeat: %w", err)
 	}
 	return tx.Commit(ctx)
@@ -358,7 +374,7 @@ func (s *MemoryKeyStore) Revoke(_ context.Context, tenantID, keyID string) error
 	return nil
 }
 
-func (s *MemoryKeyStore) RecordHeartbeat(_ context.Context, scope Scope, cameras map[string]CameraStatus) error {
+func (s *MemoryKeyStore) RecordHeartbeat(_ context.Context, scope Scope, cameras map[string]CameraStatus, version string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	key, ok := s.keys[scope.KeyID]
@@ -368,6 +384,9 @@ func (s *MemoryKeyStore) RecordHeartbeat(_ context.Context, scope Scope, cameras
 	now := time.Now().UTC()
 	key.LastSeenAt = &now
 	key.CameraStatus = cameras
+	if version != "" {
+		key.BoxVersion = version
+	}
 	s.keys[scope.KeyID] = key
 	return nil
 }

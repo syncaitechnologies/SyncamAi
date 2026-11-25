@@ -9,6 +9,8 @@ import urllib.request
 import uuid
 from typing import Any, Mapping, Sequence
 
+from .version import VERSION
+
 
 class BackendError(Exception):
     """A failed call. ``retryable`` is False for permanent rejections."""
@@ -144,7 +146,7 @@ class BackendClient:
         return True
 
     def heartbeat(self, cameras: Mapping[str, Mapping[str, object]], capabilities: Sequence[str] | None = None) -> None:
-        payload: dict[str, object] = {"cameras": cameras}
+        payload: dict[str, object] = {"cameras": cameras, "version": VERSION}
         if capabilities is not None:
             # The features this box has loaded (ADR-019), so the dashboard can
             # say whether a switched-on feature can actually run here.

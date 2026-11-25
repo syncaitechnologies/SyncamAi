@@ -13,6 +13,7 @@ from syncam_ai.site_worker.detector import ObjectDetection  # noqa: E402
 from syncam_ai.site_worker.features import FeatureGate, capabilities  # noqa: E402
 from syncam_ai.site_worker.runner import SiteWorker  # noqa: E402
 from syncam_ai.site_worker.spool import Spool  # noqa: E402
+from syncam_ai.site_worker.version import VERSION  # noqa: E402
 
 TENANT = "11111111-1111-4111-8111-111111111111"
 SITE = "22222222-2222-4222-8222-222222222222"
@@ -144,7 +145,10 @@ class WorkerFeatureTest(unittest.TestCase):
         client = _Client("https://api.example.test", "sck_test_placeholder")
         client.heartbeat({}, capabilities=["zone_alerts"])
         client.heartbeat({})
-        self.assertEqual(sent, [{"cameras": {}, "capabilities": ["zone_alerts"]}, {"cameras": {}}])
+        self.assertEqual(sent, [
+            {"cameras": {}, "version": VERSION, "capabilities": ["zone_alerts"]},
+            {"cameras": {}, "version": VERSION},
+        ], "every heartbeat carries the box version for the dashboard")
 
 
 if __name__ == "__main__":

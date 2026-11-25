@@ -220,7 +220,7 @@ export function SiteSettings({ workspace, onNotify }: { workspace: WorkspaceData
             {keys.map((key) => (
               <li key={key.id}>
                 <span className={`live-dot ${key.revoked_at ? "" : key.last_seen_at && Date.now() - Date.parse(key.last_seen_at) < 6 * 60_000 ? "ok" : "bad"}`} />
-                <span><strong>{key.label}</strong><small>{key.revoked_at ? "Revoked" : `${key.box_public_key ? "Paired box · " : ""}Last seen ${ago(key.last_seen_at)}`}</small></span>
+                <span><strong>{key.label}</strong><small>{key.revoked_at ? "Revoked" : `${key.box_public_key ? "Paired box · " : ""}${key.box_version ? `Version ${key.box_version} · ` : key.last_seen_at ? "Version not reported (older than 0.1.9) · " : ""}Last seen ${ago(key.last_seen_at)}`}</small></span>
                 {manage && !key.revoked_at && (
                   <button type="button" className="live-link danger" disabled={busy} onClick={() => void run(async () => { await api.revokeSiteKey(key.id); onNotify("Site key revoked"); refresh(); }, "Revoke failed")}>Revoke</button>
                 )}

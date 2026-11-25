@@ -15,7 +15,7 @@ const mode = new URLSearchParams(window.location.search).get("box") ?? "online";
 storeWorkspace({ tenantId: "tenant-fixture", siteIds: [], roles: ["super_admin"] });
 const site = { id: "site-fixture", name: "Fixture warehouse", timezone: "America/Toronto", status: "active" };
 const seen = new Date(Date.now() - (mode === "offline" ? 45 : 1) * 60_000).toISOString();
-const key: SiteKey = { id: "key-1", site_id: site.id, label: "Front desk PC", created_at: seen, last_seen_at: seen, camera_status: {}, box_public_key: "PEM" };
+const key: SiteKey = { id: "key-1", site_id: site.id, label: "Front desk PC", created_at: seen, last_seen_at: seen, camera_status: {}, box_public_key: "PEM", ...(mode === "old" ? {} : { box_version: "0.1.9" }) };
 
 function Fixture() {
   const [log, setLog] = useState<string[]>([]);

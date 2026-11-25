@@ -45,6 +45,8 @@ export type SiteKey = {
   camera_status: Record<string, CameraStatus>;
   /** Present when the box paired with a code (PEM, P-256). */
   box_public_key?: string;
+  /** Software version the box last reported; missing before box 0.1.9. */
+  box_version?: string;
 };
 export type PairingCode = { code: string; site_id: string; expires_at: string };
 export type SetupBox = { paired: boolean; online: boolean; key_id?: string; label?: string; public_key?: string; last_seen_at?: string };

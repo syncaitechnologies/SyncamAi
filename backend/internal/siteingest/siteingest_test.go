@@ -54,8 +54,19 @@ func TestMemoryKeyStoreLifecycle(t *testing.T) {
 	if err != nil || scope.TenantID != testTenant || scope.SiteID != testSite {
 		t.Fatalf("resolve: %v %+v", err, scope)
 	}
-	if err := store.RecordHeartbeat(ctx, scope, map[string]CameraStatus{"c": {Online: true}}); err != nil {
+	if err := store.RecordHeartbeat(ctx, scope, map[string]CameraStatus{"c": {Online: true}}, "0.1.9"); err != nil {
 		t.Fatal(err)
+	}
+	if err := store.RecordHeartbeat(ctx, scope, nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	if keys, _ := store.List(ctx, testTenant, ""); keys[0].BoxVersion != "0.1.9" {
+		t.Fatalf("a heartbeat without a version keeps the last one: %+v", keys[0])
+	}
+	for version, want := range map[string]string{"0.1.9": "0.1.9", "10.20.30": "10.20.30", "": "", "0.1": "", "0.1.9-beta": "", "v0.1.9": "", "<b>1.2.3</b>": ""} {
+		if got := CleanBoxVersion(version); got != want {
+			t.Fatalf("CleanBoxVersion(%q) = %q, want %q", version, got, want)
+		}
 	}
 	if err := store.Revoke(ctx, "other-tenant", key.ID); err != ErrKeyNotFound {
 		t.Fatalf("cross-tenant revoke: %v", err)
