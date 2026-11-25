@@ -27,8 +27,9 @@ type analyticsUpload struct {
 
 func validZoneHour(row analytics.ZoneHour, now time.Time) bool {
 	hour := row.HourStart.UTC()
+	// Hours start on the site's local hour: :30 UTC in India, :45 in Nepal.
 	return validUUID(row.ZoneID) && validUUID(row.RunID) &&
-		hour.Equal(hour.Truncate(time.Hour)) && !hour.After(now.Add(time.Hour)) && !hour.Before(now.Add(-48*time.Hour)) &&
+		hour.Equal(hour.Truncate(15*time.Minute)) && !hour.After(now.Add(time.Hour)) && !hour.Before(now.Add(-48*time.Hour)) &&
 		row.Entries >= 0 && row.Entries <= 100000 && row.Exits >= 0 && row.Exits <= 100000 &&
 		row.OccupiedSeconds >= 0 && row.OccupiedSeconds <= 3600 && row.Sessions >= 0 && row.Sessions <= 1000 &&
 		row.SessionSeconds >= 0 && row.SessionSeconds <= 86400000 && row.PeakPeople >= 0 && row.PeakPeople <= 1000

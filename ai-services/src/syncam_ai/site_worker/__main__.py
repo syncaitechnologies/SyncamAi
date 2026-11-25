@@ -578,6 +578,8 @@ def _serve(config: LocalConfig, session: _Session, cleanup: list[Any]) -> None:
         min_confidence=config.min_confidence,
         processors=_processors(config, client),
         live_view=config.live_view,
+        # Beside the alert spool, not in it: the spool treats every *.json as an alert.
+        analytics_state=config.spool_dir.parent / "syncam-counts.json",
     )
 
     # One poll carries both live-view requests and "Find cameras" tasks.

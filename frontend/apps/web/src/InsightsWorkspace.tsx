@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { quickRanges, rangeDays, rangeLabel, rangeProblem } from "./attendance-model";
+import { Icon } from "./icon";
 import {
   averageDiningMinutes,
   barPercent,
@@ -10,6 +11,7 @@ import {
   durationLabel,
   hourLabel,
   hourSeries,
+  insightsCsv,
   tableRows,
   totalVisitors,
   turnover,
@@ -59,6 +61,17 @@ export function InsightsWorkspace({ workspace }: { workspace: Pick<WorkspaceData
   const dailyMax = Math.max(0, ...daily.map((day) => day.entries));
   const hourMax = Math.max(0, ...hours.map((hour) => hour.entries));
 
+  function exportCsv() {
+    if (!summary) return;
+    const url = URL.createObjectURL(new Blob([insightsCsv(summary, from, to)], { type: "text/csv" }));
+    const link = document.createElement("a");
+    link.href = url;
+    const period = from === to ? from : `${from}_to_${to}`;
+    link.download = `insights-${site?.name ?? "site"}-${period}.csv`.replaceAll(/[^\w.-]+/g, "_");
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="live-page">
       <section className="page-heading live-heading">
@@ -72,6 +85,7 @@ export function InsightsWorkspace({ workspace }: { workspace: Pick<WorkspaceData
           <input id="insights-from" className="live-date" type="date" value={from} max={to || today} onChange={(event) => setFrom(event.target.value)} />
           <label className="site-filter-label" htmlFor="insights-to">To</label>
           <input id="insights-to" className="live-date" type="date" value={to} min={from} max={today} onChange={(event) => setTo(event.target.value)} />
+          <button type="button" className="live-primary" onClick={exportCsv} disabled={!summary || empty || Boolean(problem)}><Icon name="file" size={14} />Export CSV</button>
         </div>
       </section>
       <div className="attendance-quick" role="group" aria-label="Quick date ranges">
@@ -141,12 +155,12 @@ export function InsightsWorkspace({ workspace }: { workspace: Pick<WorkspaceData
             </section>
           </div>
           <section className="panel live-card insights-tables" aria-labelledby="insights-tables" style={{ margin: "0 38px 18px" }}>
-            <header><div><h2 id="insights-tables">Tables</h2><p>A group counts once someone has been seated for a minute.</p></div></header>
+            <header><div><h2 id="insights-tables">Tables</h2><p>A group counts once someone has been seated for a minute. Occupancy is the share of open hours (hours with anyone counted) the table was in use.</p></div></header>
             <div className="attendance-table-wrap">
               <table className="live-table">
-                <thead><tr><th>Table</th><th>Groups</th><th>Per day</th><th>Average time</th><th>Hours in use</th><th>Most seated</th></tr></thead>
+                <thead><tr><th>Table</th><th>Groups</th><th>Per day</th><th>Average time</th><th>Hours in use</th><th>Occupancy</th><th>Most seated</th></tr></thead>
                 <tbody>
-                  {tables.length === 0 && <tr><td colSpan={6} className="live-muted">No tables yet. Draw a Table zone around each table in Zones &amp; rules.</td></tr>}
+                  {tables.length === 0 && <tr><td colSpan={7} className="live-muted">No tables yet. Draw a Table zone around each table in Zones &amp; rules.</td></tr>}
                   {tables.map((row) => (
                     <tr key={row.zoneId}>
                       <td>{row.name}</td>
@@ -154,6 +168,7 @@ export function InsightsWorkspace({ workspace }: { workspace: Pick<WorkspaceData
                       <td>{row.sessionsPerDay}</td>
                       <td>{durationLabel(row.averageMinutes)}</td>
                       <td>{row.occupiedHours}</td>
+                      <td>{row.occupancyPercent === null ? "–" : `${row.occupancyPercent}%`}</td>
                       <td>{row.peakPeople}</td>
                     </tr>
                   ))}

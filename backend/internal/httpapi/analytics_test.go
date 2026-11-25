@@ -62,10 +62,14 @@ func TestSiteBoxUploadsAnonymousCountsForItsOwnCounterZones(t *testing.T) {
 	if code := upload(hourRow(doorZone, hour, `,"entries":12,"exits":9`), hourRow(tableZone, hour, `,"occupied_seconds":1800,"sessions":2,"session_seconds":3000,"peak_people":4`)); code != http.StatusAccepted {
 		t.Fatalf("valid upload: %d", code)
 	}
+	// Sites on a half-hour offset (India) start their hours at :30 UTC.
+	if code := upload(hourRow(doorZone, hour.Add(-30*time.Minute), `,"entries":3`)); code != http.StatusAccepted {
+		t.Fatalf("half-hour upload: %d", code)
+	}
 	for name, row := range map[string]string{
 		"alert zone":       hourRow(alertZone, hour, `,"entries":1`),
 		"other site":       hourRow(foreignZone, hour, `,"entries":1`),
-		"not on the hour":  hourRow(doorZone, hour.Add(30*time.Minute), ""),
+		"not on a quarter": hourRow(doorZone, hour.Add(-10*time.Minute), ""),
 		"too old":          hourRow(doorZone, hour.Add(-72*time.Hour), ""),
 		"too many seconds": hourRow(tableZone, hour, `,"occupied_seconds":4000`),
 		"negative":         hourRow(doorZone, hour, `,"entries":-1`),

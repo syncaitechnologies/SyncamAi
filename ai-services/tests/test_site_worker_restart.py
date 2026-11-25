@@ -191,7 +191,8 @@ class ServeTest(unittest.TestCase):
         # Regression: 0.1.3 started config-file cameras a second time and every
         # start failed with "threads can only be started once".
         camera = mock.Mock()
-        config = mock.Mock(vault=None, auto_update=False, live_view=True, keep_awake=False, status_port=0)
+        config = mock.Mock(vault=None, auto_update=False, live_view=True, keep_awake=False, status_port=0,
+                           spool_dir=pathlib.Path("syncam-spool"))
         with mock.patch.object(cli, "_installed", return_value=False), \
                 mock.patch.object(cli, "BackendClient"), \
                 mock.patch.object(cli, "_detector"), \

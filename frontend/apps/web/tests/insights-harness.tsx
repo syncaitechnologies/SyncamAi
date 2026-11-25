@@ -21,6 +21,7 @@ function fakeSummary(from: string, to: string): InsightsSummary {
   const hours = [11, 12, 13, 14, 18, 19, 20, 21].map((hour) => ({ hour, entries: hour === 19 ? 220 : hour === 13 ? 160 : 60 }));
   return {
     days, hours,
+    open_hours: days.length * 11,
     zones: [
       { zone_id: "door", name: "Front door", kind: "door_line", entries: days.reduce((total, day) => total + day.entries, 0), exits: 0, occupied_seconds: 0, sessions: 0, session_seconds: 0, peak_people: 0 },
       { zone_id: "t1", name: "Table 1 (window)", kind: "table", entries: 0, exits: 0, occupied_seconds: 90000, sessions: days.length * 6, session_seconds: days.length * 6 * 3000, peak_people: 4 },
