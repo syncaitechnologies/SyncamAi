@@ -160,6 +160,44 @@ func (s *Server) updateZone(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": updated})
 }
 
+// deleteZone removes a zone. The site box stops using it on its next
+// configuration refresh (about a minute); past alerts keep their zone ID and
+// the removed zone stays on record in the audit log.
+func (s *Server) deleteZone(w http.ResponseWriter, r *http.Request) {
+	principal, tenantID, ok := s.zoneRequestContext(w, r, authz.CapabilityConfigWrite)
+	if !ok {
+		return
+	}
+	zone, ok := s.authorizedZone(w, r, principal, tenantID)
+	if !ok {
+		return
+	}
+	if err := authz.Authorize(principal, authz.Request{Capability: authz.CapabilityConfigWrite, TenantID: tenantID, SiteID: zone.SiteID}); err != nil {
+		writeError(w, http.StatusForbidden, "FORBIDDEN", "Access denied.")
+		return
+	}
+	requestID, ok := correlationHeaderOnly(w, r)
+	if !ok {
+		return
+	}
+	deleter, ok := s.zones.(zones.Deleter)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Zone repository unavailable.")
+		return
+	}
+	_, err := deleter.Delete(r.Context(), zones.DeleteCommand{TenantID: tenantID, ActorID: principal.UserID, RequestID: requestID, ZoneID: zone.ID})
+	if errors.Is(err, zones.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", "Resource not found.")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Zone repository unavailable.")
+		return
+	}
+	w.Header().Set(correlationHeader, requestID)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) zoneRequestContext(w http.ResponseWriter, r *http.Request, capability authz.Capability) (identityPrincipal, string, bool) {
 	principal, ok := principalFromContext(r.Context())
 	if !ok {

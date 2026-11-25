@@ -134,6 +134,7 @@ func NewWithSiteIngest(verifier identity.Verifier, tenants tenant.Repository, ev
 	server.mux.Handle("POST /v1/zones", server.authenticate(http.HandlerFunc(server.createZone)))
 	server.mux.Handle("GET /v1/zones/{id}", server.authenticate(http.HandlerFunc(server.getZone)))
 	server.mux.Handle("PATCH /v1/zones/{id}", server.authenticate(http.HandlerFunc(server.updateZone)))
+	server.mux.Handle("DELETE /v1/zones/{id}", server.authenticate(http.HandlerFunc(server.deleteZone)))
 	server.mux.Handle("POST /v1/zones/{id}/push", server.authenticate(http.HandlerFunc(server.pushZoneConfiguration)))
 	server.mux.Handle("POST /v1/privacy-mask-requests", server.authenticate(http.HandlerFunc(server.createPrivacyMaskRequest)))
 	server.mux.Handle("GET /v1/privacy-mask-requests/{id}", server.authenticate(http.HandlerFunc(server.getPrivacyMaskRequest)))
