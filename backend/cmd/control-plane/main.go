@@ -30,6 +30,7 @@ import (
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/outbox"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/privacymasks"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/realtime"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/retention"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/siteingest"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/tenant"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/zones"
@@ -121,6 +122,13 @@ func main() {
 	} else {
 		log.Print("alert snapshot storage disabled: set SYNCAM_SUPABASE_URL and SYNCAM_SUPABASE_SECRET_KEY")
 	}
+	// Alerts are permanently deleted six months after they were raised, with
+	// their snapshots, action history and source events. Runs daily.
+	purger := &retention.Purger{Store: retention.NewPostgresStore(pool), Logf: log.Printf}
+	if store, ok := siteIngest.Evidence.(retention.EvidenceDeleter); ok {
+		purger.Evidence = store
+	}
+	go purger.Run(runContext, 10*time.Minute, 24*time.Hour)
 	var notifier alerting.Notifier
 	if botToken := strings.TrimSpace(os.Getenv("SYNCAM_TELEGRAM_BOT_TOKEN")); botToken != "" {
 		telegram := &siteingest.TelegramClient{Token: botToken}
