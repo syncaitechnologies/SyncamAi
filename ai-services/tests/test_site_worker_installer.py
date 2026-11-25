@@ -173,6 +173,7 @@ class UpdaterTest(unittest.TestCase):
 
     def test_versions(self) -> None:
         self.assertEqual(self.updater.parse_version("1.20.3"), (1, 20, 3))
+        self.assertGreater(self.updater.parse_version("0.1.10"), self.updater.parse_version("0.1.9"), "compared as numbers, not text")
         for bad in ("1.2", "01.2.3", "1.2.3-beta", "v1.2.3", ""):
             with self.assertRaises(ValueError):
                 self.updater.parse_version(bad)
