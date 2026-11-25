@@ -152,6 +152,7 @@ func NewWithSiteIngest(verifier identity.Verifier, tenants tenant.Repository, ev
 	server.mux.Handle("POST /v1/events", server.authenticate(http.HandlerFunc(server.ingestEvent)))
 	server.mux.Handle("GET /v1/alerts", server.authenticate(http.HandlerFunc(server.listAlerts)))
 	server.mux.Handle("POST /v1/alerts/{id}/acknowledge", server.authenticate(http.HandlerFunc(server.acknowledgeAlert)))
+	server.mux.Handle("POST /v1/alerts/dismiss", server.authenticate(http.HandlerFunc(server.dismissAlerts)))
 	server.mux.HandleFunc("GET /ws/v1/alerts", server.streamAlerts)
 	server.registerSiteIngestRoutes()
 	server.registerRegistrationRoutes()

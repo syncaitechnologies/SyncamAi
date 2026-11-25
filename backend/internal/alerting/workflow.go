@@ -170,6 +170,105 @@ func (r *PostgresRepository) Acknowledge(ctx context.Context, command Acknowledg
 	return AcknowledgeResult{Alert: alert}, nil
 }
 
+// DismissReasons are the reasons an operator can give for removing an alert
+// from the queue. The reason is kept in the alert's action and audit records.
+var DismissReasons = map[string]struct{}{
+	"False positive":             {},
+	"Duplicate event":            {},
+	"Handled / no action needed": {},
+}
+
+type DismissCommand struct {
+	TenantID  string
+	SiteID    string
+	AlertID   string
+	ActorID   string
+	RequestID string
+	Reason    string
+}
+
+// Dismiss removes an alert from the operator queue. The row is kept (status
+// "dismissed") with an action and audit record; dismissing an alert that is
+// already dismissed returns it unchanged.
+func (r *PostgresRepository) Dismiss(ctx context.Context, command DismissCommand) (Alert, error) {
+	if r == nil || r.pool == nil {
+		return Alert{}, errors.New("postgres alert repository is unavailable")
+	}
+	if err := validateDismiss(command); err != nil {
+		return Alert{}, err
+	}
+	tx, err := beginTenantTx(ctx, r.pool, command.TenantID, pgx.ReadWrite)
+	if err != nil {
+		return Alert{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	alert, err := scanAlert(tx.QueryRow(ctx, alertSelect+`
+		WHERE tenant_id = $1::uuid AND alert_id = $2::uuid AND site_id = $3::uuid
+		FOR UPDATE`, command.TenantID, command.AlertID, command.SiteID))
+	if err == pgx.ErrNoRows {
+		return Alert{}, ErrAlertNotFound
+	}
+	if err != nil {
+		return Alert{}, fmt.Errorf("lock alert: %w", err)
+	}
+	if alert.Status == "dismissed" {
+		return alert, tx.Commit(ctx)
+	}
+	before := alert
+	now := time.Now().UTC()
+	if _, err := tx.Exec(ctx, `
+		UPDATE alerts.alerts SET status = 'dismissed', updated_at = $4
+		WHERE tenant_id = $1::uuid AND alert_id = $2::uuid AND site_id = $3::uuid`,
+		command.TenantID, command.AlertID, command.SiteID, now); err != nil {
+		return Alert{}, fmt.Errorf("dismiss alert: %w", err)
+	}
+	alert.Status = "dismissed"
+	payload, err := json.Marshal(map[string]string{"reason": command.Reason})
+	if err != nil {
+		return Alert{}, fmt.Errorf("encode alert dismissal: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO alerts.alert_actions (
+			action_id, tenant_id, alert_id, action, actor_type, actor_id, request_id, payload
+		) VALUES ($1::uuid, $2::uuid, $3::uuid, 'dismiss', 'user', $4, $5::uuid, $6::jsonb)`,
+		uuid.NewString(), command.TenantID, command.AlertID, command.ActorID, command.RequestID, payload,
+	); err != nil {
+		return Alert{}, fmt.Errorf("record alert action: %w", err)
+	}
+	if _, err := audit.Append(ctx, tx, audit.Event{
+		TenantID: command.TenantID, ActorID: command.ActorID, Action: "alert.dismissed",
+		ResourceType: "alert", ResourceID: command.AlertID, RequestID: command.RequestID,
+		BeforeState: before, AfterState: map[string]any{"alert": alert, "reason": command.Reason}, OccurredAt: now,
+	}); err != nil {
+		return Alert{}, fmt.Errorf("audit alert dismissal: %w", err)
+	}
+	if _, err := realtime.Append(ctx, tx, realtime.Event{
+		TenantID: command.TenantID, SiteID: command.SiteID,
+		Topic: realtime.TopicAlertState, Payload: map[string]any{"alert": alert, "action": "dismiss"},
+	}); err != nil {
+		return Alert{}, fmt.Errorf("publish alert dismissal: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Alert{}, fmt.Errorf("commit alert dismissal: %w", err)
+	}
+	return alert, nil
+}
+
+func validateDismiss(command DismissCommand) error {
+	for _, identifier := range []string{command.TenantID, command.SiteID, command.AlertID, command.RequestID} {
+		if _, err := uuid.Parse(identifier); err != nil {
+			return fmt.Errorf("invalid alert dismissal identifier: %w", err)
+		}
+	}
+	if strings.TrimSpace(command.ActorID) == "" || len(command.ActorID) > 128 {
+		return errors.New("alert dismissal actor is required")
+	}
+	if _, ok := DismissReasons[command.Reason]; !ok {
+		return errors.New("alert dismissal reason is not recognised")
+	}
+	return nil
+}
+
 const alertSelect = `
 	SELECT alert_id::text, tenant_id::text, event_id::text, site_id::text,
 		camera_id::text, zone_id::text, event_type, severity, status,
@@ -247,4 +346,22 @@ func (r *MemoryRepository) Acknowledge(_ context.Context, command AcknowledgeCom
 		return AcknowledgeResult{Alert: *alert}, nil
 	}
 	return AcknowledgeResult{}, ErrAlertNotFound
+}
+
+func (r *MemoryRepository) Dismiss(_ context.Context, command DismissCommand) (Alert, error) {
+	if err := validateDismiss(command); err != nil {
+		return Alert{}, err
+	}
+	lockValue, _ := memoryLocks.LoadOrStore(r, &sync.Mutex{})
+	lock := lockValue.(*sync.Mutex)
+	lock.Lock()
+	defer lock.Unlock()
+	for index := range r.Alerts {
+		alert := &r.Alerts[index]
+		if alert.TenantID == command.TenantID && alert.SiteID == command.SiteID && alert.ID == command.AlertID {
+			alert.Status = "dismissed"
+			return *alert, nil
+		}
+	}
+	return Alert{}, ErrAlertNotFound
 }

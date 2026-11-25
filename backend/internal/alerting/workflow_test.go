@@ -136,6 +136,106 @@ func TestPostgresRepositoryRejectsIdempotencyConflict(t *testing.T) {
 	}
 }
 
+func dismissCommand() DismissCommand {
+	return DismissCommand{
+		TenantID: tenantID, SiteID: siteID, AlertID: alertID, ActorID: "operator-1",
+		RequestID: "88888888-8888-4888-8888-888888888888", Reason: "False positive",
+	}
+}
+
+func TestPostgresRepositoryDismissesWithActionAuditAndRealtime(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mock.Close()
+	command := dismissCommand()
+	mock.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadWrite})
+	mock.ExpectExec("SELECT set_config").WithArgs(tenantID).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+	mock.ExpectQuery("SELECT alert_id::text").WithArgs(tenantID, alertID, siteID).WillReturnRows(alertRows("unacknowledged", nil, ""))
+	mock.ExpectExec("UPDATE alerts.alerts SET status = 'dismissed'").WithArgs(tenantID, alertID, siteID, pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectExec("INSERT INTO alerts.alert_actions").WithArgs(pgxmock.AnyArg(), tenantID, alertID, command.ActorID, command.RequestID, []byte(`{"reason":"False positive"}`)).WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs(pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+	mock.ExpectQuery("SELECT record_hash").WithArgs(tenantID, pgxmock.AnyArg()).WillReturnRows(pgxmock.NewRows([]string{"record_hash"}))
+	mock.ExpectExec("INSERT INTO audit.events").WithArgs(
+		pgxmock.AnyArg(), tenantID, pgxmock.AnyArg(), pgxmock.AnyArg(), command.ActorID, "alert.dismissed",
+		"alert", alertID, command.RequestID, pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
+	).WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectQuery("INSERT INTO syncam_realtime.site_sequences").WithArgs(tenantID, siteID).WillReturnRows(pgxmock.NewRows([]string{"last_sequence"}).AddRow(int64(3)))
+	mock.ExpectExec("INSERT INTO syncam_realtime.messages").WithArgs(tenantID, siteID, int64(3), "alerts.state", pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectCommit()
+	alert, err := NewPostgresRepository(mock).Dismiss(context.Background(), command)
+	if err != nil || alert.Status != "dismissed" {
+		t.Fatalf("unexpected dismissal: %+v %v", alert, err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryDismissIsIdempotentAndReportsMissingAlerts(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mock.Close()
+	mock.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadWrite})
+	mock.ExpectExec("SELECT set_config").WithArgs(tenantID).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+	mock.ExpectQuery("SELECT alert_id::text").WithArgs(tenantID, alertID, siteID).WillReturnRows(alertRows("dismissed", nil, ""))
+	mock.ExpectCommit()
+	alert, err := NewPostgresRepository(mock).Dismiss(context.Background(), dismissCommand())
+	if err != nil || alert.Status != "dismissed" {
+		t.Fatalf("already dismissed alert must be returned unchanged: %+v %v", alert, err)
+	}
+	mock.ExpectBeginTx(pgx.TxOptions{AccessMode: pgx.ReadWrite})
+	mock.ExpectExec("SELECT set_config").WithArgs(tenantID).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+	mock.ExpectQuery("SELECT alert_id::text").WithArgs(tenantID, alertID, siteID).WillReturnError(pgx.ErrNoRows)
+	mock.ExpectRollback()
+	if _, err := NewPostgresRepository(mock).Dismiss(context.Background(), dismissCommand()); !errors.Is(err, ErrAlertNotFound) {
+		t.Fatalf("expected not found, got %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (*PostgresRepository)(nil).Dismiss(context.Background(), dismissCommand()); err == nil {
+		t.Fatal("nil repository accepted")
+	}
+}
+
+func TestDismissValidatesReasonActorAndHidesAlertFromQueue(t *testing.T) {
+	invalid := []func(*DismissCommand){
+		func(c *DismissCommand) { c.AlertID = "bad" },
+		func(c *DismissCommand) { c.ActorID = "" },
+		func(c *DismissCommand) { c.Reason = "because" },
+	}
+	for _, mutate := range invalid {
+		command := dismissCommand()
+		mutate(&command)
+		if _, err := (&MemoryRepository{}).Dismiss(context.Background(), command); err == nil {
+			t.Fatalf("invalid dismissal accepted: %+v", command)
+		}
+		if _, err := NewPostgresRepository(nil).Dismiss(context.Background(), command); err == nil {
+			t.Fatalf("invalid dismissal accepted by postgres: %+v", command)
+		}
+	}
+	repository := &MemoryRepository{Alerts: []Alert{{ID: alertID, TenantID: tenantID, SiteID: siteID, Status: "unacknowledged"}}}
+	if _, err := repository.Dismiss(context.Background(), DismissCommand{
+		TenantID: tenantID, SiteID: siteID, AlertID: "99999999-9999-4999-8999-999999999999",
+		ActorID: "operator-1", RequestID: "88888888-8888-4888-8888-888888888888", Reason: "Duplicate event",
+	}); !errors.Is(err, ErrAlertNotFound) {
+		t.Fatalf("expected not found, got %v", err)
+	}
+	alert, err := repository.Dismiss(context.Background(), dismissCommand())
+	if err != nil || alert.Status != "dismissed" {
+		t.Fatalf("memory dismissal failed: %+v %v", alert, err)
+	}
+	queue, _ := repository.List(context.Background(), tenantID)
+	siteQueue, _ := repository.ListSite(context.Background(), tenantID, siteID)
+	if len(queue) != 0 || len(siteQueue) != 0 {
+		t.Fatalf("dismissed alert still queued: %+v %+v", queue, siteQueue)
+	}
+}
+
 func TestAlertWorkflowRejectsInvalidAndConflictingState(t *testing.T) {
 	if _, err := (*PostgresRepository)(nil).Get(context.Background(), tenantID, alertID); err == nil {
 		t.Fatal("nil repository accepted")

@@ -3,6 +3,7 @@ import {
   alertsFromSnapshot,
   parseAlertEnvelope,
   parseAlertListEnvelope,
+  parseDismissEnvelope,
   parseRealtimeEnvelope,
   parseTicketEnvelope,
   type ApiAlert,
@@ -144,6 +145,19 @@ export class AlertApiClient {
       },
     );
     return parseAlertEnvelope(payload);
+  }
+
+  /** Removes alerts from the queue; returns the IDs the server removed. */
+  async dismissAlerts(alertIds: string[], reason: string): Promise<string[]> {
+    const payload = await this.request("/v1/alerts/dismiss", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Correlation-Id": crypto.randomUUID(),
+      },
+      body: JSON.stringify({ alert_ids: alertIds, reason }),
+    });
+    return parseDismissEnvelope(payload);
   }
 
   async issueRealtimeTicket(signal?: AbortSignal) {

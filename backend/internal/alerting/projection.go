@@ -40,6 +40,7 @@ type Repository interface {
 	ListSite(context.Context, string, string) ([]Alert, error)
 	Get(context.Context, string, string) (Alert, error)
 	Acknowledge(context.Context, AcknowledgeCommand) (AcknowledgeResult, error)
+	Dismiss(context.Context, DismissCommand) (Alert, error)
 }
 
 type transactionPool interface {
@@ -77,7 +78,7 @@ func (r *PostgresRepository) list(ctx context.Context, tenantID, siteID string) 
 			camera_id::text, zone_id::text, event_type, severity, status,
 			confidence, occurred_at, created_at, acked_at, COALESCE(acked_by, '')
 		FROM alerts.alerts
-		WHERE ($1::uuid IS NULL OR site_id = $1::uuid)
+		WHERE status <> 'dismissed' AND ($1::uuid IS NULL OR site_id = $1::uuid)
 		ORDER BY priority DESC, occurred_at, alert_id
 		LIMIT 100`
 	var siteArgument any
@@ -228,7 +229,7 @@ func (r *MemoryRepository) List(_ context.Context, tenantID string) ([]Alert, er
 	}
 	result := make([]Alert, 0)
 	for _, alert := range r.Alerts {
-		if alert.TenantID == tenantID {
+		if alert.TenantID == tenantID && alert.Status != "dismissed" {
 			result = append(result, alert)
 		}
 	}
@@ -241,7 +242,7 @@ func (r *MemoryRepository) ListSite(_ context.Context, tenantID, siteID string) 
 	}
 	result := make([]Alert, 0)
 	for _, alert := range r.Alerts {
-		if alert.TenantID == tenantID && alert.SiteID == siteID {
+		if alert.TenantID == tenantID && alert.SiteID == siteID && alert.Status != "dismissed" {
 			result = append(result, alert)
 		}
 	}

@@ -4,13 +4,16 @@ import test from "node:test";
 import {
   alertFromEvent,
   alertsFromSnapshot,
+  dismissReasons,
   initialAlertQueue,
   parseAlertListEnvelope,
+  parseDismissEnvelope,
   parseRealtimeEnvelope,
   parseTicketEnvelope,
   sortAlerts,
   toAlertItem,
   upsertAlert,
+  withoutAlerts,
   type ApiAlert,
 } from "./alert-contracts.ts";
 
@@ -114,6 +117,30 @@ test("upserts realtime state and retains queue priority ordering", () => {
     "acknowledged",
   );
   assert.equal(updated.filter((item) => item.id === alert.id).length, 1);
+});
+
+test("removed alerts leave the queue, locally and from realtime events", () => {
+  const other = { ...alert, id: "77777777-7777-4777-8777-777777777777" };
+  const queue = sortAlerts([toAlertItem(alert), toAlertItem(other)]);
+  assert.deepEqual(
+    withoutAlerts(queue, [alert.id]).map((item) => item.id),
+    [other.id],
+  );
+  assert.deepEqual(
+    upsertAlert(queue, { ...other, status: "dismissed" }).map((item) => item.id),
+    [alert.id],
+  );
+  assert.deepEqual(upsertAlert([], { ...alert, status: "dismissed" }), []);
+});
+
+test("parses the remove response and rejects malformed ones", () => {
+  assert.deepEqual(
+    parseDismissEnvelope({ data: { dismissed: [alert.id], not_removed: [] } }),
+    [alert.id],
+  );
+  assert.throws(() => parseDismissEnvelope({ data: { dismissed: [1] } }), /v1 contract/);
+  assert.throws(() => parseDismissEnvelope({ data: null }), /v1 contract/);
+  assert.equal(dismissReasons.length, 3);
 });
 
 test("keeps synthetic seed alerts out of live mode", () => {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { dismissReasons } from "./alert-contracts";
 import type { AlertItem, AlertStatus, Severity } from "./alert-contracts";
 import { CameraWall } from "./CameraWall";
 import { Icon } from "./icon";
@@ -231,6 +232,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
     alerts,
     setAlerts,
     acknowledge: acknowledgeThroughFeed,
+    dismiss: dismissThroughFeed,
     connection,
     feedError,
     newAlertCount,
@@ -278,7 +280,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
       ? "Local demo feed active"
       : "Connecting to realtime alerts",
   );
-  const [dismissId, setDismissId] = useState<string | null>(null);
+  const [removeIds, setRemoveIds] = useState<string[] | null>(null);
   const dismissTriggerRef = useRef<HTMLButtonElement>(null);
   const dismissModalRef = useRef<HTMLDivElement>(null);
   const filteredAlerts = useMemo(
@@ -349,7 +351,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
   }
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (activeView !== "alerts" || dismissId || selectedAlert.placeholder)
+      if (activeView !== "alerts" || removeIds || selectedAlert.placeholder)
         return;
       const target = event.target as HTMLElement;
       if (["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName)) return;
@@ -366,7 +368,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
       if (event.key.toLowerCase() === "e" && selectedAlert)
         escalate(selectedAlert.id);
       if (event.key.toLowerCase() === "d" && selectedAlert)
-        setDismissId(selectedAlert.id);
+        setRemoveIds([selectedAlert.id]);
       if (event.code === "Space" && selectedAlert) {
         event.preventDefault();
         setToast("Evidence preview paused");
@@ -374,9 +376,9 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeView, dismissId, filteredAlerts, selectedAlert, selectedId]);
+  }, [activeView, removeIds, filteredAlerts, selectedAlert, selectedId]);
   useEffect(() => {
-    if (!dismissId) return;
+    if (!removeIds) return;
     const modal = dismissModalRef.current;
     const focusable = modal?.querySelectorAll<HTMLElement>(
       'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
@@ -385,7 +387,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
     function handleModalKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
-        setDismissId(null);
+        setRemoveIds(null);
         return;
       }
       if (event.key !== "Tab" || !focusable?.length) return;
@@ -404,7 +406,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
       document.removeEventListener("keydown", handleModalKeyDown);
       dismissTriggerRef.current?.focus();
     };
-  }, [dismissId]);
+  }, [removeIds]);
 
   function acknowledge(id: string) {
     void acknowledgeThroughFeed(id)
@@ -456,20 +458,24 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
     );
     setToast("Alert snoozed for 15 minutes");
   }
-  function dismiss(id: string, reason: string) {
-    if (dataMode === "live") {
-      setDismissId(null);
-      unavailableInLiveMode("Dismissal");
-      return;
-    }
-    setAlerts((current) =>
-      current.map((alert) =>
-        alert.id === id ? { ...alert, status: "dismissed" } : alert,
-      ),
-    );
-    setDismissId(null);
-    setToast(`Alert dismissed · ${reason}`);
+  function remove(ids: string[], reason: string) {
+    setRemoveIds(null);
+    void dismissThroughFeed(ids, reason)
+      .then((removed) =>
+        setToast(
+          `${removed === 1 ? "Alert" : `${removed} alerts`} removed · ${reason}`,
+        ),
+      )
+      .catch((error: unknown) =>
+        setToast(
+          error instanceof Error ? error.message : "Alerts could not be removed.",
+        ),
+      );
   }
+  // The API removes at most 100 alerts per request, the size of one queue page.
+  const removableAlerts = selectedAlert.placeholder
+    ? []
+    : filteredAlerts.slice(0, 100);
   if (live && (trial?.ended || workspace.errorCode === "TRIAL_ENDED")) {
     return <TrialEnded label={trial?.label ?? "Your free trial has ended"} onSignOut={onSignOut} />;
   }
@@ -939,12 +945,24 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
                 <strong>{unacknowledgedCount} unacknowledged</strong> ·{" "}
                 {criticalCount} critical
               </span>
-              <button
-                type="button"
-                onClick={() => setToast("Queue sorted by severity and age")}
-              >
-                Severity <Icon name="chevron" size={13} />
-              </button>
+              <span className="queue-summary-actions">
+                <button
+                  type="button"
+                  className="remove-all"
+                  disabled={removableAlerts.length === 0}
+                  onClick={() =>
+                    setRemoveIds(removableAlerts.map((alert) => alert.id))
+                  }
+                >
+                  Remove all shown ({removableAlerts.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setToast("Queue sorted by severity and age")}
+                >
+                  Severity <Icon name="chevron" size={13} />
+                </button>
+              </span>
             </div>
             <div className="alert-list" role="list" aria-label="Alert queue">
               {filteredAlerts.length === 0 ? (
@@ -1023,9 +1041,9 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
               <button
                 type="button"
                 disabled={selectedAlert.placeholder}
-                onClick={() => setDismissId(selectedAlert.id)}
+                onClick={() => setRemoveIds([selectedAlert.id])}
               >
-                <kbd>D</kbd> dismiss
+                <kbd>D</kbd> remove
               </button>
             </div>
           </div>
@@ -1180,23 +1198,25 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
                   >
                     Escalate <span>E</span>
                   </button>
+                  </>}
                   <button
                     ref={dismissTriggerRef}
                     className="secondary-action"
                     type="button"
-                    onClick={() => setDismissId(selectedAlert.id)}
+                    onClick={() => setRemoveIds([selectedAlert.id])}
                   >
-                    Dismiss <span>D</span>
+                    Remove <span>D</span>
                   </button>
-                  <button
-                    className="more-action"
-                    type="button"
-                    onClick={() => snooze(selectedAlert.id)}
-                    aria-label="Snooze alert"
-                  >
-                    <Icon name="clock" size={16} />
-                  </button>
-                  </>}
+                  {!live && (
+                    <button
+                      className="more-action"
+                      type="button"
+                      onClick={() => snooze(selectedAlert.id)}
+                      aria-label="Snooze alert"
+                    >
+                      <Icon name="clock" size={16} />
+                    </button>
+                  )}
                 </div>
                 <div className="detail-section">
                   <div className="section-heading">
@@ -1439,7 +1459,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
           </button>
         </div>
       )}
-      {dismissId && (
+      {removeIds && (
         <div className="modal-backdrop" role="presentation">
           <div
             ref={dismissModalRef}
@@ -1452,7 +1472,7 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
             <button
               className="modal-close"
               type="button"
-              onClick={() => setDismissId(null)}
+              onClick={() => setRemoveIds(null)}
               aria-label="Close dialog"
             >
               <Icon name="close" />
@@ -1460,21 +1480,21 @@ export function App({ userEmail, onSignOut }: AppProps = {}) {
             <div className="modal-icon">
               <Icon name="file" size={20} />
             </div>
-            <h2 id="dismiss-title">Dismiss this alert?</h2>
+            <h2 id="dismiss-title">
+              {removeIds.length === 1
+                ? "Remove this alert?"
+                : `Remove ${removeIds.length} alerts?`}
+            </h2>
             <p id="dismiss-description">
-              A reason is required and will be added to the append-only audit
-              record.
+              Removed alerts leave the queue. They stay in the append-only
+              audit record with the reason you choose.
             </p>
             <div className="reason-list">
-              {[
-                "False positive",
-                "Duplicate event",
-                "Handled / no action needed",
-              ].map((reason) => (
+              {dismissReasons.map((reason) => (
                 <button
                   key={reason}
                   type="button"
-                  onClick={() => dismiss(dismissId, reason)}
+                  onClick={() => remove(removeIds, reason)}
                 >
                   {reason}
                   <Icon name="chevron" size={15} />
