@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -215,6 +216,34 @@ func (r *PostgresRepository) Update(ctx context.Context, command UpdateCommand) 
 		return Zone{}, fmt.Errorf("commit zone update: %w", err)
 	}
 	return next, nil
+}
+
+// Delete removes a zone and records the removed zone in the audit log, so
+// its settings stay on record. Past alerts keep their zone ID.
+func (r *PostgresRepository) Delete(ctx context.Context, command DeleteCommand) (Zone, error) {
+	tx, err := r.begin(ctx, command.TenantID, pgx.ReadWrite)
+	if err != nil {
+		return Zone{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	current, err := scanZone(tx.QueryRow(ctx, zoneSelect+" WHERE id = $1::uuid FOR UPDATE", command.ZoneID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Zone{}, ErrNotFound
+	}
+	if err != nil {
+		return Zone{}, err
+	}
+	var deletedAt time.Time
+	if err := tx.QueryRow(ctx, `DELETE FROM config.zones WHERE id = $1::uuid RETURNING clock_timestamp()`, current.ID).Scan(&deletedAt); err != nil {
+		return Zone{}, fmt.Errorf("delete zone: %w", err)
+	}
+	if _, err := audit.Append(ctx, tx, audit.Event{TenantID: command.TenantID, ActorID: command.ActorID, Action: "zone.deleted", ResourceType: "zone", ResourceID: current.ID, RequestID: command.RequestID, BeforeState: current, OccurredAt: deletedAt}); err != nil {
+		return Zone{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Zone{}, fmt.Errorf("commit zone delete: %w", err)
+	}
+	return current, nil
 }
 
 const zoneSelect = `SELECT id::text, tenant_id::text, site_id::text, COALESCE(camera_id::text, ''), COALESCE(floor, ''), name, kind, geometry, loiter_seconds, COALESCE(subject_classes, ARRAY[]::text[]), enabled, config_version, created_at, updated_at, schedule FROM config.zones`

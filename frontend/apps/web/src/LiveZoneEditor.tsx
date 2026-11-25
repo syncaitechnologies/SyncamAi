@@ -5,6 +5,7 @@ import { allDays, hasTemplate, protectionTemplates, templateZone, type Protectio
 import { vehicleClasses, type Schedule, type Zone, type ZoneKind } from "./syncam-api";
 import type { WorkspaceData } from "./use-workspace";
 import { canManage, readWorkspace } from "./workspace";
+import { removeZoneQuestion } from "./zones-model";
 
 type Point = [number, number];
 type Preset = {
@@ -147,6 +148,18 @@ export function LiveZoneEditor({ workspace, onNotify }: { workspace: WorkspaceDa
     }
   }
 
+  async function remove(zone: Zone) {
+    if (!api) return;
+    if (!window.confirm(removeZoneQuestion(zone.name))) return;
+    try {
+      await api.deleteZone(zone.id);
+      onNotify(`${zone.name} removed · the site box stops using it within a minute`);
+      reload();
+    } catch (error) {
+      onNotify(error instanceof Error ? error.message : "Zone could not be removed");
+    }
+  }
+
   const imageUrl = image?.camera === selectedCamera ? image.url : null;
   return (
     <div className="live-page">
@@ -246,7 +259,12 @@ export function LiveZoneEditor({ workspace, onNotify }: { workspace: WorkspaceDa
                 <div key={zone.id} className="live-zone-item">
                   <span className={`zone-kind-dot zone-kind-${zone.kind}`} />
                   <span><strong>{zone.name}</strong><small>{presetFor(zone).label} · {scheduleText(zone.schedule)}</small></span>
-                  {manage && <button type="button" className={zone.enabled ? "live-link" : "live-link danger"} onClick={() => void toggle(zone)}>{zone.enabled ? "Armed" : "Paused"}</button>}
+                  {manage && (
+                    <span className="live-zone-actions">
+                      <button type="button" className={zone.enabled ? "live-link" : "live-link danger"} onClick={() => void toggle(zone)}>{zone.enabled ? "Armed" : "Paused"}</button>
+                      <button type="button" className="live-link live-zone-remove" aria-label={`Remove ${zone.name}`} title="Remove zone" onClick={() => void remove(zone)}>Remove</button>
+                    </span>
+                  )}
                 </div>
               ))}
             </div>

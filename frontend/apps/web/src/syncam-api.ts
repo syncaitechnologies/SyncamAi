@@ -163,6 +163,14 @@ export class SyncamApi extends AlertApiClient {
     );
   }
 
+  /** Remove a zone; the site box stops using it within a minute. The removal is audited. */
+  async deleteZone(zoneId: string) {
+    await this.request(`/v1/zones/${encodeURIComponent(zoneId)}`, {
+      method: "DELETE",
+      headers: { "X-Correlation-Id": crypto.randomUUID() },
+    });
+  }
+
   async updateZone(zone: Zone, changes: { enabled?: boolean; name?: string; schedule?: Schedule | Record<string, never> }) {
     return data<Zone>(
       await this.request(`/v1/zones/${encodeURIComponent(zone.id)}`, {

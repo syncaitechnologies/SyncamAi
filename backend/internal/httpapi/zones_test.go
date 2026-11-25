@@ -115,3 +115,28 @@ func TestZoneRoutesValidateAndVersionSubjectClasses(t *testing.T) {
 		t.Fatalf("unknown class must fail: %d %s", invalid.Code, invalid.Body.String())
 	}
 }
+
+func TestZoneRoutesRemoveAZone(t *testing.T) {
+	seed := []zones.Zone{
+		{ID: zoneID, TenantID: cameraTenant, SiteID: cameraSite, Name: "Desk area", Kind: "intrusion", Geometry: []byte(polygon()), Enabled: false, ConfigVersion: 3},
+		{ID: "98999999-9999-4999-8999-999999999999", TenantID: cameraTenant, SiteID: otherSite, Name: "Other site", Kind: "intrusion", Geometry: []byte(polygon()), Enabled: true, ConfigVersion: 1},
+	}
+	viewer := zoneHandler(cameraPrincipal(identity.RoleViewer, "config:read"), zones.NewMemoryRepository(seed))
+	if response := cameraRequest(viewer, http.MethodDelete, "/v1/zones/"+zoneID, "", nil); response.Code != http.StatusForbidden {
+		t.Fatalf("viewers cannot remove zones: %d %s", response.Code, response.Body.String())
+	}
+	repository := zones.NewMemoryRepository(seed)
+	handler := zoneHandler(cameraPrincipal(identity.RoleSiteAdmin, "config:read", "config:write"), repository)
+	if response := cameraRequest(handler, http.MethodDelete, "/v1/zones/98999999-9999-4999-8999-999999999999", "", nil); response.Code != http.StatusNotFound {
+		t.Fatalf("a zone at another site is hidden, not removed: %d", response.Code)
+	}
+	if response := cameraRequest(handler, http.MethodDelete, "/v1/zones/"+zoneID, "", nil); response.Code != http.StatusNoContent {
+		t.Fatalf("remove zone: %d %s", response.Code, response.Body.String())
+	}
+	if remaining, _ := repository.List(t.Context(), cameraTenant, cameraSite); len(remaining) != 0 {
+		t.Fatalf("the zone is gone from the site: %+v", remaining)
+	}
+	if response := cameraRequest(handler, http.MethodDelete, "/v1/zones/"+zoneID, "", nil); response.Code != http.StatusNotFound {
+		t.Fatalf("removing twice: %d", response.Code)
+	}
+}

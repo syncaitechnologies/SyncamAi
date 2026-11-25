@@ -461,3 +461,34 @@ func TestSubjectClassesAreCanonicalVersionedAndBounded(t *testing.T) {
 		t.Fatal("unknown class must fail")
 	}
 }
+
+func TestPostgresRepositoryDeletesZonesWithAnAuditRecord(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mock.Close()
+	createdAt := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	deletedAt := createdAt.Add(time.Hour)
+	zone := Zone{ID: testZone, TenantID: testTenant, SiteID: testSite, Name: "Desk area", Kind: "intrusion", Geometry: testPolygon, ConfigVersion: 2, CreatedAt: createdAt, UpdatedAt: createdAt}
+	expectZoneTransaction(mock, pgx.ReadWrite)
+	mock.ExpectQuery("SELECT id::text").WithArgs(testZone).WillReturnRows(zoneRows(zone))
+	mock.ExpectQuery("DELETE FROM config.zones").WithArgs(testZone).WillReturnRows(pgxmock.NewRows([]string{"clock_timestamp"}).AddRow(deletedAt))
+	expectZoneAudit(mock, "zone.deleted", testZone, deletedAt)
+	mock.ExpectCommit()
+	mock.ExpectRollback()
+	removed, err := NewPostgresRepository(mock).Delete(context.Background(), DeleteCommand{TenantID: testTenant, ActorID: "user-1", RequestID: testRequest, ZoneID: testZone})
+	if err != nil || removed.Name != "Desk area" {
+		t.Fatalf("delete: %+v %v", removed, err)
+	}
+
+	expectZoneTransaction(mock, pgx.ReadWrite)
+	mock.ExpectQuery("SELECT id::text").WithArgs(testZone).WillReturnError(pgx.ErrNoRows)
+	mock.ExpectRollback()
+	if _, err := NewPostgresRepository(mock).Delete(context.Background(), DeleteCommand{TenantID: testTenant, ActorID: "user-1", RequestID: testRequest, ZoneID: testZone}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("a missing zone is not found: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}

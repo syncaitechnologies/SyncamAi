@@ -65,6 +65,16 @@ type CreateResult struct {
 	Replayed bool
 }
 
+// DeleteCommand removes one zone; the removal is audited.
+type DeleteCommand struct {
+	TenantID, ActorID, RequestID, ZoneID string
+}
+
+// Deleter is implemented by repositories that can remove zones.
+type Deleter interface {
+	Delete(context.Context, DeleteCommand) (Zone, error)
+}
+
 type UpdateCommand struct {
 	TenantID, ActorID, RequestID, ZoneID string
 	ExpectedVersion                      int64
@@ -157,6 +167,19 @@ func (r *MemoryRepository) Create(_ context.Context, command CreateCommand) (Cre
 	r.zones = append(r.zones, zone)
 	r.idempotency[key] = replay{hash: hash, zone: clone(zone)}
 	return CreateResult{Zone: clone(zone)}, nil
+}
+
+// Deleted records removed zones for tests.
+func (r *MemoryRepository) Delete(_ context.Context, command DeleteCommand) (Zone, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	index := r.find(command.TenantID, command.ZoneID)
+	if index < 0 {
+		return Zone{}, ErrNotFound
+	}
+	removed := r.zones[index]
+	r.zones = append(r.zones[:index], r.zones[index+1:]...)
+	return clone(removed), nil
 }
 
 func (r *MemoryRepository) Update(_ context.Context, command UpdateCommand) (Zone, error) {

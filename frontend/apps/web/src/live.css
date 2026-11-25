@@ -99,6 +99,9 @@
 .live-zone-item > span:nth-child(2) { display: grid; gap: 2px; flex: 1; min-width: 0; }
 .live-zone-item strong { font-size: 13px; color: #e3ebf0; }
 .live-zone-item small { font-size: 11px; color: #8092a0; }
+.live-zone-actions { flex: none; display: flex; gap: 6px; }
+.live-zone-remove { color: #a9b8c2; }
+.live-zone-remove:hover, .live-zone-remove:focus-visible { color: #ffb0a8; border-color: #5a3b3b; }
 
 .live-date { border: 1px solid #3b4b59; border-radius: 8px; background: #101820; color: #ebf1f4; padding: 8px 10px; font: inherit; font-size: 13px; color-scheme: dark; }
 .live-table { width: 100%; border-collapse: collapse; font-size: 13px; }
