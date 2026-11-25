@@ -640,6 +640,7 @@ button {
 .queue-summary {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px 12px;
   justify-content: space-between;
   padding: 11px 20px;
@@ -668,16 +669,25 @@ button {
   white-space: nowrap;
 }
 .queue-summary .remove-all {
-  color: #e08a80;
+  padding: 5px 10px;
+  color: #ff8a7e;
+  background: rgba(255, 107, 94, 0.1);
+  border: 1px solid rgba(255, 107, 94, 0.45);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
 }
 .queue-summary .remove-all:hover:not(:disabled),
 .queue-summary .remove-all:focus-visible {
-  color: #ff6b5e;
-  text-decoration: underline;
+  color: #fff;
+  background: rgba(255, 107, 94, 0.28);
+  border-color: #ff6b5e;
 }
 .queue-summary .remove-all:disabled {
-  color: #4d5c66;
+  color: #6c7c87;
+  background: transparent;
+  border-color: #34444e;
   cursor: default;
 }
 .alert-list {
