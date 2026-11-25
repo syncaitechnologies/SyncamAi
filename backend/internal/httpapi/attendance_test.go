@@ -105,3 +105,45 @@ func TestAttendanceRejectsInvalidRequests(t *testing.T) {
 		t.Fatalf("attendance without repository must fail closed: %d", response.Code)
 	}
 }
+
+func TestDailyAttendanceCoversADateRangeInTheSiteTimeZone(t *testing.T) {
+	fixture, repository := attendanceFixture(t)
+	headers := map[string]string{tenantHeader: ingestTenant}
+	member, err := repository.CreateStaff(t.Context(), attendance.CreateStaffCommand{TenantID: ingestTenant, SiteID: ingestSite, ActorID: "admin-1", DisplayName: "Asha"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index, at := range []time.Time{
+		time.Date(2026, 11, 22, 3, 30, 0, 0, time.UTC), // 22 Nov in Asia/Kolkata (the fixture site's zone)
+		time.Date(2026, 11, 22, 20, 0, 0, 0, time.UTC), // 23 Nov 01:30 in Asia/Kolkata
+		time.Date(2026, 11, 24, 3, 0, 0, 0, time.UTC),
+	} {
+		id := []string{"b1111111-1111-4111-8111-111111111111", "b2222222-2222-4222-8222-222222222222", "b3333333-3333-4333-8333-333333333333"}[index]
+		if _, err := repository.RecordSighting(t.Context(), attendance.Record{ID: id, TenantID: ingestTenant, SiteID: ingestSite, StaffID: member.ID, CameraID: ingestCamera, OccurredAt: at}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	response := fixture.do(http.MethodGet, "/v1/attendance/daily?site_id="+ingestSite+"&from=2026-11-01&to=2026-11-24", "valid", nil, "", headers)
+	if response.Code != http.StatusOK {
+		t.Fatalf("daily: %d %s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Data []attendance.DayRecord `json:"data"`
+		Meta map[string]any         `json:"meta"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Data) != 3 || body.Data[0].Date != "2026-11-24" || body.Data[1].Date != "2026-11-23" || body.Data[2].Date != "2026-11-22" || body.Meta["timezone"] != "Asia/Kolkata" {
+		t.Fatalf("each local day in the range: %+v %v", body.Data, body.Meta)
+	}
+	only := fixture.do(http.MethodGet, "/v1/attendance/daily?site_id="+ingestSite+"&from=2026-11-23&to=2026-11-23", "valid", nil, "", headers)
+	if !strings.Contains(only.Body.String(), `"date":"2026-11-23"`) || strings.Contains(only.Body.String(), `"date":"2026-11-22"`) {
+		t.Fatalf("a single day: %s", only.Body.String())
+	}
+	for _, query := range []string{"&from=2026-11-24&to=2026-11-01", "&from=yesterday&to=2026-11-01", "&from=2026-01-01&to=2026-12-31", ""} {
+		if response := fixture.do(http.MethodGet, "/v1/attendance/daily?site_id="+ingestSite+query, "valid", nil, "", headers); response.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("%q should be refused: %d", query, response.Code)
+		}
+	}
+}
