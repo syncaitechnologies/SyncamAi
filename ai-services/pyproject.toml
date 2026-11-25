@@ -15,13 +15,13 @@ person-detector = [
   "openvino==2026.4.1",
 ]
 site-worker = [
-  # numpy and openvino are pinned to the versions tested live on a box;
-  # bump them in their own PR.
+  # numpy, openvino, opencv and cryptography are pinned to the versions
+  # tested live on a box; bump each in its own PR.
   "numpy==2.3.5",
   "openvino==2026.4.1",
-  "opencv-python-headless>=4.10,<5",
+  "opencv-python-headless==5.1.0.95",
   "tzdata>=2024.1",
-  "cryptography>=43,<47",
+  "cryptography==50.0.2",
 ]
 
 [tool.setuptools.packages.find]
