@@ -116,6 +116,34 @@ export function parseAlertEnvelope(value: unknown): ApiAlert {
   return value.data;
 }
 
+/** The reasons the API accepts for removing an alert from the queue. */
+export const dismissReasons = [
+  "False positive",
+  "Duplicate event",
+  "Handled / no action needed",
+] as const;
+
+export function parseDismissEnvelope(value: unknown): string[] {
+  if (
+    !isRecord(value) ||
+    !isRecord(value.data) ||
+    !Array.isArray(value.data.dismissed) ||
+    !value.data.dismissed.every(isString)
+  ) {
+    throw new Error("Remove alerts response did not match the v1 contract.");
+  }
+  return value.data.dismissed;
+}
+
+/** Drops removed alerts from the queue. */
+export function withoutAlerts(
+  alerts: AlertItem[],
+  removedIds: Iterable<string>,
+): AlertItem[] {
+  const removed = new Set(removedIds);
+  return alerts.filter((alert) => !removed.has(alert.id));
+}
+
 export function parseTicketEnvelope(value: unknown): {
   ticket: string;
   expiresAt: string;
@@ -277,6 +305,8 @@ export function upsertAlert(
   alerts: AlertItem[],
   incoming: ApiAlert,
 ): AlertItem[] {
+  // A removed alert (from this or another operator's dashboard) leaves the queue.
+  if (incoming.status === "dismissed") return withoutAlerts(alerts, [incoming.id]);
   const mapped = toAlertItem(incoming);
   const index = alerts.findIndex((alert) => alert.id === mapped.id);
   if (index === -1) return sortAlerts([mapped, ...alerts]);

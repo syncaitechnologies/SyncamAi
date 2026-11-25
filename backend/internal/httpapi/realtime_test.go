@@ -71,6 +71,10 @@ func (r *alertRepositoryStub) Acknowledge(context.Context, alerting.AcknowledgeC
 	return r.ackResult, r.ackErr
 }
 
+func (r *alertRepositoryStub) Dismiss(context.Context, alerting.DismissCommand) (alerting.Alert, error) {
+	return r.alert, r.ackErr
+}
+
 type failingTicketStore struct{ err error }
 
 func (s failingTicketStore) Issue(context.Context, realtime.TicketClaims) (string, time.Time, error) {
@@ -125,6 +129,84 @@ func TestAcknowledgeAlertRequiresOperatorScopeAndTransitions(t *testing.T) {
 	handler.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusForbidden {
 		t.Fatalf("viewer acknowledgment must be denied: %d %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func dismissRequest(t *testing.T, handler http.Handler, tenant, body, correlation string) *httptest.ResponseRecorder {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/alerts/dismiss", strings.NewReader(body))
+	request.Header.Set("Authorization", "Bearer valid")
+	if tenant != "" {
+		request.Header.Set(tenantHeader, tenant)
+	}
+	if correlation != "" {
+		request.Header.Set(correlationHeader, correlation)
+	}
+	handler.ServeHTTP(recorder, request)
+	return recorder
+}
+
+func TestDismissAlertsRemovesVisibleAlertsAndReportsTheRest(t *testing.T) {
+	const otherSiteAlert = "66666666-6666-4666-8666-666666666666"
+	repository := &alerting.MemoryRepository{Alerts: []alerting.Alert{
+		{ID: httpAlertID, TenantID: httpTenantID, SiteID: httpSiteID, Status: "unacknowledged"},
+		{ID: otherSiteAlert, TenantID: httpTenantID, SiteID: "99999999-9999-4999-8999-999999999999", Status: "unacknowledged"},
+	}}
+	handler := NewWithAlerts(fakeVerifier{principal: operatorPrincipal()}, leakyRepository{}, nil, repository)
+	body := `{"alert_ids":["` + httpAlertID + `","` + otherSiteAlert + `","missing"],"reason":"False positive"}`
+	recorder := dismissRequest(t, handler, httpTenantID, body, "")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("dismissal failed: %d %s", recorder.Code, recorder.Body.String())
+	}
+	var result struct {
+		Dismissed  []string `json:"dismissed"`
+		NotRemoved []string `json:"not_removed"`
+	}
+	decodeData(t, recorder.Body.Bytes(), &result)
+	if len(result.Dismissed) != 1 || result.Dismissed[0] != httpAlertID || len(result.NotRemoved) != 2 {
+		t.Fatalf("unexpected dismissal result: %+v", result)
+	}
+	queue, _ := repository.List(context.Background(), httpTenantID)
+	if len(queue) != 1 || queue[0].ID != otherSiteAlert {
+		t.Fatalf("only the operator's own-site alert may be removed: %+v", queue)
+	}
+}
+
+func TestDismissAlertsRejectsBadRequests(t *testing.T) {
+	principal := operatorPrincipal()
+	baseAlert := alerting.Alert{ID: httpAlertID, TenantID: httpTenantID, SiteID: httpSiteID, Status: "unacknowledged"}
+	one := `{"alert_ids":["` + httpAlertID + `"],"reason":"Duplicate event"}`
+	tooMany := `{"alert_ids":[` + strings.Repeat(`"`+httpAlertID+`",`, maxDismissBatch) + `"` + httpAlertID + `"],"reason":"Duplicate event"}`
+	viewer := operatorPrincipal()
+	viewer.Roles = []identity.Role{identity.RoleViewer}
+	viewer.Scopes = []string{"alerts:read"}
+	tests := []struct {
+		name        string
+		principal   identity.Principal
+		tenant      string
+		body        string
+		correlation string
+		repository  alerting.Repository
+		want        int
+	}{
+		{"viewer", viewer, httpTenantID, one, "", &alertRepositoryStub{alert: baseAlert}, http.StatusForbidden},
+		{"missing repository", principal, httpTenantID, one, "", nil, http.StatusServiceUnavailable},
+		{"unknown field", principal, httpTenantID, `{"alert_ids":["` + httpAlertID + `"],"reason":"Duplicate event","purge":true}`, "", &alertRepositoryStub{alert: baseAlert}, http.StatusUnprocessableEntity},
+		{"no alerts", principal, httpTenantID, `{"alert_ids":[],"reason":"Duplicate event"}`, "", &alertRepositoryStub{alert: baseAlert}, http.StatusUnprocessableEntity},
+		{"too many alerts", principal, httpTenantID, tooMany, "", &alertRepositoryStub{alert: baseAlert}, http.StatusUnprocessableEntity},
+		{"unknown reason", principal, httpTenantID, `{"alert_ids":["` + httpAlertID + `"],"reason":"bored"}`, "", &alertRepositoryStub{alert: baseAlert}, http.StatusUnprocessableEntity},
+		{"bad correlation", principal, httpTenantID, one, "bad", &alertRepositoryStub{alert: baseAlert}, http.StatusUnprocessableEntity},
+		{"not found", principal, httpTenantID, one, "", &alertRepositoryStub{alert: baseAlert, getErr: alerting.ErrAlertNotFound}, http.StatusNotFound},
+		{"write fails", principal, httpTenantID, one, "", &alertRepositoryStub{alert: baseAlert, ackErr: context.Canceled}, http.StatusNotFound},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			handler := NewWithAlerts(fakeVerifier{principal: test.principal}, leakyRepository{}, nil, test.repository)
+			if recorder := dismissRequest(t, handler, test.tenant, test.body, test.correlation); recorder.Code != test.want {
+				t.Fatalf("want %d, got %d: %s", test.want, recorder.Code, recorder.Body.String())
+			}
+		})
 	}
 }
 

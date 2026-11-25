@@ -651,6 +651,61 @@ paths:
         "409": { description: Alert state conflict or idempotency key conflict }
         "422": { description: Mutation headers are invalid }
         "503": { description: Alert workflow unavailable }
+  /alerts/dismiss:
+    post:
+      operationId: dismissAlerts
+      summary: Remove up to 100 alerts from the operator queue with a reason
+      description: >-
+        Each alert becomes "dismissed" and leaves the queue. The row, a dismiss
+        action carrying the reason and an audit event are kept. Dismissing an
+        already dismissed alert is a no-op. Alerts the caller cannot reach are
+        listed in not_removed.
+      security:
+        - oidc: [alerts:write]
+      parameters:
+        - $ref: "#/components/parameters/TenantHeader"
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [alert_ids, reason]
+              properties:
+                alert_ids:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items: { type: string, format: uuid }
+                reason:
+                  type: string
+                  enum: [False positive, Duplicate event, Handled / no action needed]
+      responses:
+        "200":
+          description: At least one alert was removed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [dismissed, not_removed]
+                    properties:
+                      dismissed:
+                        type: array
+                        items: { type: string, format: uuid }
+                      not_removed:
+                        type: array
+                        items: { type: string }
+        "401": { description: Authentication required }
+        "403": { description: Operator capability denied }
+        "404": { description: None of the alerts could be removed }
+        "422": { description: Body, reason or headers are invalid }
+        "503": { description: Alert workflow unavailable }
 components:
   securitySchemes:
     oidc:

@@ -83,3 +83,67 @@ func (s *Server) acknowledgeAlert(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": result.Alert})
 }
+
+// maxDismissBatch matches the alert queue page size, so "Remove all shown"
+// always fits in one request.
+const maxDismissBatch = 100
+
+type dismissAlertsRequest struct {
+	AlertIDs []string `json:"alert_ids"`
+	Reason   string   `json:"reason"`
+}
+
+// dismissAlerts removes one or more alerts from the queue. Each alert is
+// dismissed in its own transaction; alerts the caller cannot see are reported
+// as not removed rather than failing the whole batch.
+func (s *Server) dismissAlerts(w http.ResponseWriter, r *http.Request) {
+	principal, tenantID, ok := s.userTenant(w, r, authz.CapabilityAlertsWrite)
+	if !ok {
+		return
+	}
+	if s.alerts == nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Alert repository unavailable.")
+		return
+	}
+	var input dismissAlertsRequest
+	if !decodeBody(w, r, &input) {
+		return
+	}
+	if len(input.AlertIDs) == 0 || len(input.AlertIDs) > maxDismissBatch {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Choose between 1 and 100 alerts to remove.")
+		return
+	}
+	if _, ok := alerting.DismissReasons[input.Reason]; !ok {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Choose a reason for removing the alerts.")
+		return
+	}
+	requestID, err := correlationID(r.Header.Get(correlationHeader))
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "X-Correlation-Id must be a UUIDv4.")
+		return
+	}
+	w.Header().Set(correlationHeader, requestID)
+	dismissed, notRemoved := make([]string, 0, len(input.AlertIDs)), make([]string, 0)
+	for _, alertID := range input.AlertIDs {
+		alertID = strings.TrimSpace(alertID)
+		alert, err := s.alerts.Get(r.Context(), tenantID, alertID)
+		if err == nil && authz.Authorize(principal, authz.Request{
+			Capability: authz.CapabilityAlertsWrite, TenantID: tenantID, SiteID: alert.SiteID,
+		}) == nil {
+			_, err = s.alerts.Dismiss(r.Context(), alerting.DismissCommand{
+				TenantID: tenantID, SiteID: alert.SiteID, AlertID: alert.ID,
+				ActorID: principal.UserID, RequestID: requestID, Reason: input.Reason,
+			})
+			if err == nil {
+				dismissed = append(dismissed, alert.ID)
+				continue
+			}
+		}
+		notRemoved = append(notRemoved, alertID)
+	}
+	if len(dismissed) == 0 {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", "None of these alerts could be removed.")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{"dismissed": dismissed, "not_removed": notRemoved}})
+}

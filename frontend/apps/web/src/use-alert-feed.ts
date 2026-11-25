@@ -12,6 +12,7 @@ import {
   sortAlerts,
   toAlertItem,
   upsertAlert,
+  withoutAlerts,
   type AlertItem,
 } from "./alert-contracts";
 
@@ -136,10 +137,27 @@ export function useAlertFeed(seedAlerts: AlertItem[]) {
     [config.mode, feedError],
   );
 
+  /** Removes alerts from the queue; resolves to how many were removed. */
+  const dismiss = useCallback(
+    async (alertIds: string[], reason: string) => {
+      if (config.mode === "demo") {
+        setAlerts((current) => withoutAlerts(current, alertIds));
+        return alertIds.length;
+      }
+      const api = apiRef.current;
+      if (!api) throw new Error(feedError || "Alert API is not connected.");
+      const removed = await api.dismissAlerts(alertIds, reason);
+      setAlerts((current) => withoutAlerts(current, removed));
+      return removed.length;
+    },
+    [config.mode, feedError],
+  );
+
   return {
     alerts,
     setAlerts,
     acknowledge,
+    dismiss,
     connection,
     feedError,
     newAlertCount,

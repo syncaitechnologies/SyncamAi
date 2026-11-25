@@ -639,6 +639,8 @@ button {
 }
 .queue-summary {
   display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
   justify-content: space-between;
   padding: 11px 20px;
   color: #697b88;
@@ -657,6 +659,26 @@ button {
   background: transparent;
   border: 0;
   font-size: 10px;
+}
+.queue-summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.queue-summary .remove-all {
+  color: #e08a80;
+  cursor: pointer;
+}
+.queue-summary .remove-all:hover:not(:disabled),
+.queue-summary .remove-all:focus-visible {
+  color: #ff6b5e;
+  text-decoration: underline;
+}
+.queue-summary .remove-all:disabled {
+  color: #4d5c66;
+  cursor: default;
 }
 .alert-list {
   max-height: 540px;
