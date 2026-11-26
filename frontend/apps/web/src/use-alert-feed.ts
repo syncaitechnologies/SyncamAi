@@ -148,9 +148,15 @@ export function useAlertFeed(seedAlerts: AlertItem[]) {
       if (!api) throw new Error(feedError || "Alert API is not connected.");
       const removed = await api.dismissAlerts(alertIds, reason);
       setAlerts((current) => withoutAlerts(current, removed));
+      // The API returns at most 100 alerts; reload so the next ones fill the queue.
+      void refresh(api).catch((error: unknown) =>
+        setFeedError(
+          error instanceof Error ? error.message : "Alert queue reload failed.",
+        ),
+      );
       return removed.length;
     },
-    [config.mode, feedError],
+    [config.mode, feedError, refresh],
   );
 
   return {
