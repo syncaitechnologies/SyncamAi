@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -66,10 +67,19 @@ type Summary struct {
 	OpenHours int          `json:"open_hours"`
 }
 
+// Totals is a workspace's door entries and finished table sessions over a
+// period, for the Features page.
+type Totals struct {
+	Visitors       int
+	Sessions       int
+	SessionSeconds int64
+}
+
 // Store saves hourly counts and summarises them.
 type Store interface {
 	SaveHours(ctx context.Context, tenantID, siteID string, rows []ZoneHour) error
 	Summary(ctx context.Context, tenantID, siteID string, location *time.Location, from, to time.Time) (Summary, error)
+	Totals(ctx context.Context, tenantID string, since time.Time) (Totals, error)
 }
 
 type transactionPool interface {
@@ -210,6 +220,23 @@ func (p *PostgresStore) Summary(ctx context.Context, tenantID, siteID string, lo
 	return result, tx.Commit(ctx)
 }
 
+// Totals sums every site of the workspace since a time.
+func (p *PostgresStore) Totals(ctx context.Context, tenantID string, since time.Time) (Totals, error) {
+	tx, err := p.begin(ctx, tenantID, pgx.ReadOnly)
+	if err != nil {
+		return Totals{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var totals Totals
+	if err := tx.QueryRow(ctx, `
+		SELECT coalesce(sum(entries), 0)::int, coalesce(sum(sessions), 0)::int, coalesce(sum(session_seconds), 0)::bigint
+		FROM platform.zone_hours WHERE tenant_id = $1::uuid AND hour_start >= $2`, tenantID, since).
+		Scan(&totals.Visitors, &totals.Sessions, &totals.SessionSeconds); err != nil {
+		return Totals{}, fmt.Errorf("sum zone hours: %w", err)
+	}
+	return totals, tx.Commit(ctx)
+}
+
 // MemoryStore is an in-memory Store for tests and local development.
 type MemoryStore struct {
 	mu    sync.Mutex
@@ -231,6 +258,20 @@ func (m *MemoryStore) SaveHours(_ context.Context, tenantID, siteID string, rows
 		m.site[row.ZoneID] = tenantID + "|" + siteID
 	}
 	return nil
+}
+
+func (m *MemoryStore) Totals(_ context.Context, tenantID string, since time.Time) (Totals, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var totals Totals
+	for _, row := range m.rows {
+		if strings.HasPrefix(m.site[row.ZoneID], tenantID+"|") && !row.HourStart.Before(since) {
+			totals.Visitors += row.Entries
+			totals.Sessions += row.Sessions
+			totals.SessionSeconds += row.SessionSeconds
+		}
+	}
+	return totals, nil
 }
 
 func (m *MemoryStore) Summary(_ context.Context, tenantID, siteID string, location *time.Location, from, to time.Time) (Summary, error) {

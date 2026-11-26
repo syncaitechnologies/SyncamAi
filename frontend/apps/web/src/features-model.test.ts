@@ -52,6 +52,16 @@ test("the value line shows what each feature caught", () => {
   assert.equal(activityLabel(feature({ key: "fall", status: "coming_soon", activity_30d: null })), null);
 });
 
+test("insights show visitors and the average table time", () => {
+  const insights = (overrides: Partial<Feature>) => feature({ key: "insights", ...overrides });
+  assert.equal(activityLabel(insights({ activity_30d: 1240, insights: { table_sessions: 4, table_seconds: 10800 } })),
+    "1,240 visitors · avg table time 45 min, last 30 days");
+  assert.equal(activityLabel(insights({ activity_30d: 1, insights: { table_sessions: 0, table_seconds: 0 } })), "1 visitor in the last 30 days");
+  assert.equal(activityLabel(insights({ activity_30d: 0 })), "No visitors counted in the last 30 days");
+  assert.equal(activityLabel(insights({ activity_30d: 0, on: false })), null);
+  assert.equal(cardState(insights({ included: false, on: false })), "not_in_plan");
+});
+
 test("camera choice", () => {
   const cameras = ["a", "b", "c"];
   assert.equal(cameraSummary(feature({}), cameras), "All cameras");

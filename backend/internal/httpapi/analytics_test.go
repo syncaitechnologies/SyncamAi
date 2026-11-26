@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/analytics"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/device"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/features"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/siteingest"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/zones"
 )
@@ -23,7 +25,7 @@ const (
 	analyticsRun = "e1111111-1111-4111-8111-111111111111"
 )
 
-func analyticsFixture(t *testing.T) (*ingestFixture, *analytics.MemoryStore) {
+func analyticsFixture(t *testing.T, featureService *features.Service) (*ingestFixture, *analytics.MemoryStore) {
 	t.Helper()
 	fixture := &ingestFixture{keys: siteingest.NewMemoryKeyStore(ingestTenant + ":" + ingestSite)}
 	rawKey, _, err := fixture.keys.Create(context.Background(), ingestTenant, ingestSite, "admin-1", "Box")
@@ -44,8 +46,58 @@ func analyticsFixture(t *testing.T) (*ingestFixture, *analytics.MemoryStore) {
 	store.Names[tableZone] = [2]string{"Table 4", "table"}
 	cameras := device.NewMemoryRepository([]device.Camera{{ID: ingestCamera, TenantID: ingestTenant, SiteID: ingestSite, Name: "Entrance", LifecycleStatus: "active"}})
 	fixture.handler = NewWithSiteIngest(fakeVerifier{principal: siteAdmin()}, ingestSites{}, nil, nil, nil, nil, cameras, nil, nil, nil, zoneRepository, nil, nil, nil,
-		SiteIngestOptions{Keys: fixture.keys, Analytics: store})
+		SiteIngestOptions{Keys: fixture.keys, Analytics: store, Features: featureService})
 	return fixture, store
+}
+
+func TestInsightsFollowThePlanAndTheSwitch(t *testing.T) {
+	plans := features.NewMemoryStore()
+	service := features.NewService(plans)
+	fixture, counts := analyticsFixture(t, service)
+	headers := map[string]string{tenantHeader: ingestTenant}
+	page := func() int {
+		return fixture.do(http.MethodGet, "/v1/analytics/insights?site_id="+ingestSite+"&from=2026-11-01&to=2026-11-02", "valid", nil, "", headers).Code
+	}
+	hour := time.Now().UTC().Truncate(time.Hour)
+	upload := func() string {
+		body := `{"hours":[` + hourRow(doorZone, hour, `,"entries":5`) + `]}`
+		return fixture.do(http.MethodPost, "/v1/site-ingest/analytics", fixture.rawKey, []byte(body), "application/json", nil).Body.String()
+	}
+	setPlan := func(included, enabled bool) {
+		plans.Snapshots[ingestTenant] = features.Snapshot{
+			Included: map[features.Key]bool{features.Insights: included},
+			Settings: map[features.Key]features.Setting{features.Insights: {Feature: features.Insights, Enabled: enabled}},
+		}
+		service.Invalidate(ingestTenant)
+	}
+
+	// No plan includes insights unless the owner adds them.
+	if code := page(); code != http.StatusForbidden {
+		t.Fatalf("not in the plan: %d", code)
+	}
+	if body := upload(); !strings.Contains(body, `"saved":0`) {
+		t.Fatalf("counts outside the plan are dropped: %s", body)
+	}
+	// Switched off: past numbers stay readable, new counts are dropped.
+	setPlan(true, false)
+	if code := page(); code != http.StatusOK {
+		t.Fatalf("switched off still shows past numbers: %d", code)
+	}
+	if body := upload(); !strings.Contains(body, `"saved":0`) {
+		t.Fatalf("counts while switched off are dropped: %s", body)
+	}
+	setPlan(true, true)
+	if body := upload(); !strings.Contains(body, `"saved":1`) {
+		t.Fatalf("counts are saved when on: %s", body)
+	}
+	if totals, _ := counts.Totals(context.Background(), ingestTenant, hour); totals.Visitors != 5 {
+		t.Fatalf("saved visitors: %+v", totals)
+	}
+	plans.FailLoad = errors.New("database down")
+	service.Invalidate(ingestTenant)
+	if code := page(); code != http.StatusServiceUnavailable {
+		t.Fatalf("unreadable plan: %d", code)
+	}
 }
 
 func hourRow(zoneID string, hour time.Time, extra string) string {
@@ -53,7 +105,7 @@ func hourRow(zoneID string, hour time.Time, extra string) string {
 }
 
 func TestSiteBoxUploadsAnonymousCountsForItsOwnCounterZones(t *testing.T) {
-	fixture, _ := analyticsFixture(t)
+	fixture, _ := analyticsFixture(t, nil)
 	hour := time.Now().UTC().Truncate(time.Hour)
 	upload := func(rows ...string) int {
 		body := `{"hours":[` + strings.Join(rows, ",") + `]}`
@@ -84,7 +136,7 @@ func TestSiteBoxUploadsAnonymousCountsForItsOwnCounterZones(t *testing.T) {
 }
 
 func TestInsightsSummariseARangeInTheSiteTimeZone(t *testing.T) {
-	fixture, store := analyticsFixture(t)
+	fixture, store := analyticsFixture(t, nil)
 	headers := map[string]string{tenantHeader: ingestTenant}
 	_ = store.SaveHours(context.Background(), ingestTenant, ingestSite, []analytics.ZoneHour{
 		{ZoneID: doorZone, HourStart: time.Date(2026, 11, 22, 20, 0, 0, 0, time.UTC), RunID: analyticsRun, Entries: 30}, // 23 Nov 01:30 in Asia/Kolkata

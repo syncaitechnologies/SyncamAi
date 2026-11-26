@@ -28,6 +28,7 @@ const initial: Feature[] = [
   row("loitering", { enabled: false, on: false, activity_30d: 0 }),
   row("attendance", { cameras: ["cam-gate"], activity_30d: 1520 }),
   row("weapon", { status: "preview", included: false, enabled: true, on: false, box_ready: false, activity_30d: 0 }),
+  row("insights", { activity_30d: 1240, insights: { table_sessions: 96, table_seconds: 259200 } }),
   row("live_view", { per_camera: false, activity_30d: null, live_view: { limit_minutes: 10, used_seconds: 372 } }),
   row("camera_health", { status: "always_on", per_camera: false, activity_30d: 2 }),
   ...(["fire_smoke", "fall", "fight", "ppe", "number_plates"] as FeatureKey[]).map((key) =>

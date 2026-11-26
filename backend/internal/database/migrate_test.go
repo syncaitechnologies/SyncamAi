@@ -128,6 +128,11 @@ func TestApplyMigrationsAppliesOnceAndThenSkips(t *testing.T) {
 	mock.ExpectExec("alerts.purge_expired_alerts").WithArgs(pgx.QueryExecModeSimpleProtocol).WillReturnResult(pgxmock.NewResult("CREATE", 0))
 	mock.ExpectExec("INSERT INTO platform.schema_migrations").WithArgs("000022_alert_retention.sql").WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	mock.ExpectCommit()
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT EXISTS").WithArgs("000023_insights_feature.sql").WillReturnRows(pgxmock.NewRows([]string{"exists"}).AddRow(false))
+	mock.ExpectExec("tenant_features_feature_check").WithArgs(pgx.QueryExecModeSimpleProtocol).WillReturnResult(pgxmock.NewResult("ALTER", 0))
+	mock.ExpectExec("INSERT INTO platform.schema_migrations").WithArgs("000023_insights_feature.sql").WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectCommit()
 
 	if err := ApplyMigrations(context.Background(), mock); err != nil {
 		t.Fatal(err)
@@ -203,6 +208,9 @@ func TestApplyMigrationsAppliesOnceAndThenSkips(t *testing.T) {
 	mock.ExpectCommit()
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT EXISTS").WithArgs("000022_alert_retention.sql").WillReturnRows(pgxmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectCommit()
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT EXISTS").WithArgs("000023_insights_feature.sql").WillReturnRows(pgxmock.NewRows([]string{"exists"}).AddRow(true))
 	mock.ExpectCommit()
 	if err := ApplyMigrations(context.Background(), mock); err != nil {
 		t.Fatalf("second migration pass must be idempotent: %v", err)

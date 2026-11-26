@@ -26,6 +26,7 @@ export const PLAN_FEATURES: { key: string; label: string }[] = [
   { key: "loitering", label: "Loitering" },
   { key: "attendance", label: "Face attendance" },
   { key: "weapon", label: "Possible weapon (preview)" },
+  { key: "insights", label: "Visitor and table insights" },
 ];
 
 export const NOTHING_CHANGED = "Nothing has changed.";
