@@ -24,6 +24,7 @@ Architecture decisions are immutable records: supersede an accepted ADR with a n
 | [ADR-018](ADR-018-owner-admin-screen.md) | Owner admin screen for client plans and limits | Accepted |
 | [ADR-019](ADR-019-feature-switches.md) | Feature switches for the owner and each client | Accepted |
 | [ADR-020](ADR-020-anonymous-insights.md) | Anonymous visitor and table insights | Accepted |
+| [ADR-021](ADR-021-insights-plan-feature.md) | Visitor and table insights as a plan feature | Proposed |
 
 Every ADR must state its operational and security consequences. ADR-001 remains a release blocker until legal approval is recorded.
 

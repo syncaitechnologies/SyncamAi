@@ -57,6 +57,41 @@ func TestMemorySummaryAddsRunsAndGroupsBySiteLocalDay(t *testing.T) {
 	if len(other.Days) != 0 {
 		t.Fatal("another workspace sees nothing")
 	}
+	if totals, _ := store.Totals(ctx, tenant, noon); totals != (Totals{Visitors: 12, Sessions: 2, SessionSeconds: 3000}) {
+		t.Fatalf("totals since noon: %+v", totals)
+	}
+	if totals, _ := store.Totals(ctx, "other", evening); totals != (Totals{}) {
+		t.Fatalf("another workspace's totals: %+v", totals)
+	}
+}
+
+func TestPostgresStoreTotals(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mock.Close()
+	since := time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC)
+	store := NewPostgresStore(mock)
+	expectTx(mock, pgx.ReadOnly)
+	mock.ExpectQuery("sum\\(entries\\)").WithArgs(tenant, since).WillReturnRows(pgxmock.NewRows([]string{"v", "s", "ss"}).AddRow(40, 3, int64(5400)))
+	mock.ExpectCommit()
+	mock.ExpectRollback()
+	if totals, err := store.Totals(context.Background(), tenant, since); err != nil || totals != (Totals{Visitors: 40, Sessions: 3, SessionSeconds: 5400}) {
+		t.Fatalf("totals: %+v %v", totals, err)
+	}
+	expectTx(mock, pgx.ReadOnly)
+	mock.ExpectQuery("sum\\(entries\\)").WithArgs(tenant, since).WillReturnError(errors.New("connection reset"))
+	mock.ExpectRollback()
+	if _, err := store.Totals(context.Background(), tenant, since); err == nil {
+		t.Fatal("a failed read is reported")
+	}
+	if _, err := store.Totals(context.Background(), "not-a-uuid", since); err == nil {
+		t.Fatal("a bad tenant is refused")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func expectTx(mock pgxmock.PgxPoolIface, mode pgx.TxAccessMode) {

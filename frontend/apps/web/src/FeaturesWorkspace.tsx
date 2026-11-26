@@ -236,6 +236,9 @@ function FeatureCard({ feature, cameras, manage, saving, choosing, contactEmail,
       {feature.key === "attendance" && feature.enabled && switchable && (
         <p className="live-muted">Switching it off stops new sightings. Past records stay on the Attendance page.</p>
       )}
+      {feature.key === "insights" && feature.enabled && switchable && (
+        <p className="live-muted">Draw a door counter and a zone per table in Zones &amp; rules. Switching it off stops new counts; past numbers stay on the Insights page.</p>
+      )}
       {feature.key === "weapon" && feature.included && (
         <p className="live-muted">Preview: alerts say "possible weapon" and always need a person to check them.</p>
       )}

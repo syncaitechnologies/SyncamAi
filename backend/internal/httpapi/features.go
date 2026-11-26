@@ -42,6 +42,8 @@ type featureView struct {
 	Activity30 *int           `json:"activity_30d"`
 	UpdatedAt  *time.Time     `json:"updated_at"`
 	LiveView   map[string]any `json:"live_view,omitempty"`
+	// Insights holds the 30-day finished table sessions and their total length.
+	Insights map[string]any `json:"insights,omitempty"`
 }
 
 func (s *Server) featureService(w http.ResponseWriter) (*features.Service, bool) {
@@ -98,6 +100,12 @@ func (s *Server) featureViews(ctx context.Context, service *features.Service, te
 		if setting, ok := snapshot.Settings[definition.Key]; ok {
 			updated := setting.UpdatedAt
 			view.UpdatedAt = &updated
+		}
+		if definition.Key == features.Insights && s.siteIngest.Analytics != nil {
+			if totals, err := s.siteIngest.Analytics.Totals(ctx, tenantID, time.Now().UTC().Add(-activityWindow)); err == nil {
+				view.Activity30 = &totals.Visitors
+				view.Insights = map[string]any{"table_sessions": totals.Sessions, "table_seconds": totals.SessionSeconds}
+			}
 		}
 		if definition.Key == features.LiveView {
 			view.LiveView = map[string]any{"limit_minutes": snapshot.LiveViewMinutes}

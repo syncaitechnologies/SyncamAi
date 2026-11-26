@@ -2,7 +2,7 @@
 // switch and its cameras. The API decides what is allowed; this only words it.
 
 export type FeatureKey =
-  | "zone_alerts" | "loitering" | "attendance" | "weapon" | "live_view" | "camera_health"
+  | "zone_alerts" | "loitering" | "attendance" | "weapon" | "insights" | "live_view" | "camera_health"
   | "fire_smoke" | "fall" | "fight" | "ppe" | "number_plates";
 
 export type FeatureStatus = "available" | "preview" | "always_on" | "coming_soon";
@@ -22,6 +22,8 @@ export type Feature = {
   activity_30d: number | null;
   updated_at: string | null;
   live_view?: { limit_minutes: number | null; used_seconds?: number };
+  /** Finished table sessions in the last 30 days; activity_30d holds the visitors. */
+  insights?: { table_sessions: number; table_seconds: number };
 };
 
 export type FeatureChanges = { enabled?: boolean; cameras?: string[] | null };
@@ -72,6 +74,12 @@ export const FEATURE_TEXT: Record<FeatureKey, FeatureText> = {
     summary: "Flags a possible gun or knife for a person to check. It can be wrong, so every alert needs a human review.",
     goodFor: "Entrances and cash counters",
     icon: "shield", noun: ["alert", "alerts"], security: true,
+  },
+  insights: {
+    name: "Visitor and table insights",
+    summary: "Counts visitors at your door and measures how long tables stay in use. No faces and nothing that identifies a person.",
+    goodFor: "Restaurants, cafés and food courts",
+    icon: "chart", noun: ["visitor", "visitors"], security: false,
   },
   live_view: {
     name: "Live view",
@@ -148,6 +156,14 @@ export function activityLabel(feature: Feature): string | null {
   const count = feature.activity_30d;
   if (count === null || count === undefined) return null;
   const [one, many] = featureText(feature.key).noun;
+  if (feature.key === "insights") {
+    if (count === 0) return feature.on ? "No visitors counted in the last 30 days" : null;
+    const sessions = feature.insights?.table_sessions ?? 0;
+    const visitors = `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;
+    if (sessions === 0) return `${visitors} in the last 30 days`;
+    const minutes = Math.round((feature.insights?.table_seconds ?? 0) / sessions / 60);
+    return `${visitors} · avg table time ${minutes} min, last 30 days`;
+  }
   if (count === 0) {
     if (!feature.on) return null;
     return feature.key === "attendance" ? "No sightings in the last 30 days" : "Nothing caught in the last 30 days, all quiet";

@@ -7,8 +7,10 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/alerting"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/analytics"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/device"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/eventing"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/features"
@@ -56,7 +58,11 @@ func newFeatureFixture(t *testing.T, user identity.Principal) *featureFixture {
 		return eventing.IngestResult{EventID: command.Event.EventID, Accepted: true}, nil
 	})
 	cameras := device.NewMemoryRepository([]device.Camera{{ID: ingestCamera, TenantID: ingestTenant, SiteID: ingestSite, Name: "Gate 1", LifecycleStatus: "active"}})
-	options := SiteIngestOptions{Keys: fixture.keys, Evidence: fixture.evidence, Features: features.NewService(fixture.store)}
+	counts := analytics.NewMemoryStore()
+	_ = counts.SaveHours(context.Background(), ingestTenant, ingestSite, []analytics.ZoneHour{
+		{ZoneID: "door", HourStart: time.Now().UTC().Truncate(time.Hour), RunID: "run", Entries: 40, Sessions: 4, SessionSeconds: 7200},
+	})
+	options := SiteIngestOptions{Keys: fixture.keys, Evidence: fixture.evidence, Features: features.NewService(fixture.store), Analytics: counts}
 	fixture.handler = NewWithSiteIngest(fakeVerifier{principal: user}, ingestSites{}, events, &alerting.MemoryRepository{}, nil, nil, cameras, nil, nil, nil, zones.NewMemoryRepository(nil), nil, nil, nil, options)
 	return fixture
 }
@@ -97,6 +103,10 @@ func TestFeaturesPageShowsPlanSwitchesAndWhatEachFeatureCaught(t *testing.T) {
 	}
 	if views["weapon"].Included || views["weapon"].Status != features.StatusPreview {
 		t.Fatalf("weapon is a preview outside the plan: %+v", views["weapon"])
+	}
+	insights := views["insights"]
+	if insights.Included || insights.Status != features.StatusAvailable || *insights.Activity30 != 40 || insights.Insights["table_seconds"] != float64(7200) {
+		t.Fatalf("insights is an add-on that still shows its counts: %+v", insights)
 	}
 	if views["fire_smoke"].Status != features.StatusComingSoon || views["fire_smoke"].Activity30 != nil {
 		t.Fatalf("coming soon: %+v", views["fire_smoke"])
@@ -216,7 +226,7 @@ func TestOwnerSetsWhichFeaturesEachPlanIncludes(t *testing.T) {
 	admin := &fakeFeatureAdmin{}
 	handler := New(fakeVerifier{principal: platformOperator()}, admin)
 	response := adminRequest(handler, http.MethodGet, "/v1/admin/workspaces", "")
-	if !strings.Contains(response.Body.String(), `"features":{"attendance":true,"loitering":true,"weapon":true,"zone_alerts":true}`) {
+	if !strings.Contains(response.Body.String(), `"features":{"attendance":true,"insights":false,"loitering":true,"weapon":true,"zone_alerts":true}`) {
 		t.Fatalf("owner list shows included features: %s", response.Body.String())
 	}
 	recorder := httptest.NewRecorder()

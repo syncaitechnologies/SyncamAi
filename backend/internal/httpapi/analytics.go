@@ -6,6 +6,7 @@ import (
 
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/analytics"
 	"github.com/syncaitechnologies/SyncamAi/backend/internal/authz"
+	"github.com/syncaitechnologies/SyncamAi/backend/internal/features"
 )
 
 // Anonymous visitor and table insights (ADR-020). Site boxes send hourly
@@ -54,14 +55,15 @@ func (s *Server) recordAnalytics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now().UTC()
-	checked := map[string]bool{}
+	// allowed: zone id -> whether the insights feature runs on its camera.
+	allowed := map[string]bool{}
 	for index, row := range input.Hours {
 		if !validZoneHour(row, now) {
 			writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "An hourly row is invalid.")
 			return
 		}
 		input.Hours[index].HourStart = row.HourStart.UTC()
-		if checked[row.ZoneID] {
+		if _, checked := allowed[row.ZoneID]; checked {
 			continue
 		}
 		// Counts are accepted only for this site's door counter and table zones.
@@ -70,13 +72,23 @@ func (s *Server) recordAnalytics(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "A zone is not a door counter or table at this site.")
 			return
 		}
-		checked[row.ZoneID] = true
+		allowed[row.ZoneID] = s.featureAllows(r.Context(), scope.TenantID, features.Insights, "", zone.CameraID)
 	}
-	if err := s.siteIngest.Analytics.SaveHours(r.Context(), scope.TenantID, scope.SiteID, input.Hours); err != nil {
-		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Insights are unavailable.")
-		return
+	// Counts from cameras where insights is off or not in the plan are
+	// dropped; the box gets a success so it does not retry them.
+	kept := make([]analytics.ZoneHour, 0, len(input.Hours))
+	for _, row := range input.Hours {
+		if allowed[row.ZoneID] {
+			kept = append(kept, row)
+		}
 	}
-	writeJSON(w, http.StatusAccepted, map[string]any{"data": map[string]any{"saved": len(input.Hours)}})
+	if len(kept) > 0 {
+		if err := s.siteIngest.Analytics.SaveHours(r.Context(), scope.TenantID, scope.SiteID, kept); err != nil {
+			writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Insights are unavailable.")
+			return
+		}
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"data": map[string]any{"saved": len(kept)}})
 }
 
 // insights summarises a range of whole days in the site's time zone (from and
@@ -89,6 +101,18 @@ func (s *Server) insights(w http.ResponseWriter, r *http.Request) {
 	if s.siteIngest.Analytics == nil || s.tenants == nil {
 		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Insights are unavailable.")
 		return
+	}
+	if s.siteIngest.Features != nil {
+		effective, err := s.siteIngest.Features.Effective(r.Context(), tenantID)
+		if err != nil {
+			writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Insights are unavailable.")
+			return
+		}
+		// Switched off keeps past numbers readable; out of the plan does not.
+		if !effective[features.Insights].Included {
+			writeError(w, http.StatusForbidden, "FEATURE_NOT_INCLUDED", "Visitor and table insights are not in your plan. Ask your SyncCam contact to add them.")
+			return
+		}
 	}
 	siteID, ok := siteFromQuery(w, r, principal, tenantID, true)
 	if !ok {

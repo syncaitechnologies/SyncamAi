@@ -16,6 +16,7 @@ const (
 	Loitering    Key = "loitering"
 	Attendance   Key = "attendance"
 	Weapon       Key = "weapon"
+	Insights     Key = "insights"
 	LiveView     Key = "live_view"
 	CameraHealth Key = "camera_health"
 	FireSmoke    Key = "fire_smoke"
@@ -49,6 +50,9 @@ type Definition struct {
 	PerCamera bool `json:"per_camera"`
 	// NeedsBox features only run where a site box has loaded them.
 	NeedsBox bool `json:"needs_box"`
+	// AddOn features work today but are sold separately, so no plan includes
+	// them unless the owner adds them (ADR-021).
+	AddOn bool `json:"add_on,omitempty"`
 }
 
 var catalog = []Definition{
@@ -56,6 +60,9 @@ var catalog = []Definition{
 	{Key: Loitering, Status: StatusAvailable, EventTypes: []string{"loitering"}, PerCamera: true, NeedsBox: true},
 	{Key: Attendance, Status: StatusAvailable, PerCamera: true, NeedsBox: true},
 	{Key: Weapon, Status: StatusPreview, EventTypes: []string{"weapon_review"}, PerCamera: true, NeedsBox: true},
+	// Counting runs on every site box from 0.1.7; the server drops counts from
+	// switched-off cameras, so no box capability is needed.
+	{Key: Insights, Status: StatusAvailable, PerCamera: true, AddOn: true},
 	{Key: LiveView, Status: StatusAvailable, NeedsBox: true},
 	{Key: CameraHealth, Status: StatusAlwaysOn, EventTypes: []string{"camera_health"}},
 	{Key: FireSmoke, Status: StatusComingSoon},
@@ -100,7 +107,7 @@ func ForEventType(eventType string) (Key, bool) {
 // its minute allowance instead; always-on and coming-soon features by status.
 func PlanControlled(key Key) bool {
 	switch key {
-	case ZoneAlerts, Loitering, Attendance, Weapon:
+	case ZoneAlerts, Loitering, Attendance, Weapon, Insights:
 		return true
 	}
 	return false
@@ -114,8 +121,8 @@ func Switchable(key Key) bool {
 
 // DefaultIncluded is whether a plan includes a feature when the owner has not
 // said otherwise: available features are in every plan (trials too, so they
-// show their full value), previews and coming-soon features in none.
+// show their full value), add-ons, previews and coming-soon features in none.
 func DefaultIncluded(key Key) bool {
 	definition, ok := Lookup(key)
-	return ok && (definition.Status == StatusAvailable || definition.Status == StatusAlwaysOn)
+	return ok && !definition.AddOn && (definition.Status == StatusAvailable || definition.Status == StatusAlwaysOn)
 }
