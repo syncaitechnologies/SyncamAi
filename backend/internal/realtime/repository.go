@@ -97,6 +97,58 @@ func Append(ctx context.Context, tx pgx.Tx, event Event) (int64, error) {
 	return sequence, nil
 }
 
+// AppendMany appends several messages for one site in two statements: it
+// reserves len(payloads) consecutive sequence numbers, then inserts them all.
+func AppendMany(ctx context.Context, tx pgx.Tx, tenantID, siteID, topic string, payloads []any) error {
+	if len(payloads) == 0 {
+		return nil
+	}
+	if len(payloads) == 1 {
+		_, err := Append(ctx, tx, Event{TenantID: tenantID, SiteID: siteID, Topic: topic, Payload: payloads[0]})
+		return err
+	}
+	if tx == nil {
+		return errors.New("realtime transaction is required")
+	}
+	if _, err := uuid.Parse(tenantID); err != nil {
+		return fmt.Errorf("invalid realtime tenant: %w", err)
+	}
+	if _, err := uuid.Parse(siteID); err != nil {
+		return fmt.Errorf("invalid realtime site: %w", err)
+	}
+	if topic != TopicAlertCreated && topic != TopicAlertState {
+		return fmt.Errorf("unsupported realtime topic %q", topic)
+	}
+	encoded := make([]string, len(payloads))
+	for index, payload := range payloads {
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			return fmt.Errorf("encode realtime payload: %w", err)
+		}
+		encoded[index] = string(raw)
+	}
+	var last int64
+	err := tx.QueryRow(ctx, `
+		INSERT INTO syncam_realtime.site_sequences (tenant_id, site_id, last_sequence)
+		VALUES ($1::uuid, $2::uuid, $3)
+		ON CONFLICT (tenant_id, site_id) DO UPDATE
+		SET last_sequence = syncam_realtime.site_sequences.last_sequence + $3,
+			updated_at = clock_timestamp()
+		RETURNING last_sequence`, tenantID, siteID, int64(len(encoded))).Scan(&last)
+	if err != nil {
+		return fmt.Errorf("allocate realtime sequences: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO syncam_realtime.messages (tenant_id, site_id, sequence, topic, payload)
+		SELECT $1::uuid, $2::uuid, $3::bigint + ordinality, $4, payload::jsonb
+		FROM unnest($5::text[]) WITH ORDINALITY AS batch(payload, ordinality)`,
+		tenantID, siteID, last-int64(len(encoded)), topic, encoded,
+	); err != nil {
+		return fmt.Errorf("append realtime messages: %w", err)
+	}
+	return nil
+}
+
 func (r *PostgresRepository) Current(ctx context.Context, tenantID, siteID string) (int64, error) {
 	tx, err := r.begin(ctx, tenantID, siteID)
 	if err != nil {

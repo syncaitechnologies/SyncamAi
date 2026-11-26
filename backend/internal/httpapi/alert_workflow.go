@@ -86,16 +86,16 @@ func (s *Server) acknowledgeAlert(w http.ResponseWriter, r *http.Request) {
 
 // maxDismissBatch matches the alert queue page size, so "Remove all shown"
 // always fits in one request.
-const maxDismissBatch = 100
+const maxDismissBatch = alerting.MaxDismissBatch
 
 type dismissAlertsRequest struct {
 	AlertIDs []string `json:"alert_ids"`
 	Reason   string   `json:"reason"`
 }
 
-// dismissAlerts removes one or more alerts from the queue. Each alert is
-// dismissed in its own transaction; alerts the caller cannot see are reported
-// as not removed rather than failing the whole batch.
+// dismissAlerts removes one or more alerts from the queue in a single
+// transaction; alerts the caller cannot see are reported as not removed rather
+// than failing the whole batch.
 func (s *Server) dismissAlerts(w http.ResponseWriter, r *http.Request) {
 	principal, tenantID, ok := s.userTenant(w, r, authz.CapabilityAlertsWrite)
 	if !ok {
@@ -123,23 +123,28 @@ func (s *Server) dismissAlerts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set(correlationHeader, requestID)
-	dismissed, notRemoved := make([]string, 0, len(input.AlertIDs)), make([]string, 0)
-	for _, alertID := range input.AlertIDs {
-		alertID = strings.TrimSpace(alertID)
-		alert, err := s.alerts.Get(r.Context(), tenantID, alertID)
-		if err == nil && authz.Authorize(principal, authz.Request{
-			Capability: authz.CapabilityAlertsWrite, TenantID: tenantID, SiteID: alert.SiteID,
-		}) == nil {
-			_, err = s.alerts.Dismiss(r.Context(), alerting.DismissCommand{
-				TenantID: tenantID, SiteID: alert.SiteID, AlertID: alert.ID,
-				ActorID: principal.UserID, RequestID: requestID, Reason: input.Reason,
-			})
-			if err == nil {
-				dismissed = append(dismissed, alert.ID)
-				continue
-			}
+	dismissed, err := s.alerts.Dismiss(r.Context(), alerting.DismissCommand{
+		TenantID: tenantID, AlertIDs: input.AlertIDs, ActorID: principal.UserID,
+		RequestID: requestID, Reason: input.Reason,
+		CanAccessSite: func(siteID string) bool {
+			return authz.Authorize(principal, authz.Request{
+				Capability: authz.CapabilityAlertsWrite, TenantID: tenantID, SiteID: siteID,
+			}) == nil
+		},
+	})
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Alerts could not be removed. Try again.")
+		return
+	}
+	removed := make(map[string]struct{}, len(dismissed))
+	for _, id := range dismissed {
+		removed[id] = struct{}{}
+	}
+	notRemoved := make([]string, 0)
+	for _, id := range input.AlertIDs {
+		if _, ok := removed[strings.ToLower(strings.TrimSpace(id))]; !ok {
+			notRemoved = append(notRemoved, id)
 		}
-		notRemoved = append(notRemoved, alertID)
 	}
 	if len(dismissed) == 0 {
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "None of these alerts could be removed.")

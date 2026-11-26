@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -71,8 +72,14 @@ func (r *alertRepositoryStub) Acknowledge(context.Context, alerting.AcknowledgeC
 	return r.ackResult, r.ackErr
 }
 
-func (r *alertRepositoryStub) Dismiss(context.Context, alerting.DismissCommand) (alerting.Alert, error) {
-	return r.alert, r.ackErr
+func (r *alertRepositoryStub) Dismiss(_ context.Context, command alerting.DismissCommand) ([]string, error) {
+	if r.ackErr != nil || r.getErr != nil {
+		return nil, errors.Join(r.ackErr, r.getErr)
+	}
+	if !command.CanAccessSite(r.alert.SiteID) {
+		return []string{}, nil
+	}
+	return []string{r.alert.ID}, nil
 }
 
 type failingTicketStore struct{ err error }
@@ -197,8 +204,8 @@ func TestDismissAlertsRejectsBadRequests(t *testing.T) {
 		{"too many alerts", principal, httpTenantID, tooMany, "", &alertRepositoryStub{alert: baseAlert}, http.StatusUnprocessableEntity},
 		{"unknown reason", principal, httpTenantID, `{"alert_ids":["` + httpAlertID + `"],"reason":"bored"}`, "", &alertRepositoryStub{alert: baseAlert}, http.StatusUnprocessableEntity},
 		{"bad correlation", principal, httpTenantID, one, "bad", &alertRepositoryStub{alert: baseAlert}, http.StatusUnprocessableEntity},
-		{"not found", principal, httpTenantID, one, "", &alertRepositoryStub{alert: baseAlert, getErr: alerting.ErrAlertNotFound}, http.StatusNotFound},
-		{"write fails", principal, httpTenantID, one, "", &alertRepositoryStub{alert: baseAlert, ackErr: context.Canceled}, http.StatusNotFound},
+		{"only other sites", principal, httpTenantID, one, "", &alertRepositoryStub{alert: alerting.Alert{ID: httpAlertID, TenantID: httpTenantID, SiteID: "99999999-9999-4999-8999-999999999999"}}, http.StatusNotFound},
+		{"write fails", principal, httpTenantID, one, "", &alertRepositoryStub{alert: baseAlert, ackErr: context.Canceled}, http.StatusServiceUnavailable},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

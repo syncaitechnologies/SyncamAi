@@ -37,6 +37,63 @@ func TestAppendAllocatesSiteSequenceAndStoresEnvelope(t *testing.T) {
 	}
 }
 
+func TestAppendManyReservesConsecutiveSequencesInTwoStatements(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mock.Close()
+	mock.ExpectBegin()
+	tx, err := mock.Begin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	mock.ExpectQuery("INSERT INTO syncam_realtime.site_sequences").WithArgs(testTenantID, testSiteID, int64(3)).WillReturnRows(pgxmock.NewRows([]string{"last_sequence"}).AddRow(int64(10)))
+	mock.ExpectExec(`unnest\(\$5::text\[\]\) WITH ORDINALITY`).WithArgs(testTenantID, testSiteID, int64(7), TopicAlertState,
+		[]string{`{"n":1}`, `{"n":2}`, `{"n":3}`}).WillReturnResult(pgxmock.NewResult("INSERT", 3))
+	payloads := []any{map[string]int{"n": 1}, map[string]int{"n": 2}, map[string]int{"n": 3}}
+	if err := AppendMany(context.Background(), tx, testTenantID, testSiteID, TopicAlertState, payloads); err != nil {
+		t.Fatal(err)
+	}
+	mock.ExpectQuery("INSERT INTO syncam_realtime.site_sequences").WithArgs(testTenantID, testSiteID).WillReturnRows(pgxmock.NewRows([]string{"last_sequence"}).AddRow(int64(11)))
+	mock.ExpectExec("INSERT INTO syncam_realtime.messages").WithArgs(testTenantID, testSiteID, int64(11), TopicAlertState, pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	if err := AppendMany(context.Background(), tx, testTenantID, testSiteID, TopicAlertState, payloads[:1]); err != nil {
+		t.Fatal(err)
+	}
+	if err := AppendMany(context.Background(), tx, testTenantID, testSiteID, TopicAlertState, nil); err != nil {
+		t.Fatal(err)
+	}
+	mock.ExpectQuery("INSERT INTO syncam_realtime.site_sequences").WithArgs(testTenantID, testSiteID, int64(3)).WillReturnError(context.Canceled)
+	if err := AppendMany(context.Background(), tx, testTenantID, testSiteID, TopicAlertState, payloads); err == nil {
+		t.Fatal("a sequence failure is reported")
+	}
+	mock.ExpectQuery("INSERT INTO syncam_realtime.site_sequences").WithArgs(testTenantID, testSiteID, int64(3)).WillReturnRows(pgxmock.NewRows([]string{"last_sequence"}).AddRow(int64(13)))
+	mock.ExpectExec("INSERT INTO syncam_realtime.messages").WithArgs(testTenantID, testSiteID, int64(10), TopicAlertState, pgxmock.AnyArg()).WillReturnError(context.Canceled)
+	if err := AppendMany(context.Background(), tx, testTenantID, testSiteID, TopicAlertState, payloads); err == nil {
+		t.Fatal("an insert failure is reported")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+	two := payloads[:2]
+	for _, bad := range []struct {
+		tenant, site, topic string
+		payloads            []any
+	}{
+		{"bad", testSiteID, TopicAlertState, two},
+		{testTenantID, "bad", TopicAlertState, two},
+		{testTenantID, testSiteID, "unknown", two},
+		{testTenantID, testSiteID, TopicAlertState, []any{make(chan int), make(chan int)}},
+	} {
+		if err := AppendMany(context.Background(), tx, bad.tenant, bad.site, bad.topic, bad.payloads); err == nil {
+			t.Fatalf("invalid batch accepted: %+v", bad)
+		}
+	}
+	if err := AppendMany(context.Background(), nil, testTenantID, testSiteID, TopicAlertState, two); err == nil {
+		t.Fatal("missing transaction accepted")
+	}
+}
+
 func TestPostgresRepositoryReplaysInOrder(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	if err != nil {
