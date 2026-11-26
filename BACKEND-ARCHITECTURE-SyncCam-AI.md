@@ -618,7 +618,7 @@ Access token claims: `sub, email, tenant_id, site_ids[], scopes[], roles[], data
 | POST | `/alerts/{id}/dispatch` | `{ "guard_id": "...", "priority": "high" }` → guard app push; auto-select nearest on-shift if `guard_id` omitted |
 | POST | `/alerts/{id}/escalate` | Raise severity + trigger phone tree (critical waves); `{ "severity": "critical" }` |
 | POST | `/alerts/{id}/dismiss` | **Reason required** (false_positive/duplicate/handled) → eval-svc feedback |
-| POST | `/alerts/dismiss` | **Implemented.** Batch remove (1–100 alerts, dashboard "Remove" / "Remove all shown"): `{ "alert_ids": [...], "reason": "False positive" }`. Alerts become `dismissed` and leave the queue; row, dismiss action and audit event are kept |
+| POST | `/alerts/dismiss` | **Implemented.** Batch remove (1–100 alerts, dashboard "Remove" / "Remove all shown"): `{ "alert_ids": [...], "reason": "False positive" }`. Alerts become `dismissed` and leave the queue in one transaction; rows are kept, each alert gets a dismiss action (own `request_id`, batch ID in the payload) and the batch gets one audit event |
 | POST | `/alerts/{id}/snooze` | `{ "minutes": 15 }` (15/60) |
 | POST | `/alerts/{id}/notes` | Note thread (alert-level) |
 | POST | `/alerts/acknowledge-all` | Supervisor-confirmed for critical (`{ "severity_min": "high" }`) |

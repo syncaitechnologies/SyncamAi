@@ -40,7 +40,7 @@ type Repository interface {
 	ListSite(context.Context, string, string) ([]Alert, error)
 	Get(context.Context, string, string) (Alert, error)
 	Acknowledge(context.Context, AcknowledgeCommand) (AcknowledgeResult, error)
-	Dismiss(context.Context, DismissCommand) (Alert, error)
+	Dismiss(context.Context, DismissCommand) ([]string, error)
 }
 
 type transactionPool interface {

@@ -178,95 +178,160 @@ var DismissReasons = map[string]struct{}{
 	"Handled / no action needed": {},
 }
 
+// MaxDismissBatch is the most alerts one dismissal may remove (one queue page).
+const MaxDismissBatch = 100
+
+// DismissCommand removes up to MaxDismissBatch alerts in one request.
+// CanAccessSite decides, per alert site, whether the caller may remove it;
+// alerts it rejects are left untouched.
 type DismissCommand struct {
-	TenantID  string
-	SiteID    string
-	AlertID   string
-	ActorID   string
-	RequestID string
-	Reason    string
+	TenantID      string
+	AlertIDs      []string
+	ActorID       string
+	RequestID     string
+	Reason        string
+	CanAccessSite func(siteID string) bool
 }
 
-// Dismiss removes an alert from the operator queue. The row is kept (status
-// "dismissed") with an action and audit record; dismissing an alert that is
-// already dismissed returns it unchanged.
-func (r *PostgresRepository) Dismiss(ctx context.Context, command DismissCommand) (Alert, error) {
+// Dismiss removes alerts from the operator queue in one transaction. Rows are
+// kept (status "dismissed"); each removed alert gets its own action record
+// (alert_actions.request_id is unique per tenant, so each action gets a fresh
+// ID and carries the batch request ID in its payload), the batch gets one
+// audit event, and each site gets realtime updates. It returns the IDs that
+// are now dismissed, including ones that already were.
+func (r *PostgresRepository) Dismiss(ctx context.Context, command DismissCommand) ([]string, error) {
 	if r == nil || r.pool == nil {
-		return Alert{}, errors.New("postgres alert repository is unavailable")
+		return nil, errors.New("postgres alert repository is unavailable")
 	}
-	if err := validateDismiss(command); err != nil {
-		return Alert{}, err
+	alertIDs, err := validateDismiss(command)
+	if err != nil {
+		return nil, err
 	}
 	tx, err := beginTenantTx(ctx, r.pool, command.TenantID, pgx.ReadWrite)
 	if err != nil {
-		return Alert{}, err
+		return nil, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	alert, err := scanAlert(tx.QueryRow(ctx, alertSelect+`
-		WHERE tenant_id = $1::uuid AND alert_id = $2::uuid AND site_id = $3::uuid
-		FOR UPDATE`, command.TenantID, command.AlertID, command.SiteID))
-	if err == pgx.ErrNoRows {
-		return Alert{}, ErrAlertNotFound
-	}
+	rows, err := tx.Query(ctx, alertSelect+`
+		WHERE tenant_id = $1::uuid AND alert_id = ANY($2::uuid[])
+		ORDER BY alert_id
+		FOR UPDATE`, command.TenantID, alertIDs)
 	if err != nil {
-		return Alert{}, fmt.Errorf("lock alert: %w", err)
+		return nil, fmt.Errorf("lock alerts: %w", err)
 	}
-	if alert.Status == "dismissed" {
-		return alert, tx.Commit(ctx)
+	dismissed := []string{}
+	var changed []Alert
+	for rows.Next() {
+		alert, err := scanAlert(rows)
+		if err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("read alert: %w", err)
+		}
+		if !command.CanAccessSite(alert.SiteID) {
+			continue
+		}
+		dismissed = append(dismissed, alert.ID)
+		if alert.Status != "dismissed" {
+			alert.Status = "dismissed"
+			changed = append(changed, alert)
+		}
 	}
-	before := alert
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read alerts: %w", err)
+	}
+	if len(changed) == 0 {
+		return dismissed, tx.Commit(ctx)
+	}
+	changedIDs := make([]string, len(changed))
+	for index, alert := range changed {
+		changedIDs[index] = alert.ID
+	}
 	now := time.Now().UTC()
 	if _, err := tx.Exec(ctx, `
-		UPDATE alerts.alerts SET status = 'dismissed', updated_at = $4
-		WHERE tenant_id = $1::uuid AND alert_id = $2::uuid AND site_id = $3::uuid`,
-		command.TenantID, command.AlertID, command.SiteID, now); err != nil {
-		return Alert{}, fmt.Errorf("dismiss alert: %w", err)
+		UPDATE alerts.alerts SET status = 'dismissed', updated_at = $3
+		WHERE tenant_id = $1::uuid AND alert_id = ANY($2::uuid[])`,
+		command.TenantID, changedIDs, now); err != nil {
+		return nil, fmt.Errorf("dismiss alerts: %w", err)
 	}
-	alert.Status = "dismissed"
-	payload, err := json.Marshal(map[string]string{"reason": command.Reason})
+	payload, err := json.Marshal(map[string]string{"reason": command.Reason, "request_id": command.RequestID})
 	if err != nil {
-		return Alert{}, fmt.Errorf("encode alert dismissal: %w", err)
+		return nil, fmt.Errorf("encode alert dismissal: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO alerts.alert_actions (
 			action_id, tenant_id, alert_id, action, actor_type, actor_id, request_id, payload
-		) VALUES ($1::uuid, $2::uuid, $3::uuid, 'dismiss', 'user', $4, $5::uuid, $6::jsonb)`,
-		uuid.NewString(), command.TenantID, command.AlertID, command.ActorID, command.RequestID, payload,
+		)
+		SELECT gen_random_uuid(), $1::uuid, alert_id, 'dismiss', 'user', $2, gen_random_uuid(), $3::jsonb
+		FROM unnest($4::uuid[]) AS alert_id`,
+		command.TenantID, command.ActorID, payload, changedIDs,
 	); err != nil {
-		return Alert{}, fmt.Errorf("record alert action: %w", err)
+		return nil, fmt.Errorf("record alert actions: %w", err)
+	}
+	resourceType, resourceID := "alert", changedIDs[0]
+	if len(changedIDs) > 1 {
+		resourceType, resourceID = "alert_batch", command.RequestID
 	}
 	if _, err := audit.Append(ctx, tx, audit.Event{
 		TenantID: command.TenantID, ActorID: command.ActorID, Action: "alert.dismissed",
-		ResourceType: "alert", ResourceID: command.AlertID, RequestID: command.RequestID,
-		BeforeState: before, AfterState: map[string]any{"alert": alert, "reason": command.Reason}, OccurredAt: now,
+		ResourceType: resourceType, ResourceID: resourceID, RequestID: command.RequestID,
+		AfterState: map[string]any{"alert_ids": changedIDs, "status": "dismissed", "reason": command.Reason}, OccurredAt: now,
 	}); err != nil {
-		return Alert{}, fmt.Errorf("audit alert dismissal: %w", err)
+		return nil, fmt.Errorf("audit alert dismissal: %w", err)
 	}
-	if _, err := realtime.Append(ctx, tx, realtime.Event{
-		TenantID: command.TenantID, SiteID: command.SiteID,
-		Topic: realtime.TopicAlertState, Payload: map[string]any{"alert": alert, "action": "dismiss"},
-	}); err != nil {
-		return Alert{}, fmt.Errorf("publish alert dismissal: %w", err)
+	bySite := map[string][]any{}
+	var sites []string
+	for _, alert := range changed {
+		if _, seen := bySite[alert.SiteID]; !seen {
+			sites = append(sites, alert.SiteID)
+		}
+		bySite[alert.SiteID] = append(bySite[alert.SiteID], map[string]any{"alert": alert, "action": "dismiss"})
+	}
+	for _, site := range sites {
+		if err := realtime.AppendMany(ctx, tx, command.TenantID, site, realtime.TopicAlertState, bySite[site]); err != nil {
+			return nil, fmt.Errorf("publish alert dismissal: %w", err)
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return Alert{}, fmt.Errorf("commit alert dismissal: %w", err)
+		return nil, fmt.Errorf("commit alert dismissal: %w", err)
 	}
-	return alert, nil
+	return dismissed, nil
 }
 
-func validateDismiss(command DismissCommand) error {
-	for _, identifier := range []string{command.TenantID, command.SiteID, command.AlertID, command.RequestID} {
+// validateDismiss checks the command and returns its alert IDs, de-duplicated.
+// IDs that are not UUIDs can never match an alert, so they are dropped.
+func validateDismiss(command DismissCommand) ([]string, error) {
+	for _, identifier := range []string{command.TenantID, command.RequestID} {
 		if _, err := uuid.Parse(identifier); err != nil {
-			return fmt.Errorf("invalid alert dismissal identifier: %w", err)
+			return nil, fmt.Errorf("invalid alert dismissal identifier: %w", err)
 		}
 	}
 	if strings.TrimSpace(command.ActorID) == "" || len(command.ActorID) > 128 {
-		return errors.New("alert dismissal actor is required")
+		return nil, errors.New("alert dismissal actor is required")
 	}
 	if _, ok := DismissReasons[command.Reason]; !ok {
-		return errors.New("alert dismissal reason is not recognised")
+		return nil, errors.New("alert dismissal reason is not recognised")
 	}
-	return nil
+	if command.CanAccessSite == nil {
+		return nil, errors.New("alert dismissal needs a site access check")
+	}
+	if len(command.AlertIDs) == 0 || len(command.AlertIDs) > MaxDismissBatch {
+		return nil, fmt.Errorf("dismiss between 1 and %d alerts", MaxDismissBatch)
+	}
+	seen := map[string]struct{}{}
+	alertIDs := make([]string, 0, len(command.AlertIDs))
+	for _, raw := range command.AlertIDs {
+		parsed, err := uuid.Parse(strings.TrimSpace(raw))
+		if err != nil {
+			continue
+		}
+		id := parsed.String()
+		if _, dup := seen[id]; !dup {
+			seen[id] = struct{}{}
+			alertIDs = append(alertIDs, id)
+		}
+	}
+	return alertIDs, nil
 }
 
 const alertSelect = `
@@ -348,20 +413,26 @@ func (r *MemoryRepository) Acknowledge(_ context.Context, command AcknowledgeCom
 	return AcknowledgeResult{}, ErrAlertNotFound
 }
 
-func (r *MemoryRepository) Dismiss(_ context.Context, command DismissCommand) (Alert, error) {
-	if err := validateDismiss(command); err != nil {
-		return Alert{}, err
+func (r *MemoryRepository) Dismiss(_ context.Context, command DismissCommand) ([]string, error) {
+	alertIDs, err := validateDismiss(command)
+	if err != nil {
+		return nil, err
 	}
 	lockValue, _ := memoryLocks.LoadOrStore(r, &sync.Mutex{})
 	lock := lockValue.(*sync.Mutex)
 	lock.Lock()
 	defer lock.Unlock()
+	wanted := map[string]struct{}{}
+	for _, id := range alertIDs {
+		wanted[id] = struct{}{}
+	}
+	dismissed := []string{}
 	for index := range r.Alerts {
 		alert := &r.Alerts[index]
-		if alert.TenantID == command.TenantID && alert.SiteID == command.SiteID && alert.ID == command.AlertID {
+		if _, ok := wanted[alert.ID]; ok && alert.TenantID == command.TenantID && command.CanAccessSite(alert.SiteID) {
 			alert.Status = "dismissed"
-			return *alert, nil
+			dismissed = append(dismissed, alert.ID)
 		}
 	}
-	return Alert{}, ErrAlertNotFound
+	return dismissed, nil
 }
